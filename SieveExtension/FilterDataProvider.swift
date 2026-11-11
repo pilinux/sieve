@@ -10,6 +10,7 @@ import os
 
 final class FilterDataProvider: NEFilterDataProvider {
     private let logger = Logger(subsystem: "me.pilinux.Sieve.SieveExtension", category: "filter")
+    private let apps = AppKeys()
 
     override func startFilter() async throws {
         // No endpoints: match every outgoing flow except loopback.
@@ -29,7 +30,10 @@ final class FilterDataProvider: NEFilterDataProvider {
 
     override func handleNewFlow(_ flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
         let remote = (flow as? NEFilterSocketFlow)?.remoteFlowEndpoint.map { "\($0)" } ?? "unknown"
-        logger.log("flow to \(remote, privacy: .public)")
+        // Some flows carry only the process token.
+        let token = flow.sourceAppAuditToken ?? flow.sourceProcessAuditToken
+        let app = token.flatMap(apps.key) ?? "unknown"
+        logger.log("flow from \(app, privacy: .public) to \(remote, privacy: .public)")
         return .allow()
     }
 }
