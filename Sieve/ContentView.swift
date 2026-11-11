@@ -84,6 +84,9 @@ struct ContentView: View {
                 Tab("Rules", systemImage: "checklist") {
                     RulesView(filter: filter)
                 }
+                Tab("Profiles", systemImage: "wifi") {
+                    ProfilesView(filter: filter)
+                }
             }
         }
         .padding()

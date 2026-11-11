@@ -22,11 +22,13 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
     private let store = Store()
     private var listener: NSXPCListener?
     private var saving: Task<Void, Never>?
+    private var networks: Networks?
     private let ask = OSAllocatedUnfairLock(uncheckedState: Ask())
 
     override func startFilter() async throws {
         store.load()
         startListener()
+        networks = Networks { [store] in store.setNetworks($0) }
         saving = Task { [store] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(60))
@@ -168,7 +170,7 @@ extension FilterDataProvider: FilterXPC {
     }
 
     func stats(reply: @escaping @Sendable (Data) -> Void) {
-        reply((try? JSONEncoder().encode(store.statsWithFlags)) ?? Data())
+        reply((try? JSONEncoder().encode(store.statsForApp)) ?? Data())
     }
 
     func setList(_ id: String, domains: Data, reply: @escaping @Sendable (Data) -> Void) {

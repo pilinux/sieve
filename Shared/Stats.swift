@@ -16,6 +16,10 @@ struct Stats: Codable, Equatable {
     var hits: [UUID: Hit] = [:]
     /// Rules that are not needed, by rule ID. Filled in for the app only, never saved.
     var flags: [UUID: Flag] = [:]
+    /// The `NetworkSignature` of each network the Mac is on. Filled in for the app only.
+    var networks: Set<String> = []
+    /// The active profile. Filled in for the app only.
+    var profile: UUID?
     /// Hosts on any block list, enabled or not.
     var trackers: Set<String> = []
     /// Bytes in and out by `day(_:)`, then by app key. Keeps 31 days.
@@ -58,6 +62,8 @@ extension Stats {
         paths = try values.decodeIfPresent([String: String].self, forKey: .paths) ?? [:]
         hits = try values.decodeIfPresent([UUID: Hit].self, forKey: .hits) ?? [:]
         flags = try values.decodeIfPresent([UUID: Flag].self, forKey: .flags) ?? [:]
+        networks = try values.decodeIfPresent(Set<String>.self, forKey: .networks) ?? []
+        profile = try values.decodeIfPresent(UUID.self, forKey: .profile)
         trackers = try values.decodeIfPresent(Set<String>.self, forKey: .trackers) ?? []
         daily = try values.decodeIfPresent([String: [String: Int]].self, forKey: .daily) ?? [:]
     }

@@ -6,25 +6,29 @@ struct Config: Codable, Equatable {
     var rules: [Rule] = []
     var lists: [DomainList] = [.trackerShield]
     var limits: [Limit] = []
+    var profiles: [Profile] = []
 
     /// Decides one flow. Nil means: ask the user.
     /// - Parameter domains: the hosts of each list, by list ID.
     func verdict(
-        app: String, host: String?, isApple: Bool, domains: [String: Set<String>] = [:], overLimit: Bool = false
+        app: String, host: String?, isApple: Bool, domains: [String: Set<String>] = [:], overLimit: Bool = false,
+        profile: UUID? = nil
     ) -> Action? {
-        decide(app: app, host: host, isApple: isApple, domains: domains, overLimit: overLimit).action
+        decide(app: app, host: host, isApple: isApple, domains: domains, overLimit: overLimit, profile: profile).action
     }
 
     /// The verdict, and the rule that gave it.
+    /// - Parameter profile: the active profile. Rules of other profiles do not count.
     func decide(
-        app: String, host: String?, isApple: Bool, domains: [String: Set<String>], overLimit: Bool = false
+        app: String, host: String?, isApple: Bool, domains: [String: Set<String>], overLimit: Bool = false,
+        profile: UUID? = nil
     ) -> (action: Action?, rule: Rule?) {
         if mode == .off { return (.allow, nil) }
-        let appRule = rule(for: app)
+        let appRule = rule(for: app, profile: profile)
         if appRule?.action == .block { return (.block, appRule) }
         if overLimit { return (.block, nil) }
         if let host {
-            if let rule = hostRule(for: app, host: host) { return (rule.action, rule) }
+            if let rule = hostRule(for: app, host: host, profile: profile) { return (rule.action, rule) }
             if isListed(host, .allow, domains) { return (.allow, nil) }
             if isListed(host, .block, domains) { return (.block, nil) }
         }
@@ -53,8 +57,26 @@ struct Config: Codable, Equatable {
         rule(for: app, host: host)?.action
     }
 
-    private func rule(for app: String, host: String? = nil) -> Rule? {
-        rules.first { $0.app == app && $0.host == host }
+    /// A rule of the active profile beats one without a profile.
+    private func rule(for app: String, host: String? = nil, profile: UUID? = nil) -> Rule? {
+        let matches = rules.filter { $0.app == app && $0.host == host }
+        return matches.first { profile != nil && $0.profile == profile } ?? matches.first { $0.profile == nil }
+    }
+
+    /// The first profile whose network or schedule matches.
+    /// - Parameters:
+    ///   - networks: the `NetworkSignature` of each network the Mac is on.
+    ///   - weekday: 1 is Sunday, as in `Calendar`.
+    ///   - minute: minutes after midnight.
+    func activeProfile(networks: Set<String>, weekday: Int, minute: Int) -> UUID? {
+        profiles.first { profile in
+            if let network = profile.network, networks.contains(network) { return true }
+            guard let schedule = profile.schedule, schedule.weekdays.contains(weekday) else { return false }
+            // An end before the start runs past midnight.
+            return schedule.start <= schedule.end
+                ? (schedule.start..<schedule.end).contains(minute)
+                : minute >= schedule.start || minute < schedule.end
+        }?.id
     }
 
     /// Whether the app has used up its data limit.
@@ -73,17 +95,17 @@ struct Config: Codable, Equatable {
         if let bytes { limits.append(Limit(app: app, bytes: bytes, period: period)) }
     }
 
-    /// Replaces the app's rule for this host.
+    /// Replaces the app's rule for this host. Leaves rules of profiles alone.
     mutating func setAction(_ action: Action, for app: String, host: String? = nil) {
-        rules.removeAll { $0.app == app && $0.host == host }
+        rules.removeAll { $0.app == app && $0.host == host && $0.profile == nil }
         rules.append(Rule(app: app, host: host, action: action))
     }
 
     /// Checks the host, then each parent domain, so the most specific rule wins.
-    private func hostRule(for app: String, host: String) -> Rule? {
+    private func hostRule(for app: String, host: String, profile: UUID? = nil) -> Rule? {
         var domain = Substring(host)
         while true {
-            if let rule = rule(for: app, host: String(domain)) { return rule }
+            if let rule = rule(for: app, host: String(domain), profile: profile) { return rule }
             guard let dot = domain.firstIndex(of: ".") else { return nil }
             domain = domain[domain.index(after: dot)...]
         }
@@ -109,6 +131,7 @@ extension Config {
         rules = try values.decodeIfPresent([Rule].self, forKey: .rules) ?? defaults.rules
         lists = try values.decodeIfPresent([DomainList].self, forKey: .lists) ?? defaults.lists
         limits = try values.decodeIfPresent([Limit].self, forKey: .limits) ?? defaults.limits
+        profiles = try values.decodeIfPresent([Profile].self, forKey: .profiles) ?? defaults.profiles
     }
 }
 
@@ -145,4 +168,23 @@ struct Rule: Codable, Equatable, Identifiable {
     /// Nil: the rule covers the whole app. Else this domain and its subdomains.
     var host: String?
     var action: Action
+    /// Nil: the rule always counts. Else only while this profile is active.
+    var profile: UUID?
+}
+
+/// A set of rules that counts only on a network or during a schedule.
+struct Profile: Codable, Equatable, Identifiable {
+    var id = UUID()
+    var name: String
+    /// A `NetworkSignature`, such as `IPv4.Router=172.20.10.1;IPv4.RouterHardwareAddress=…`.
+    var network: String?
+    var schedule: Schedule?
+}
+
+struct Schedule: Codable, Equatable {
+    /// 1 is Sunday, as in `Calendar`.
+    var weekdays: Set<Int>
+    /// Minutes after midnight.
+    var start: Int
+    var end: Int
 }

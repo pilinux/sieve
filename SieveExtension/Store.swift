@@ -12,6 +12,8 @@ final class Store: Sendable {
         var domains: [String: Set<String>] = [:]
         /// Bytes counted so far for each open flow.
         var flowBytes: [UUID: Int] = [:]
+        /// The `NetworkSignature` of each network the Mac is on.
+        var networks: Set<String> = []
     }
 
     private let state = Mutex(State())
@@ -21,15 +23,28 @@ final class Store: Sendable {
     var config: Config { state.withLock { $0.config } }
     var stats: Stats { state.withLock { $0.stats } }
 
-    /// The stats, with a flag for each rule that is not needed.
-    var statsWithFlags: Stats {
-        let (config, stats, domains) = state.withLock { ($0.config, $0.stats, $0.domains) }
+    /// The stats, plus what only the app needs: rule flags, networks, and the active profile.
+    var statsForApp: Stats {
+        let (config, stats, domains, networks) = state.withLock { ($0.config, $0.stats, $0.domains, $0.networks) }
         let gone = Set(stats.paths.filter { !FileManager.default.fileExists(atPath: $0.value) }.keys)
         var result = stats
         for rule in config.rules {
             result.flags[rule.id] = config.flag(rule, gone: gone, domains: domains)
         }
+        result.networks = networks
+        result.profile = Self.activeProfile(config, networks)
         return result
+    }
+
+    func setNetworks(_ networks: Set<String>) {
+        state.withLock { $0.networks = networks }
+    }
+
+    private static func activeProfile(_ config: Config, _ networks: Set<String>) -> UUID? {
+        let now = Calendar.current.dateComponents([.weekday, .hour, .minute], from: .now)
+        return config.activeProfile(
+            networks: networks, weekday: now.weekday ?? 0, minute: (now.hour ?? 0) * 60 + (now.minute ?? 0)
+        )
     }
 
     func load() {
@@ -100,7 +115,8 @@ final class Store: Sendable {
             }
             let overLimit = $0.config.isOverLimit(app.key, daily: $0.stats.daily, today: today)
             let (action, rule) = $0.config.decide(
-                app: app.key, host: host, isApple: app.isApple, domains: $0.domains, overLimit: overLimit
+                app: app.key, host: host, isApple: app.isApple, domains: $0.domains, overLimit: overLimit,
+                profile: Self.activeProfile($0.config, $0.networks)
             )
             if let rule {
                 $0.stats.hits[rule.id, default: Hit()].count += 1
