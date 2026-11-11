@@ -11,6 +11,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var filter = Filter()
     @State private var launchesAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var selected: String?
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -27,8 +28,17 @@ struct ContentView: View {
                 .pickerStyle(.segmented)
                 .fixedSize()
             }
-            List(filter.stats.apps.keys.sorted(), id: \.self) { app in
-                Toggle(app, isOn: allowed(app))
+            HSplitView {
+                List(filter.stats.apps.keys.sorted(), id: \.self, selection: $selected) { app in
+                    Toggle(app, isOn: allowed(app))
+                }
+                List(filter.stats.apps[selected ?? "", default: []].sorted(), id: \.self) { host in
+                    Picker(host, selection: rule(app: selected ?? "", host: host)) {
+                        Text("Allow").tag(Action.allow as Action?)
+                        Text("Block").tag(Action.block as Action?)
+                    }
+                    .pickerStyle(.segmented)
+                }
             }
         }
         .padding()
@@ -58,6 +68,16 @@ struct ContentView: View {
         Binding(
             get: { filter.config.action(for: app) != .block },
             set: { on in filter.update { $0.setAction(on ? .allow : .block, for: app) } }
+        )
+    }
+
+    // No rule yet: neither segment is selected.
+    private func rule(app: String, host: String) -> Binding<Action?> {
+        Binding(
+            get: { filter.config.action(for: app, host: host) },
+            set: { action in
+                if let action { filter.update { $0.setAction(action, for: app, host: host) } }
+            }
         )
     }
 }

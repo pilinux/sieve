@@ -32,9 +32,9 @@ final class Store: Sendable {
         write(config, "config.json")
     }
 
-    func setAction(_ action: Action, for app: String) {
+    func setAction(_ action: Action, for app: String, host: String?) {
         let config = state.withLock {
-            $0.config.setAction(action, for: app)
+            $0.config.setAction(action, for: app, host: host)
             return $0.config
         }
         write(config, "config.json")
@@ -49,7 +49,7 @@ final class Store: Sendable {
                 $0.stats.apps[app.key] = hosts
                 $0.statsChanged = true
             }
-            return $0.config.verdict(app: app.key, isApple: app.isApple)
+            return $0.config.verdict(app: app.key, host: host, isApple: app.isApple)
         }
     }
 

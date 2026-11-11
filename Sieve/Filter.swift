@@ -106,7 +106,7 @@ final class Filter: NSObject {
 }
 
 extension Filter: PromptXPC {
-    nonisolated func prompt(app: String, host: String, reply: @escaping @Sendable (String) -> Void) {
+    nonisolated func prompt(app: String, host: String, reply: @escaping @Sendable (String, Bool) -> Void) {
         Task { @MainActor in
             NSApp.activate()
             let alert = NSAlert()
@@ -114,8 +114,10 @@ extension Filter: PromptXPC {
             alert.informativeText = host.isEmpty ? "Unknown host" : host
             alert.addButton(withTitle: "Allow")
             alert.addButton(withTitle: "Block")
+            alert.showsSuppressionButton = !host.isEmpty
+            alert.suppressionButton?.title = "This host only"
             let allow = alert.runModal() == .alertFirstButtonReturn
-            reply((allow ? Action.allow : .block).rawValue)
+            reply((allow ? Action.allow : .block).rawValue, alert.suppressionButton?.state == .on)
         }
     }
 }

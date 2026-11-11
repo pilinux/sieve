@@ -56,21 +56,21 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         // Some flows carry only the process token.
         let token = flow.sourceAppAuditToken ?? flow.sourceProcessAuditToken
         let app = token.flatMap(apps.app) ?? App("unknown")
-        let host = flow.url?.host ?? (flow as? NEFilterSocketFlow)?.remoteHostname
+        let host = flow.hostname
         let action = store.verdict(app: app, host: host)
         logger.log("\(action?.rawValue ?? "ask", privacy: .public) \(app.key, privacy: .public) to \(host ?? "?", privacy: .public)")
         switch action {
         case .allow: return .allow()
         case .block: return .drop()
-        case nil: return pauseAndAsk(app: app.key, host: host ?? "", flow: flow)
+        case nil: return pauseAndAsk(app: app.key, host: host, flow: flow)
         }
     }
 
     /// Pauses the flow until the user answers. Allows it if the Sieve app is not running.
-    private func pauseAndAsk(app: String, host: String, flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
+    private func pauseAndAsk(app: String, host: String?, flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
         guard let client = ask.withLockUnchecked({ $0.client }),
               let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in
-                  answer(app: app, action: nil)
+                  answer(app: app, host: nil, action: nil)
               }) as? PromptXPC
         else { return .allow() }
 
@@ -80,19 +80,22 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         }
         // Later flows of the same app wait for the same answer.
         if first {
-            prompt.prompt(app: app, host: host) { [self] answer in
-                self.answer(app: app, action: Action(rawValue: answer))
+            prompt.prompt(app: app, host: host ?? "") { [self] answer, hostOnly in
+                self.answer(app: app, host: hostOnly ? host : nil, action: Action(rawValue: answer))
             }
         }
         return .pause()
     }
 
-    /// Resumes the app's waiting flows. No answer: allow once, save no rule.
-    private func answer(app: String, action: Action?) {
-        if let action { store.setAction(action, for: app) }
+    /// Saves the answer as a rule, then resumes the app's waiting flows by the rules.
+    /// Flows the rules leave undecided are allowed once.
+    private func answer(app: String, host: String?, action: Action?) {
+        if let action { store.setAction(action, for: app, host: host) }
         let flows = ask.withLockUnchecked { $0.waiting.removeValue(forKey: app) ?? [] }
+        let config = store.config
         for flow in flows {
-            resumeFlow(flow, with: action == .block ? NEFilterNewFlowVerdict.drop() : .allow())
+            let verdict = config.verdict(app: app, host: flow.hostname, isApple: false)
+            resumeFlow(flow, with: verdict == .block ? NEFilterNewFlowVerdict.drop() : .allow())
         }
     }
 
@@ -111,6 +114,10 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         listener.resume()
         self.listener = listener
     }
+}
+
+private extension NEFilterFlow {
+    var hostname: String? { url?.host ?? (self as? NEFilterSocketFlow)?.remoteHostname }
 }
 
 extension FilterDataProvider: NSXPCListenerDelegate {
