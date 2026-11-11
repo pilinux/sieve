@@ -5,6 +5,8 @@ import Foundation
     func config(reply: @escaping @Sendable (Data) -> Void)
     func setConfig(_ config: Data, reply: @escaping @Sendable (Data) -> Void)
     func stats(reply: @escaping @Sendable (Data) -> Void)
+    /// Stores a downloaded list, as UTF-8 text. Replies when done.
+    func setList(_ id: String, domains: Data, reply: @escaping @Sendable (Data) -> Void)
 }
 
 /// What the extension asks the app, in Ask mode.

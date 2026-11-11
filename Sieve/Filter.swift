@@ -60,11 +60,29 @@ final class Filter: NSObject {
         }
     }
 
+    /// Downloads the list and hands it to the extension.
+    func load(_ list: DomainList) async {
+        do {
+            guard let url = URL(string: list.url) else { throw URLError(.badURL) }
+            let (data, response) = try await URLSession.shared.data(from: url)
+            if let response = response as? HTTPURLResponse, response.statusCode != 200 {
+                throw URLError(.badServerResponse)
+            }
+            if await send({ $0.setList(list.id, domains: data, reply: $1) }) == nil {
+                throw URLError(.cannotConnectToHost)
+            }
+            status = "Loaded \(list.name)"
+        } catch {
+            status = "Cannot load \(list.name): \(error.localizedDescription)"
+        }
+    }
+
     /// Sends one message. Nil if the extension cannot be reached.
     private func send(_ message: (FilterXPC, @escaping @Sendable (Data) -> Void) -> Void) async -> Data? {
         await withCheckedContinuation { continuation in
             // XPC calls either the reply or the error handler, never both.
-            let proxy = xpc().remoteObjectProxyWithErrorHandler { _ in
+            // `@Sendable` keeps the handler off the main actor. XPC calls it on its own queue.
+            let proxy = xpc().remoteObjectProxyWithErrorHandler { @Sendable _ in
                 continuation.resume(returning: nil)
             } as? FilterXPC
             guard let proxy else { return continuation.resume(returning: nil) }
@@ -80,7 +98,7 @@ final class Filter: NSObject {
         connection.remoteObjectInterface = NSXPCInterface(with: FilterXPC.self)
         connection.exportedInterface = NSXPCInterface(with: PromptXPC.self)
         connection.exportedObject = self
-        connection.invalidationHandler = { [weak self] in
+        connection.invalidationHandler = { @Sendable [weak self] in
             Task { @MainActor in self?.connection = nil }
         }
         connection.resume()

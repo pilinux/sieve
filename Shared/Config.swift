@@ -4,13 +4,19 @@ import Foundation
 struct Config: Codable, Equatable {
     var mode = Mode.quiet
     var rules: [Rule] = []
+    var lists: [DomainList] = [.trackerShield]
 
     /// Decides one flow. Nil means: ask the user.
-    func verdict(app: String, host: String?, isApple: Bool) -> Action? {
+    /// - Parameter domains: the hosts of each list, by list ID.
+    func verdict(app: String, host: String?, isApple: Bool, domains: [String: Set<String>] = [:]) -> Action? {
         if mode == .off { return .allow }
         let appAction = action(for: app)
         if appAction == .block { return .block }
-        if let host, let action = hostAction(for: app, host: host) { return action }
+        if let host {
+            if let action = hostAction(for: app, host: host) { return action }
+            if isListed(host, .allow, domains) { return .allow }
+            if isListed(host, .block, domains) { return .block }
+        }
         if appAction == .allow { return .allow }
         if isApple { return .allow }
         return mode == .ask ? nil : .allow
@@ -35,6 +41,22 @@ struct Config: Codable, Equatable {
             guard let dot = domain.firstIndex(of: ".") else { return nil }
             domain = domain[domain.index(after: dot)...]
         }
+    }
+
+    /// List entries match the exact host only.
+    private func isListed(_ host: String, _ action: Action, _ domains: [String: Set<String>]) -> Bool {
+        lists.contains { $0.enabled && $0.action == action && domains[$0.id]?.contains(host) == true }
+    }
+}
+
+extension Config {
+    // Missing keys get defaults, so a config from an older build still loads.
+    init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = Config()
+        mode = try values.decodeIfPresent(Mode.self, forKey: .mode) ?? defaults.mode
+        rules = try values.decodeIfPresent([Rule].self, forKey: .rules) ?? defaults.rules
+        lists = try values.decodeIfPresent([DomainList].self, forKey: .lists) ?? defaults.lists
     }
 }
 

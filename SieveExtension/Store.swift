@@ -8,6 +8,8 @@ final class Store: Sendable {
         var config = Config()
         var stats = Stats()
         var statsChanged = false
+        /// The hosts of each list, by list ID.
+        var domains: [String: Set<String>] = [:]
     }
 
     private let state = Mutex(State())
@@ -20,11 +22,37 @@ final class Store: Sendable {
     func load() {
         let config = read(Config.self, "config.json")
         let stats = read(Stats.self, "stats.json")
+        var domains: [String: Set<String>] = [:]
+        for list in (config ?? Config()).lists {
+            let cached = folder.appending(path: "lists/\(list.id).txt")
+            // Tracker Shield works before its first refresh.
+            let bundled = list.id == DomainList.trackerShield.id
+                ? Bundle.main.url(forResource: "trackers", withExtension: "txt") : nil
+            if let text = (try? String(contentsOf: cached, encoding: .utf8))
+                ?? bundled.flatMap({ try? String(contentsOf: $0, encoding: .utf8) }) {
+                domains[list.id] = DomainList.parse(text)
+            }
+        }
         state.withLock {
             $0.config = config ?? Config()
             $0.stats = stats ?? Stats()
+            $0.domains = domains
         }
         if config == nil { write(Config(), "config.json") }
+    }
+
+    /// Saves a downloaded list and uses it at once.
+    func setList(_ id: String, text: String) {
+        // The ID names a file. Keep it inside the lists folder.
+        guard !id.contains("/") else { return }
+        let hosts = DomainList.parse(text)
+        state.withLock { $0.domains[id] = hosts }
+        do {
+            try FileManager.default.createDirectory(at: folder.appending(path: "lists"), withIntermediateDirectories: true)
+            try text.write(to: folder.appending(path: "lists/\(id).txt"), atomically: true, encoding: .utf8)
+        } catch {
+            logger.error("Cannot save list \(id, privacy: .public): \(error, privacy: .public)")
+        }
     }
 
     func setConfig(_ config: Config) {
@@ -49,7 +77,7 @@ final class Store: Sendable {
                 $0.stats.apps[app.key] = hosts
                 $0.statsChanged = true
             }
-            return $0.config.verdict(app: app.key, host: host, isApple: app.isApple)
+            return $0.config.verdict(app: app.key, host: host, isApple: app.isApple, domains: $0.domains)
         }
     }
 

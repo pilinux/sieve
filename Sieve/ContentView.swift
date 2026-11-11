@@ -28,16 +28,23 @@ struct ContentView: View {
                 .pickerStyle(.segmented)
                 .fixedSize()
             }
-            HSplitView {
-                List(filter.stats.apps.keys.sorted(), id: \.self, selection: $selected) { app in
-                    Toggle(app, isOn: allowed(app))
-                }
-                List(filter.stats.apps[selected ?? "", default: []].sorted(), id: \.self) { host in
-                    Picker(host, selection: rule(app: selected ?? "", host: host)) {
-                        Text("Allow").tag(Action.allow as Action?)
-                        Text("Block").tag(Action.block as Action?)
+            TabView {
+                Tab("Apps", systemImage: "app") {
+                    HSplitView {
+                        List(filter.stats.apps.keys.sorted(), id: \.self, selection: $selected) { app in
+                            Toggle(app, isOn: allowed(app))
+                        }
+                        List(filter.stats.apps[selected ?? "", default: []].sorted(), id: \.self) { host in
+                            Picker(host, selection: rule(app: selected ?? "", host: host)) {
+                                Text("Allow").tag(Action.allow as Action?)
+                                Text("Block").tag(Action.block as Action?)
+                            }
+                            .pickerStyle(.segmented)
+                        }
                     }
-                    .pickerStyle(.segmented)
+                }
+                Tab("Lists", systemImage: "list.bullet") {
+                    ListsView(filter: filter)
                 }
             }
         }
