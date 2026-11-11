@@ -11,11 +11,20 @@ import os
 final class FilterDataProvider: NEFilterDataProvider {
     private let logger = Logger(subsystem: "me.pilinux.Sieve.SieveExtension", category: "filter")
     private let apps = AppKeys()
-    private let configURL = URL.applicationSupportDirectory.appending(path: "me.pilinux.Sieve/config.json")
-    private var config = Config()
+    private let store = Store()
+    private var listener: NSXPCListener?
+    private var saving: Task<Void, Never>?
 
     override func startFilter() async throws {
-        config = loadConfig()
+        store.load()
+        startListener()
+        saving = Task { [store] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                store.saveStats()
+            }
+        }
+
         // No endpoints: match every outgoing flow except loopback.
         let outbound = NENetworkRule(
             remoteNetworkEndpoint: nil, remotePrefix: 0,
@@ -29,38 +38,60 @@ final class FilterDataProvider: NEFilterDataProvider {
         try await apply(settings)
     }
 
-    override func stopFilter(with reason: NEProviderStopReason) async {}
+    override func stopFilter(with reason: NEProviderStopReason) async {
+        saving?.cancel()
+        store.saveStats()
+    }
 
     override func handleNewFlow(_ flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
-        let remote = (flow as? NEFilterSocketFlow)?.remoteFlowEndpoint.map { "\($0)" } ?? "unknown"
         // Some flows carry only the process token.
         let token = flow.sourceAppAuditToken ?? flow.sourceProcessAuditToken
         let app = token.flatMap(apps.key) ?? "unknown"
-        let action = config.verdict(app: app)
-        logger.log("\(action.rawValue, privacy: .public) \(app, privacy: .public) to \(remote, privacy: .public)")
+        let host = flow.url?.host ?? (flow as? NEFilterSocketFlow)?.remoteHostname
+        let action = store.verdict(app: app, host: host)
+        logger.log("\(action.rawValue, privacy: .public) \(app, privacy: .public) to \(host ?? "?", privacy: .public)")
         return action == .block ? .drop() : .allow()
     }
 
-    private func loadConfig() -> Config {
-        do {
-            return try JSONDecoder().decode(Config.self, from: Data(contentsOf: configURL))
-        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
-            save(Config())
-        } catch {
-            // Keep the broken file for the user to inspect.
-            logger.error("Cannot read config.json, using defaults: \(error, privacy: .public)")
+    private func startListener() {
+        guard let name = Bundle.main.machServiceName else {
+            logger.error("No NEMachServiceName in Info.plist")
+            return
         }
-        return Config()
+        // The service name starts with the team ID. Accept only apps signed by that team.
+        let team = name.prefix { $0 != "." }
+        let listener = NSXPCListener(machServiceName: name)
+        listener.setConnectionCodeSigningRequirement(
+            "anchor apple generic and certificate leaf[subject.OU] = \"\(team)\""
+        )
+        listener.delegate = self
+        listener.resume()
+        self.listener = listener
+    }
+}
+
+extension FilterDataProvider: NSXPCListenerDelegate {
+    func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
+        connection.exportedInterface = NSXPCInterface(with: FilterXPC.self)
+        connection.exportedObject = self
+        connection.resume()
+        return true
+    }
+}
+
+extension FilterDataProvider: FilterXPC {
+    func config(reply: @escaping @Sendable (Data) -> Void) {
+        reply((try? JSONEncoder().encode(store.config)) ?? Data())
     }
 
-    private func save(_ config: Config) {
-        do {
-            try FileManager.default.createDirectory(
-                at: configURL.deletingLastPathComponent(), withIntermediateDirectories: true
-            )
-            try JSONEncoder().encode(config).write(to: configURL, options: .atomic)
-        } catch {
-            logger.error("Cannot write config.json: \(error, privacy: .public)")
+    func setConfig(_ config: Data, reply: @escaping @Sendable (Data) -> Void) {
+        if let config = try? JSONDecoder().decode(Config.self, from: config) {
+            store.setConfig(config)
         }
+        reply((try? JSONEncoder().encode(store.config)) ?? Data())
+    }
+
+    func stats(reply: @escaping @Sendable (Data) -> Void) {
+        reply((try? JSONEncoder().encode(store.stats)) ?? Data())
     }
 }
