@@ -79,6 +79,7 @@ final class Store: Sendable {
                 $0.stats.apps[app.key] = hosts
                 $0.statsChanged = true
             }
+            if app.isApple, $0.stats.apple.insert(app.key).inserted { $0.statsChanged = true }
             let action = $0.config.verdict(app: app.key, host: host, isApple: app.isApple, domains: $0.domains)
             if action == .block {
                 $0.stats.blocked[Stats.day(.now), default: 0] += 1

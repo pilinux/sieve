@@ -25,8 +25,23 @@ struct ContentView: View {
             TabView {
                 Tab("Apps", systemImage: "app") {
                     HSplitView {
-                        List(filter.stats.apps.keys.sorted(), id: \.self, selection: $selected) { app in
-                            AppSwitch(filter: filter, app: app)
+                        List(selection: $selected) {
+                            let undecided = filter.stats.undecided(filter.config)
+                            Section("Undecided") {
+                                ForEach(undecided, id: \.self) { app in
+                                    HStack {
+                                        Text(app).lineLimit(1).truncationMode(.middle)
+                                        Spacer()
+                                        Button("Allow") { filter.update { $0.setAction(.allow, for: app) } }
+                                        Button("Block") { filter.update { $0.setAction(.block, for: app) } }
+                                    }
+                                }
+                            }
+                            Section("Apps") {
+                                ForEach(filter.stats.apps.keys.filter { !undecided.contains($0) }.sorted(), id: \.self) { app in
+                                    AppSwitch(filter: filter, app: app)
+                                }
+                            }
                         }
                         List(filter.stats.apps[selected ?? "", default: []].sorted(), id: \.self) { host in
                             Picker(host, selection: rule(app: selected ?? "", host: host)) {

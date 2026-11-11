@@ -97,6 +97,15 @@ struct VerdictTests {
         #expect(config.verdict(app: app, host: "other.com", isApple: false) == nil)
     }
 
+    @Test func undecidedSkipsAppleAndAppsWithRules() {
+        let stats = Stats(apps: [app: [], "com.apple.Safari": [], "decided": [], "host-only": []], apple: ["com.apple.Safari"])
+        let config = Config(rules: [
+            Rule(app: "decided", action: .block),
+            Rule(app: "host-only", host: "example.com", action: .block),
+        ])
+        #expect(stats.undecided(config) == [app, "host-only"])
+    }
+
     @Test func setActionKeepsAppAndHostRulesApart() {
         var config = Config()
         config.setAction(.allow, for: app)
