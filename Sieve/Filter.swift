@@ -1,3 +1,4 @@
+import AppKit
 import NetworkExtension
 import Observation
 import SystemExtensions
@@ -77,6 +78,8 @@ final class Filter: NSObject {
         let name = Bundle(url: url)?.machServiceName ?? ""
         let connection = NSXPCConnection(machServiceName: name)
         connection.remoteObjectInterface = NSXPCInterface(with: FilterXPC.self)
+        connection.exportedInterface = NSXPCInterface(with: PromptXPC.self)
+        connection.exportedObject = self
         connection.invalidationHandler = { [weak self] in
             Task { @MainActor in self?.connection = nil }
         }
@@ -98,6 +101,21 @@ final class Filter: NSObject {
             status = "On"
         } catch {
             status = "Error: \(error.localizedDescription)"
+        }
+    }
+}
+
+extension Filter: PromptXPC {
+    nonisolated func prompt(app: String, host: String, reply: @escaping @Sendable (String) -> Void) {
+        Task { @MainActor in
+            NSApp.activate()
+            let alert = NSAlert()
+            alert.messageText = "\(app) wants to connect"
+            alert.informativeText = host.isEmpty ? "Unknown host" : host
+            alert.addButton(withTitle: "Allow")
+            alert.addButton(withTitle: "Block")
+            let allow = alert.runModal() == .alertFirstButtonReturn
+            reply((allow ? Action.allow : .block).rawValue)
         }
     }
 }

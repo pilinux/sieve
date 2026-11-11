@@ -5,10 +5,12 @@ struct Config: Codable, Equatable {
     var mode = Mode.quiet
     var rules: [Rule] = []
 
-    /// Decides one flow. Off allows all. Otherwise the app's rule wins, else allow.
-    func verdict(app: String) -> Action {
-        guard mode != .off else { return .allow }
-        return action(for: app) ?? .allow
+    /// Decides one flow. Nil means: ask the user.
+    func verdict(app: String, isApple: Bool) -> Action? {
+        if mode == .off { return .allow }
+        if let action = action(for: app) { return action }
+        if isApple { return .allow }
+        return mode == .ask ? nil : .allow
     }
 
     func action(for app: String) -> Action? {
@@ -23,7 +25,7 @@ struct Config: Codable, Equatable {
 }
 
 enum Mode: String, Codable {
-    case off, quiet
+    case off, ask, quiet
 }
 
 enum Action: String, Codable {

@@ -7,6 +7,12 @@ import Foundation
     func stats(reply: @escaping @Sendable (Data) -> Void)
 }
 
+/// What the extension asks the app, in Ask mode.
+@objc protocol PromptXPC {
+    /// Replies with an `Action` raw value.
+    func prompt(app: String, host: String, reply: @escaping @Sendable (String) -> Void)
+}
+
 extension Bundle {
     /// The extension's XPC service name, from its Info.plist.
     var machServiceName: String? {

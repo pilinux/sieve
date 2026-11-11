@@ -32,16 +32,24 @@ final class Store: Sendable {
         write(config, "config.json")
     }
 
-    /// Decides one flow and records the app and host.
-    func verdict(app: String, host: String?) -> Action {
+    func setAction(_ action: Action, for app: String) {
+        let config = state.withLock {
+            $0.config.setAction(action, for: app)
+            return $0.config
+        }
+        write(config, "config.json")
+    }
+
+    /// Decides one flow and records the app and host. Nil means: ask the user.
+    func verdict(app: App, host: String?) -> Action? {
         state.withLock {
-            var hosts = $0.stats.apps[app] ?? []
+            var hosts = $0.stats.apps[app.key] ?? []
             if let host { hosts.insert(host) }
-            if $0.stats.apps[app] != hosts {
-                $0.stats.apps[app] = hosts
+            if $0.stats.apps[app.key] != hosts {
+                $0.stats.apps[app.key] = hosts
                 $0.statsChanged = true
             }
-            return $0.config.verdict(app: app)
+            return $0.config.verdict(app: app.key, isApple: app.isApple)
         }
     }
 

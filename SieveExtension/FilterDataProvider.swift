@@ -8,12 +8,21 @@
 import NetworkExtension
 import os
 
-final class FilterDataProvider: NEFilterDataProvider {
+// Shared state lives in `Store` and behind `ask`'s lock. `listener` and `saving` change only in start and stop.
+final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
+    private struct Ask {
+        /// The Sieve app, while it runs. Ask mode needs it.
+        var client: NSXPCConnection?
+        /// Flows waiting for the user's answer, by app key.
+        var waiting: [String: [NEFilterFlow]] = [:]
+    }
+
     private let logger = Logger(subsystem: "me.pilinux.Sieve.SieveExtension", category: "filter")
     private let apps = AppKeys()
     private let store = Store()
     private var listener: NSXPCListener?
     private var saving: Task<Void, Never>?
+    private let ask = OSAllocatedUnfairLock(uncheckedState: Ask())
 
     override func startFilter() async throws {
         store.load()
@@ -46,11 +55,45 @@ final class FilterDataProvider: NEFilterDataProvider {
     override func handleNewFlow(_ flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
         // Some flows carry only the process token.
         let token = flow.sourceAppAuditToken ?? flow.sourceProcessAuditToken
-        let app = token.flatMap(apps.key) ?? "unknown"
+        let app = token.flatMap(apps.app) ?? App("unknown")
         let host = flow.url?.host ?? (flow as? NEFilterSocketFlow)?.remoteHostname
         let action = store.verdict(app: app, host: host)
-        logger.log("\(action.rawValue, privacy: .public) \(app, privacy: .public) to \(host ?? "?", privacy: .public)")
-        return action == .block ? .drop() : .allow()
+        logger.log("\(action?.rawValue ?? "ask", privacy: .public) \(app.key, privacy: .public) to \(host ?? "?", privacy: .public)")
+        switch action {
+        case .allow: return .allow()
+        case .block: return .drop()
+        case nil: return pauseAndAsk(app: app.key, host: host ?? "", flow: flow)
+        }
+    }
+
+    /// Pauses the flow until the user answers. Allows it if the Sieve app is not running.
+    private func pauseAndAsk(app: String, host: String, flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
+        guard let client = ask.withLockUnchecked({ $0.client }),
+              let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in
+                  answer(app: app, action: nil)
+              }) as? PromptXPC
+        else { return .allow() }
+
+        let first = ask.withLockUnchecked {
+            defer { $0.waiting[app, default: []].append(flow) }
+            return $0.waiting[app] == nil
+        }
+        // Later flows of the same app wait for the same answer.
+        if first {
+            prompt.prompt(app: app, host: host) { [self] answer in
+                self.answer(app: app, action: Action(rawValue: answer))
+            }
+        }
+        return .pause()
+    }
+
+    /// Resumes the app's waiting flows. No answer: allow once, save no rule.
+    private func answer(app: String, action: Action?) {
+        if let action { store.setAction(action, for: app) }
+        let flows = ask.withLockUnchecked { $0.waiting.removeValue(forKey: app) ?? [] }
+        for flow in flows {
+            resumeFlow(flow, with: action == .block ? NEFilterNewFlowVerdict.drop() : .allow())
+        }
     }
 
     private func startListener() {
@@ -74,6 +117,11 @@ extension FilterDataProvider: NSXPCListenerDelegate {
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
         connection.exportedInterface = NSXPCInterface(with: FilterXPC.self)
         connection.exportedObject = self
+        connection.remoteObjectInterface = NSXPCInterface(with: PromptXPC.self)
+        connection.invalidationHandler = { [self, weak connection] in
+            ask.withLockUnchecked { if $0.client === connection { $0.client = nil } }
+        }
+        ask.withLockUnchecked { $0.client = connection }
         connection.resume()
         return true
     }

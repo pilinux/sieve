@@ -1,24 +1,35 @@
 import Foundation
 import Security
 
-/// Names the app behind a flow. Third-party code: `TEAMID.identifier`.
-/// Apple code: the signing identifier. Anything else: the path.
+/// The app behind a flow.
+final class App: Sendable {
+    /// Third-party code: `TEAMID.identifier`. Apple code: the signing identifier. Anything else: the path.
+    let key: String
+    let isApple: Bool
+
+    init(_ key: String, isApple: Bool = false) {
+        self.key = key
+        self.isApple = isApple
+    }
+}
+
+/// Finds the app behind a flow.
 struct AppKeys {
     // A signature lookup reads from disk, so look up each process once.
-    private let cache = NSCache<NSData, NSString>()
+    private let cache = NSCache<NSData, App>()
 
-    func key(for auditToken: Data) -> String? {
+    func app(for auditToken: Data) -> App? {
         if let cached = cache.object(forKey: auditToken as NSData) {
-            return cached as String
+            return cached
         }
         // The PID is `val.5`. `audit_token_to_pid` returns the same, but needs libbsm.
         let pid = auditToken.withUnsafeBytes { $0.loadUnaligned(as: audit_token_t.self) }.val.5
-        guard let key = Self.lookUp(pid: pid_t(bitPattern: pid)) else { return nil }
-        cache.setObject(key as NSString, forKey: auditToken as NSData)
-        return key
+        guard let app = Self.lookUp(pid: pid_t(bitPattern: pid)) else { return nil }
+        cache.setObject(app, forKey: auditToken as NSData)
+        return app
     }
 
-    private static func lookUp(pid: pid_t) -> String? {
+    private static func lookUp(pid: pid_t) -> App? {
         guard var path = path(of: pid) else { return nil }
 
         // An XPC service, such as WebKit's networking process, counts as the app that launched it.
@@ -41,19 +52,19 @@ struct AppKeys {
                 == errSecSuccess,
               let info = info as? [String: Any],
               let identifier = info[kSecCodeInfoIdentifier as String] as? String
-        else { return path }
+        else { return App(path) }
 
         if let team = info[kSecCodeInfoTeamIdentifier as String] as? String {
-            return "\(team).\(identifier)"
+            return App("\(team).\(identifier)")
         }
         // Check the signature only, not every file in the bundle.
         let flags = SecCSFlags(rawValue: kSecCSDoNotValidateResources | kSecCSDoNotValidateExecutable)
         var apple: SecRequirement?
         if SecRequirementCreateWithString("anchor apple" as CFString, [], &apple) == errSecSuccess, let apple,
            SecStaticCodeCheckValidity(code, flags, apple) == errSecSuccess {
-            return identifier
+            return App(identifier, isApple: true)
         }
-        return path
+        return App(path)
     }
 
     private static func path(of pid: pid_t) -> String? {
