@@ -5,18 +5,24 @@ struct Config: Codable, Equatable {
     var mode = Mode.quiet
     var rules: [Rule] = []
     var lists: [DomainList] = [.trackerShield]
+    var limits: [Limit] = []
 
     /// Decides one flow. Nil means: ask the user.
     /// - Parameter domains: the hosts of each list, by list ID.
-    func verdict(app: String, host: String?, isApple: Bool, domains: [String: Set<String>] = [:]) -> Action? {
-        decide(app: app, host: host, isApple: isApple, domains: domains).action
+    func verdict(
+        app: String, host: String?, isApple: Bool, domains: [String: Set<String>] = [:], overLimit: Bool = false
+    ) -> Action? {
+        decide(app: app, host: host, isApple: isApple, domains: domains, overLimit: overLimit).action
     }
 
     /// The verdict, and the rule that gave it.
-    func decide(app: String, host: String?, isApple: Bool, domains: [String: Set<String>]) -> (action: Action?, rule: Rule?) {
+    func decide(
+        app: String, host: String?, isApple: Bool, domains: [String: Set<String>], overLimit: Bool = false
+    ) -> (action: Action?, rule: Rule?) {
         if mode == .off { return (.allow, nil) }
         let appRule = rule(for: app)
         if appRule?.action == .block { return (.block, appRule) }
+        if overLimit { return (.block, nil) }
         if let host {
             if let rule = hostRule(for: app, host: host) { return (rule.action, rule) }
             if isListed(host, .allow, domains) { return (.allow, nil) }
@@ -49,6 +55,22 @@ struct Config: Codable, Equatable {
 
     private func rule(for app: String, host: String? = nil) -> Rule? {
         rules.first { $0.app == app && $0.host == host }
+    }
+
+    /// Whether the app has used up its data limit.
+    /// - Parameters:
+    ///   - daily: bytes by day, then by app key.
+    ///   - today: `Stats.day(_:)` of now.
+    func isOverLimit(_ app: String, daily: [String: [String: Int]], today: String) -> Bool {
+        guard let limit = limits.first(where: { $0.app == app }) else { return false }
+        let days = limit.period == .day ? [today] : daily.keys.filter { $0.hasPrefix(today.prefix(7)) }
+        return days.reduce(0) { $0 + (daily[$1]?[app] ?? 0) } >= limit.bytes
+    }
+
+    /// Replaces the app's limit. Nil bytes removes it.
+    mutating func setLimit(_ bytes: Int?, period: Period, for app: String) {
+        limits.removeAll { $0.app == app }
+        if let bytes { limits.append(Limit(app: app, bytes: bytes, period: period)) }
     }
 
     /// Replaces the app's rule for this host.
@@ -86,6 +108,7 @@ extension Config {
         mode = try values.decodeIfPresent(Mode.self, forKey: .mode) ?? defaults.mode
         rules = try values.decodeIfPresent([Rule].self, forKey: .rules) ?? defaults.rules
         lists = try values.decodeIfPresent([DomainList].self, forKey: .lists) ?? defaults.lists
+        limits = try values.decodeIfPresent([Limit].self, forKey: .limits) ?? defaults.limits
     }
 }
 
@@ -95,6 +118,17 @@ enum Mode: String, Codable {
 
 enum Action: String, Codable {
     case allow, block
+}
+
+/// Bytes in and out an app may use per period. Over it, new flows are dropped.
+struct Limit: Codable, Equatable {
+    var app: String
+    var bytes: Int
+    var period: Period
+}
+
+enum Period: String, Codable {
+    case day, month
 }
 
 /// Why a rule is not needed. The raw value is the text the app shows.

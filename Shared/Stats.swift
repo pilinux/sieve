@@ -18,6 +18,8 @@ struct Stats: Codable, Equatable {
     var flags: [UUID: Flag] = [:]
     /// Hosts on any block list, enabled or not.
     var trackers: Set<String> = []
+    /// Bytes in and out by `day(_:)`, then by app key. Keeps 31 days.
+    var daily: [String: [String: Int]] = [:]
 
     /// A to F, from the number of tracker hosts the app contacted.
     func grade(_ app: String) -> String {
@@ -57,6 +59,7 @@ extension Stats {
         hits = try values.decodeIfPresent([UUID: Hit].self, forKey: .hits) ?? [:]
         flags = try values.decodeIfPresent([UUID: Flag].self, forKey: .flags) ?? [:]
         trackers = try values.decodeIfPresent(Set<String>.self, forKey: .trackers) ?? []
+        daily = try values.decodeIfPresent([String: [String: Int]].self, forKey: .daily) ?? [:]
     }
 }
 

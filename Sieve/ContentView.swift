@@ -46,6 +46,21 @@ struct ContentView: View {
                         List {
                             if let selected {
                                 Section("Grade \(filter.stats.grade(selected))") {
+                                    HStack {
+                                        Text("Data limit")
+                                        TextField("Data limit", value: limit(selected), format: .number, prompt: Text("None"))
+                                            .labelsHidden()
+                                            .frame(width: 80)
+                                        Text("MB")
+                                        // A period needs a limit first.
+                                        if limit(selected).wrappedValue != nil {
+                                            Picker("per", selection: period(selected)) {
+                                                Text("Day").tag(Period.day)
+                                                Text("Month").tag(Period.month)
+                                            }
+                                            .fixedSize()
+                                        }
+                                    }
                                     ForEach(filter.stats.apps[selected, default: []].sorted(), id: \.self) { host in
                                         Picker(selection: rule(app: selected, host: host)) {
                                             Text("Allow").tag(Action.allow as Action?)
@@ -88,6 +103,30 @@ struct ContentView: View {
     }
 
     // No rule yet: neither segment is selected.
+    // In MB. Empty: no limit.
+    private func limit(_ app: String) -> Binding<Int?> {
+        Binding(
+            get: { filter.config.limits.first { $0.app == app }.map { $0.bytes / 1_000_000 } },
+            set: { megabytes in
+                filter.update { config in
+                    let period = config.limits.first { $0.app == app }?.period ?? .day
+                    config.setLimit(megabytes.map { $0 * 1_000_000 }, period: period, for: app)
+                }
+            }
+        )
+    }
+
+    private func period(_ app: String) -> Binding<Period> {
+        Binding(
+            get: { filter.config.limits.first { $0.app == app }?.period ?? .day },
+            set: { period in
+                filter.update { config in
+                    if let index = config.limits.firstIndex(where: { $0.app == app }) { config.limits[index].period = period }
+                }
+            }
+        )
+    }
+
     private func rule(app: String, host: String) -> Binding<Action?> {
         Binding(
             get: { filter.config.action(for: app, host: host) },
