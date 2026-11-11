@@ -6,21 +6,30 @@
 //
 
 import NetworkExtension
+import os
 
-class FilterDataProvider: NEFilterDataProvider {
+final class FilterDataProvider: NEFilterDataProvider {
+    private let logger = Logger(subsystem: "me.pilinux.Sieve.SieveExtension", category: "filter")
 
-    override func startFilter(completionHandler: @escaping (Error?) -> Void) {
-        // Add code to initialize the filter.
-        completionHandler(nil)
+    override func startFilter() async throws {
+        // No endpoints: match every outgoing flow except loopback.
+        let outbound = NENetworkRule(
+            remoteNetworkEndpoint: nil, remotePrefix: 0,
+            localNetworkEndpoint: nil, localPrefix: 0,
+            protocol: .any, direction: .outbound
+        )
+        let settings = NEFilterSettings(
+            rules: [NEFilterRule(networkRule: outbound, action: .filterData)],
+            defaultAction: .allow
+        )
+        try await apply(settings)
     }
-    
-    override func stopFilter(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        // Add code to clean up filter resources.
-        completionHandler()
-    }
-    
+
+    override func stopFilter(with reason: NEProviderStopReason) async {}
+
     override func handleNewFlow(_ flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
-        // Add code to determine if the flow should be dropped or not, downloading new rules if required.
+        let remote = (flow as? NEFilterSocketFlow)?.remoteFlowEndpoint.map { "\($0)" } ?? "unknown"
+        logger.log("flow to \(remote, privacy: .public)")
         return .allow()
     }
 }

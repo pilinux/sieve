@@ -8,17 +8,14 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var filter = Filter()
+
     var body: some View {
         VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+            Text(filter.status)
+            Button("Turn on") { filter.turnOn() }
         }
         .padding()
+        .task { await filter.resume() }
     }
-}
-
-#Preview {
-    ContentView()
 }
