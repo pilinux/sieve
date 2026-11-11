@@ -21,6 +21,17 @@ final class Store: Sendable {
     var config: Config { state.withLock { $0.config } }
     var stats: Stats { state.withLock { $0.stats } }
 
+    /// The stats, with a flag for each rule that is not needed.
+    var statsWithFlags: Stats {
+        let (config, stats, domains) = state.withLock { ($0.config, $0.stats, $0.domains) }
+        let gone = Set(stats.paths.filter { !FileManager.default.fileExists(atPath: $0.value) }.keys)
+        var result = stats
+        for rule in config.rules {
+            result.flags[rule.id] = config.flag(rule, gone: gone, domains: domains)
+        }
+        return result
+    }
+
     func load() {
         let config = read(Config.self, "config.json")
         let stats = read(Stats.self, "stats.json")
@@ -80,7 +91,15 @@ final class Store: Sendable {
                 $0.statsChanged = true
             }
             if app.isApple, $0.stats.apple.insert(app.key).inserted { $0.statsChanged = true }
-            let action = $0.config.verdict(app: app.key, host: host, isApple: app.isApple, domains: $0.domains)
+            if !app.path.isEmpty, $0.stats.paths.updateValue(app.path, forKey: app.key) != app.path {
+                $0.statsChanged = true
+            }
+            let (action, rule) = $0.config.decide(app: app.key, host: host, isApple: app.isApple, domains: $0.domains)
+            if let rule {
+                $0.stats.hits[rule.id, default: Hit()].count += 1
+                $0.stats.hits[rule.id]?.last = .now
+                $0.statsChanged = true
+            }
             if action == .block {
                 $0.stats.blocked[Stats.day(.now), default: 0] += 1
                 $0.statsChanged = true

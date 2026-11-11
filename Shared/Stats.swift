@@ -10,6 +10,12 @@ struct Stats: Codable, Equatable {
     var blocked: [String: Int] = [:]
     /// Keys of apps that are Apple platform binaries.
     var apple: Set<String> = []
+    /// The app bundle or executable on disk, by app key.
+    var paths: [String: String] = [:]
+    /// Flows each rule decided, by rule ID.
+    var hits: [UUID: Hit] = [:]
+    /// Rules that are not needed, by rule ID. Filled in for the app only, never saved.
+    var flags: [UUID: Flag] = [:]
 
     /// Non-Apple apps without an app rule, sorted.
     func undecided(_ config: Config) -> [String] {
@@ -30,5 +36,13 @@ extension Stats {
         bytes = try values.decodeIfPresent([String: Int].self, forKey: .bytes) ?? [:]
         blocked = try values.decodeIfPresent([String: Int].self, forKey: .blocked) ?? [:]
         apple = try values.decodeIfPresent(Set<String>.self, forKey: .apple) ?? []
+        paths = try values.decodeIfPresent([String: String].self, forKey: .paths) ?? [:]
+        hits = try values.decodeIfPresent([UUID: Hit].self, forKey: .hits) ?? [:]
+        flags = try values.decodeIfPresent([UUID: Flag].self, forKey: .flags) ?? [:]
     }
+}
+
+struct Hit: Codable, Equatable {
+    var count = 0
+    var last = Date.now
 }

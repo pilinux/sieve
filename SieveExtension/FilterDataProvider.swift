@@ -168,7 +168,7 @@ extension FilterDataProvider: FilterXPC {
     }
 
     func stats(reply: @escaping @Sendable (Data) -> Void) {
-        reply((try? JSONEncoder().encode(store.stats)) ?? Data())
+        reply((try? JSONEncoder().encode(store.statsWithFlags)) ?? Data())
     }
 
     func setList(_ id: String, domains: Data, reply: @escaping @Sendable (Data) -> Void) {

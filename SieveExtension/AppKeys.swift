@@ -5,10 +5,13 @@ import Security
 final class App: Sendable {
     /// Third-party code: `TEAMID.identifier`. Apple code: the signing identifier. Anything else: the path.
     let key: String
+    /// The app bundle or executable on disk.
+    let path: String
     let isApple: Bool
 
-    init(_ key: String, isApple: Bool = false) {
+    init(_ key: String, path: String = "", isApple: Bool = false) {
         self.key = key
+        self.path = path
         self.isApple = isApple
     }
 }
@@ -52,19 +55,19 @@ struct AppKeys {
                 == errSecSuccess,
               let info = info as? [String: Any],
               let identifier = info[kSecCodeInfoIdentifier as String] as? String
-        else { return App(path) }
+        else { return App(path, path: path) }
 
         if let team = info[kSecCodeInfoTeamIdentifier as String] as? String {
-            return App("\(team).\(identifier)")
+            return App("\(team).\(identifier)", path: path)
         }
         // Check the signature only, not every file in the bundle.
         let flags = SecCSFlags(rawValue: kSecCSDoNotValidateResources | kSecCSDoNotValidateExecutable)
         var apple: SecRequirement?
         if SecRequirementCreateWithString("anchor apple" as CFString, [], &apple) == errSecSuccess, let apple,
            SecStaticCodeCheckValidity(code, flags, apple) == errSecSuccess {
-            return App(identifier, isApple: true)
+            return App(identifier, path: path, isApple: true)
         }
-        return App(path)
+        return App(path, path: path)
     }
 
     private static func path(of pid: pid_t) -> String? {

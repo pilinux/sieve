@@ -55,6 +55,9 @@ struct ContentView: View {
                 Tab("Lists", systemImage: "list.bullet") {
                     ListsView(filter: filter)
                 }
+                Tab("Rules", systemImage: "checklist") {
+                    RulesView(filter: filter)
+                }
             }
         }
         .padding()

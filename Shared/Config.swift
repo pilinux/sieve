@@ -9,22 +9,46 @@ struct Config: Codable, Equatable {
     /// Decides one flow. Nil means: ask the user.
     /// - Parameter domains: the hosts of each list, by list ID.
     func verdict(app: String, host: String?, isApple: Bool, domains: [String: Set<String>] = [:]) -> Action? {
-        if mode == .off { return .allow }
-        let appAction = action(for: app)
-        if appAction == .block { return .block }
+        decide(app: app, host: host, isApple: isApple, domains: domains).action
+    }
+
+    /// The verdict, and the rule that gave it.
+    func decide(app: String, host: String?, isApple: Bool, domains: [String: Set<String>]) -> (action: Action?, rule: Rule?) {
+        if mode == .off { return (.allow, nil) }
+        let appRule = rule(for: app)
+        if appRule?.action == .block { return (.block, appRule) }
         if let host {
-            if let action = hostAction(for: app, host: host) { return action }
-            if isListed(host, .allow, domains) { return .allow }
-            if isListed(host, .block, domains) { return .block }
+            if let rule = hostRule(for: app, host: host) { return (rule.action, rule) }
+            if isListed(host, .allow, domains) { return (.allow, nil) }
+            if isListed(host, .block, domains) { return (.block, nil) }
         }
-        if appAction == .allow { return .allow }
-        if isApple { return .allow }
-        return mode == .ask ? nil : .allow
+        if let appRule { return (appRule.action, appRule) }
+        if isApple { return (.allow, nil) }
+        return (mode == .ask ? nil : .allow, nil)
+    }
+
+    /// Why a rule is not needed, or nil.
+    /// - Parameter gone: keys of apps no longer on disk.
+    func flag(_ rule: Rule, gone: Set<String>, domains: [String: Set<String>]) -> Flag? {
+        if gone.contains(rule.app) { return .appGone }
+        guard let host = rule.host else { return nil }
+        if action(for: rule.app) == .block { return .appBlocked }
+        if rule.action == .block, isListed(host, .block, domains) { return .blockList }
+        // The nearest parent domain rule decides the host when this rule is gone.
+        if let dot = host.firstIndex(of: "."),
+           hostRule(for: rule.app, host: String(host[host.index(after: dot)...]))?.action == rule.action {
+            return .parentRule
+        }
+        return nil
     }
 
     /// The app's rule for exactly this host. A nil host means the app rule.
     func action(for app: String, host: String? = nil) -> Action? {
-        rules.first { $0.app == app && $0.host == host }?.action
+        rule(for: app, host: host)?.action
+    }
+
+    private func rule(for app: String, host: String? = nil) -> Rule? {
+        rules.first { $0.app == app && $0.host == host }
     }
 
     /// Replaces the app's rule for this host.
@@ -34,10 +58,10 @@ struct Config: Codable, Equatable {
     }
 
     /// Checks the host, then each parent domain, so the most specific rule wins.
-    private func hostAction(for app: String, host: String) -> Action? {
+    private func hostRule(for app: String, host: String) -> Rule? {
         var domain = Substring(host)
         while true {
-            if let action = action(for: app, host: String(domain)) { return action }
+            if let rule = rule(for: app, host: String(domain)) { return rule }
             guard let dot = domain.firstIndex(of: ".") else { return nil }
             domain = domain[domain.index(after: dot)...]
         }
@@ -66,6 +90,14 @@ enum Mode: String, Codable {
 
 enum Action: String, Codable {
     case allow, block
+}
+
+/// Why a rule is not needed. The raw value is the text the app shows.
+enum Flag: String, Codable {
+    case appGone = "App is gone"
+    case appBlocked = "App is blocked"
+    case blockList = "On a block list"
+    case parentRule = "Parent domain rule"
 }
 
 struct Rule: Codable, Equatable, Identifiable {
