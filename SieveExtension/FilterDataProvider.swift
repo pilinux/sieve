@@ -53,14 +53,12 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
     }
 
     override func handleNewFlow(_ flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
-        // Some flows carry only the process token.
-        let token = flow.sourceAppAuditToken ?? flow.sourceProcessAuditToken
-        let app = token.flatMap(apps.app) ?? App("unknown")
+        let app = app(of: flow)
         let host = flow.hostname
         let action = store.verdict(app: app, host: host)
         logger.log("\(action?.rawValue ?? "ask", privacy: .public) \(app.key, privacy: .public) to \(host ?? "?", privacy: .public)")
         switch action {
-        case .allow: return .allow()
+        case .allow: return counted(.allow())
         case .block: return .drop()
         case nil: return pauseAndAsk(app: app.key, host: host, flow: flow)
         }
@@ -95,8 +93,31 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         let config = store.config
         for flow in flows {
             let verdict = config.verdict(app: app, host: flow.hostname, isApple: false)
-            resumeFlow(flow, with: verdict == .block ? NEFilterNewFlowVerdict.drop() : .allow())
+            resumeFlow(flow, with: verdict == .block ? NEFilterNewFlowVerdict.drop() : counted(.allow()))
         }
+    }
+
+    private func app(of flow: NEFilterFlow) -> App {
+        // Some flows carry only the process token.
+        let token = flow.sourceAppAuditToken ?? flow.sourceProcessAuditToken
+        return token.flatMap(apps.app) ?? App("unknown")
+    }
+
+    /// Asks for the flow's byte counts about once a second, and when it closes.
+    private func counted(_ verdict: NEFilterNewFlowVerdict) -> NEFilterNewFlowVerdict {
+        verdict.shouldReport = true
+        verdict.statisticsReportFrequency = .medium
+        return verdict
+    }
+
+    override func handle(_ report: NEFilterReport) {
+        guard report.event == .statistics || report.event == .flowClosed, let flow = report.flow else { return }
+        store.count(
+            flow: flow.identifier,
+            app: app(of: flow).key,
+            total: report.bytesInboundCount + report.bytesOutboundCount,
+            closed: report.event == .flowClosed
+        )
     }
 
     private func startListener() {

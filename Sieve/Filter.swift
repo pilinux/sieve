@@ -9,9 +9,12 @@ final class Filter: NSObject {
     private(set) var status = "Off"
     private(set) var config = Config()
     private(set) var stats = Stats()
+    /// Bytes per second, by app key.
+    private(set) var rates: [String: Double] = [:]
 
     private static let extensionID = "me.pilinux.Sieve.SieveExtension"
     @ObservationIgnored private var connection: NSXPCConnection?
+    @ObservationIgnored private var sample = (bytes: [String: Int](), time: Date.now)
 
     /// Once turned on, activate again on each launch, so a new build replaces the old extension.
     func resume() async {
@@ -45,6 +48,22 @@ final class Filter: NSObject {
         if let data = await send({ $0.stats(reply: $1) }),
            let stats = try? JSONDecoder().decode(Stats.self, from: data) {
             self.stats = stats
+            // The window and the menu may both poll. Skip a sample that comes too soon.
+            let elapsed = Date.now.timeIntervalSince(sample.time)
+            if elapsed >= 0.5 {
+                rates = Dictionary(uniqueKeysWithValues: stats.bytes.map { app, bytes in
+                    (app, Double(bytes - (sample.bytes[app] ?? bytes)) / elapsed)
+                })
+                sample = (stats.bytes, .now)
+            }
+        }
+    }
+
+    /// Refreshes once a second until cancelled.
+    func poll() async {
+        while !Task.isCancelled {
+            await refresh()
+            try? await Task.sleep(for: .seconds(1))
         }
     }
 

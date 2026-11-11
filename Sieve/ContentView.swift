@@ -9,7 +9,7 @@ import ServiceManagement
 import SwiftUI
 
 struct ContentView: View {
-    @State private var filter = Filter()
+    let filter: Filter
     @State private var launchesAtLogin = SMAppService.mainApp.status == .enabled
     @State private var selected: String?
 
@@ -20,19 +20,13 @@ struct ContentView: View {
                 Button("Turn on") { filter.turnOn() }
                 Toggle("Launch at login", isOn: launchAtLogin)
                 Spacer()
-                Picker("Mode", selection: mode) {
-                    Text("Off").tag(Mode.off)
-                    Text("Ask").tag(Mode.ask)
-                    Text("Quiet").tag(Mode.quiet)
-                }
-                .pickerStyle(.segmented)
-                .fixedSize()
+                ModePicker(filter: filter)
             }
             TabView {
                 Tab("Apps", systemImage: "app") {
                     HSplitView {
                         List(filter.stats.apps.keys.sorted(), id: \.self, selection: $selected) { app in
-                            Toggle(app, isOn: allowed(app))
+                            AppSwitch(filter: filter, app: app)
                         }
                         List(filter.stats.apps[selected ?? "", default: []].sorted(), id: \.self) { host in
                             Picker(host, selection: rule(app: selected ?? "", host: host)) {
@@ -51,15 +45,8 @@ struct ContentView: View {
         .padding()
         .task {
             await filter.resume()
-            while !Task.isCancelled {
-                await filter.refresh()
-                try? await Task.sleep(for: .seconds(1))
-            }
+            await filter.poll()
         }
-    }
-
-    private var mode: Binding<Mode> {
-        Binding(get: { filter.config.mode }, set: { mode in filter.update { $0.mode = mode } })
     }
 
     // Shows the real state: if (un)registering fails, the switch stays put.
@@ -69,13 +56,6 @@ struct ContentView: View {
             try? on ? service.register() : service.unregister()
             launchesAtLogin = service.status == .enabled
         })
-    }
-
-    private func allowed(_ app: String) -> Binding<Bool> {
-        Binding(
-            get: { filter.config.action(for: app) != .block },
-            set: { on in filter.update { $0.setAction(on ? .allow : .block, for: app) } }
-        )
     }
 
     // No rule yet: neither segment is selected.

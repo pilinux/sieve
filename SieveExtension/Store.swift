@@ -10,6 +10,8 @@ final class Store: Sendable {
         var statsChanged = false
         /// The hosts of each list, by list ID.
         var domains: [String: Set<String>] = [:]
+        /// Bytes counted so far for each open flow.
+        var flowBytes: [UUID: Int] = [:]
     }
 
     private let state = Mutex(State())
@@ -77,7 +79,22 @@ final class Store: Sendable {
                 $0.stats.apps[app.key] = hosts
                 $0.statsChanged = true
             }
-            return $0.config.verdict(app: app.key, host: host, isApple: app.isApple, domains: $0.domains)
+            let action = $0.config.verdict(app: app.key, host: host, isApple: app.isApple, domains: $0.domains)
+            if action == .block {
+                $0.stats.blocked[Stats.day(.now), default: 0] += 1
+                $0.statsChanged = true
+            }
+            return action
+        }
+    }
+
+    /// Adds a flow's new bytes to its app. `total` is the flow's count so far.
+    func count(flow: UUID, app: String, total: Int, closed: Bool) {
+        state.withLock {
+            let new = total - ($0.flowBytes[flow] ?? 0)
+            $0.flowBytes[flow] = closed ? nil : total
+            $0.stats.bytes[app, default: 0] += max(new, 0)
+            $0.statsChanged = true
         }
     }
 

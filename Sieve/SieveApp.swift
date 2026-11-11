@@ -9,9 +9,15 @@ import SwiftUI
 
 @main
 struct SieveApp: App {
+    @State private var filter = Filter()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(filter: filter)
         }
+        MenuBarExtra("Sieve", systemImage: "line.3.horizontal.decrease.circle") {
+            MenuView(filter: filter)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
