@@ -43,12 +43,23 @@ struct ContentView: View {
                                 }
                             }
                         }
-                        List(filter.stats.apps[selected ?? "", default: []].sorted(), id: \.self) { host in
-                            Picker(host, selection: rule(app: selected ?? "", host: host)) {
-                                Text("Allow").tag(Action.allow as Action?)
-                                Text("Block").tag(Action.block as Action?)
+                        List {
+                            if let selected {
+                                Section("Grade \(filter.stats.grade(selected))") {
+                                    ForEach(filter.stats.apps[selected, default: []].sorted(), id: \.self) { host in
+                                        Picker(selection: rule(app: selected, host: host)) {
+                                            Text("Allow").tag(Action.allow as Action?)
+                                            Text("Block").tag(Action.block as Action?)
+                                        } label: {
+                                            Text(host)
+                                            if filter.stats.trackers.contains(host) {
+                                                Text("Tracker").foregroundStyle(.red)
+                                            }
+                                        }
+                                        .pickerStyle(.segmented)
+                                    }
+                                }
                             }
-                            .pickerStyle(.segmented)
                         }
                     }
                 }

@@ -67,6 +67,11 @@ struct Config: Codable, Equatable {
         }
     }
 
+    /// Whether any block list has the host, enabled or not.
+    func isTracker(_ host: String, domains: [String: Set<String>]) -> Bool {
+        lists.contains { $0.action == .block && domains[$0.id]?.contains(host) == true }
+    }
+
     /// List entries match the exact host only.
     private func isListed(_ host: String, _ action: Action, _ domains: [String: Set<String>]) -> Bool {
         lists.contains { $0.enabled && $0.action == action && domains[$0.id]?.contains(host) == true }

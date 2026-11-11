@@ -91,6 +91,9 @@ final class Store: Sendable {
                 $0.statsChanged = true
             }
             if app.isApple, $0.stats.apple.insert(app.key).inserted { $0.statsChanged = true }
+            if let host, $0.config.isTracker(host, domains: $0.domains), $0.stats.trackers.insert(host).inserted {
+                $0.statsChanged = true
+            }
             if !app.path.isEmpty, $0.stats.paths.updateValue(app.path, forKey: app.key) != app.path {
                 $0.statsChanged = true
             }

@@ -16,6 +16,23 @@ struct Stats: Codable, Equatable {
     var hits: [UUID: Hit] = [:]
     /// Rules that are not needed, by rule ID. Filled in for the app only, never saved.
     var flags: [UUID: Flag] = [:]
+    /// Hosts on any block list, enabled or not.
+    var trackers: Set<String> = []
+
+    /// A to F, from the number of tracker hosts the app contacted.
+    func grade(_ app: String) -> String {
+        Self.grade(trackers: apps[app, default: []].intersection(trackers).count)
+    }
+
+    static func grade(trackers: Int) -> String {
+        switch trackers {
+        case 0: "A"
+        case 1...2: "B"
+        case 3...5: "C"
+        case 6...10: "D"
+        default: "F"
+        }
+    }
 
     /// Non-Apple apps without an app rule, sorted.
     func undecided(_ config: Config) -> [String] {
@@ -39,6 +56,7 @@ extension Stats {
         paths = try values.decodeIfPresent([String: String].self, forKey: .paths) ?? [:]
         hits = try values.decodeIfPresent([UUID: Hit].self, forKey: .hits) ?? [:]
         flags = try values.decodeIfPresent([UUID: Flag].self, forKey: .flags) ?? [:]
+        trackers = try values.decodeIfPresent(Set<String>.self, forKey: .trackers) ?? []
     }
 }
 
