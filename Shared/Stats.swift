@@ -24,6 +24,8 @@ struct Stats: Codable, Equatable {
     var trackers: Set<String> = []
     /// Bytes in and out by `day(_:)`, then by app key. Keeps 31 days.
     var daily: [String: [String: Int]] = [:]
+    /// Domains in each list, by list ID. Filled in for the app only.
+    var listSizes: [String: Int] = [:]
 
     /// A to F, from the number of tracker hosts the app contacted.
     func grade(_ app: String) -> String {
@@ -66,6 +68,7 @@ extension Stats {
         profile = try values.decodeIfPresent(UUID.self, forKey: .profile)
         trackers = try values.decodeIfPresent(Set<String>.self, forKey: .trackers) ?? []
         daily = try values.decodeIfPresent([String: [String: Int]].self, forKey: .daily) ?? [:]
+        listSizes = try values.decodeIfPresent([String: Int].self, forKey: .listSizes) ?? [:]
     }
 }
 

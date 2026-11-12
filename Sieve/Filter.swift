@@ -1,16 +1,22 @@
 import AppKit
 import NetworkExtension
 import Observation
+import SwiftUI
 import SystemExtensions
 
 /// Installs the system extension, turns on the content filter, and talks to it over XPC.
 @Observable
 final class Filter: NSObject {
-    private(set) var status = "Off"
+    /// Activating until `resume()` knows whether the filter was turned on before.
+    private(set) var status = "Activating"
     private(set) var config = Config()
     private(set) var stats = Stats()
     /// Bytes per second, by app key.
     private(set) var rates: [String: Double] = [:]
+    /// Up to 60 samples of `rates`, oldest first.
+    private(set) var history: [[String: Double]] = []
+    /// The result of the last list load. The view clears it.
+    var message: (text: String, failed: Bool)?
 
     private static let extensionID = "me.pilinux.Sieve.SieveExtension"
     @ObservationIgnored private var connection: NSXPCConnection?
@@ -23,6 +29,8 @@ final class Filter: NSObject {
             try await manager.loadFromPreferences()
             if manager.providerConfiguration != nil {
                 turnOn()
+            } else {
+                status = "Off"
             }
         } catch {
             status = "Error: \(error.localizedDescription)"
@@ -55,8 +63,14 @@ final class Filter: NSObject {
                     (app, Double(bytes - (sample.bytes[app] ?? bytes)) / elapsed)
                 })
                 sample = (stats.bytes, .now)
+                history = Array((history + [rates]).suffix(60))
             }
         }
+    }
+
+    /// The rate history of one app, or of all apps when nil.
+    func trend(_ app: String?) -> [Double] {
+        history.map { sample in app.map { sample[$0] ?? 0 } ?? sample.values.reduce(0, +) }
     }
 
     /// Refreshes once a second until cancelled.
@@ -90,9 +104,9 @@ final class Filter: NSObject {
             if await send({ $0.setList(list.id, domains: data, reply: $1) }) == nil {
                 throw URLError(.cannotConnectToHost)
             }
-            status = "Loaded \(list.name)"
+            message = ("Loaded \(list.name)", false)
         } catch {
-            status = "Cannot load \(list.name): \(error.localizedDescription)"
+            message = ("Cannot load \(list.name): \(error.localizedDescription)", true)
         }
     }
 
@@ -145,16 +159,26 @@ final class Filter: NSObject {
 extension Filter: PromptXPC {
     nonisolated func prompt(app: String, host: String, reply: @escaping @Sendable (String, Bool) -> Void) {
         Task { @MainActor in
+            var answer = (action: Action.allow, hostOnly: false)
+            // No close button: only Allow or Block end the prompt.
+            let panel = NSPanel(
+                contentRect: .zero, styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false
+            )
+            panel.titlebarAppearsTransparent = true
+            panel.titleVisibility = .hidden
+            panel.isMovableByWindowBackground = true
+            panel.appearance = NSAppearance(named: .darkAqua)
+            let view = NSHostingView(rootView: PromptView(filter: self, app: app, host: host) { action, hostOnly in
+                answer = (action, hostOnly)
+                NSApp.stopModal()
+            })
+            panel.contentView = view
+            panel.setContentSize(view.fittingSize)
+            panel.center()
             NSApp.activate()
-            let alert = NSAlert()
-            alert.messageText = "\(app) wants to connect"
-            alert.informativeText = host.isEmpty ? "Unknown host" : host
-            alert.addButton(withTitle: "Allow")
-            alert.addButton(withTitle: "Block")
-            alert.showsSuppressionButton = !host.isEmpty
-            alert.suppressionButton?.title = "This host only"
-            let allow = alert.runModal() == .alertFirstButtonReturn
-            reply((allow ? Action.allow : .block).rawValue, alert.suppressionButton?.state == .on)
+            NSApp.runModal(for: panel)
+            panel.close()
+            reply(answer.action.rawValue, answer.hostOnly)
         }
     }
 }

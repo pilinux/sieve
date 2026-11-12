@@ -23,7 +23,7 @@ final class Store: Sendable {
     var config: Config { state.withLock { $0.config } }
     var stats: Stats { state.withLock { $0.stats } }
 
-    /// The stats, plus what only the app needs: rule flags, networks, and the active profile.
+    /// The stats, plus what only the app needs: rule flags, networks, the active profile, and list sizes.
     var statsForApp: Stats {
         let (config, stats, domains, networks) = state.withLock { ($0.config, $0.stats, $0.domains, $0.networks) }
         let gone = Set(stats.paths.filter { !FileManager.default.fileExists(atPath: $0.value) }.keys)
@@ -33,6 +33,7 @@ final class Store: Sendable {
         }
         result.networks = networks
         result.profile = Self.activeProfile(config, networks)
+        result.listSizes = domains.mapValues(\.count)
         return result
     }
 

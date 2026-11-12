@@ -85,8 +85,13 @@ struct Config: Codable, Equatable {
     ///   - today: `Stats.day(_:)` of now.
     func isOverLimit(_ app: String, daily: [String: [String: Int]], today: String) -> Bool {
         guard let limit = limits.first(where: { $0.app == app }) else { return false }
-        let days = limit.period == .day ? [today] : daily.keys.filter { $0.hasPrefix(today.prefix(7)) }
-        return days.reduce(0) { $0 + (daily[$1]?[app] ?? 0) } >= limit.bytes
+        return usage(app, period: limit.period, daily: daily, today: today) >= limit.bytes
+    }
+
+    /// Bytes the app used today, or this month so far.
+    func usage(_ app: String, period: Period, daily: [String: [String: Int]], today: String) -> Int {
+        let days = period == .day ? [today] : daily.keys.filter { $0.hasPrefix(today.prefix(7)) }
+        return days.reduce(0) { $0 + (daily[$1]?[app] ?? 0) }
     }
 
     /// Replaces the app's limit. Nil bytes removes it.
