@@ -43,9 +43,10 @@ extension Color {
         }
     }
 
-    /// Four profile colours. Later profiles share gray.
-    static func profile(_ index: Int) -> Color {
-        [Color(hex: 0x199E70), Color(hex: 0xC98500), Color(hex: 0xD55181), Color(hex: 0x9085E9)]
+    /// The user's colour, else four defaults by position, else gray.
+    static func profile(_ index: Int, _ hex: String?) -> Color {
+        if let hex, hex.hasPrefix("#"), let value = UInt32(hex.dropFirst(), radix: 16) { return Color(hex: value) }
+        return [Color(hex: 0x199E70), Color(hex: 0xC98500), Color(hex: 0xD55181), Color(hex: 0x9085E9)]
             .dropFirst(index).first ?? .ink3
     }
 }

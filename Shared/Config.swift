@@ -64,7 +64,7 @@ struct Config: Codable, Equatable {
         return matches.first { profile != nil && $0.profile == profile } ?? matches.first { $0.profile == nil }
     }
 
-    /// The first profile whose network or schedule matches.
+    /// The first profile whose network or any time block matches.
     /// - Parameters:
     ///   - networks: the `NetworkSignature` of each network the Mac is on.
     ///   - weekday: 1 is Sunday, as in `Calendar`.
@@ -72,11 +72,7 @@ struct Config: Codable, Equatable {
     func activeProfile(networks: Set<String>, weekday: Int, minute: Int) -> UUID? {
         profiles.first { profile in
             if let network = profile.network, networks.contains(network) { return true }
-            guard let schedule = profile.schedule, schedule.weekdays.contains(weekday) else { return false }
-            // An end before the start runs past midnight.
-            return schedule.start <= schedule.end
-                ? (schedule.start..<schedule.end).contains(minute)
-                : minute >= schedule.start || minute < schedule.end
+            return profile.schedules.contains { $0.covers(weekday: weekday, minute: minute) }
         }?.id
     }
 
@@ -105,6 +101,15 @@ struct Config: Codable, Equatable {
     mutating func setAction(_ action: Action, for app: String, host: String? = nil) {
         rules.removeAll { $0.app == app && $0.host == host && $0.profile == nil }
         rules.append(Rule(app: app, host: host, action: action))
+    }
+
+    /// Sets the rule for this app, host, and profile. Picking the rule's own action again removes it.
+    mutating func pick(_ action: Action, for app: String, host: String?, profile: UUID?) {
+        if let index = rules.firstIndex(where: { $0.app == app && $0.host == host && $0.profile == profile }) {
+            if rules[index].action == action { rules.remove(at: index) } else { rules[index].action = action }
+        } else {
+            rules.append(Rule(app: app, host: host, action: action, profile: profile))
+        }
     }
 
     // Checks the host, then each parent domain, so the most specific rule wins.
@@ -187,13 +192,16 @@ struct Rule: Codable, Equatable, Identifiable {
     var profile: UUID?
 }
 
-/// A set of rules that counts only on a network or during a schedule.
+/// A set of rules that counts only on a network or during one of its time blocks.
 struct Profile: Codable, Equatable, Identifiable {
     var id = UUID()
     var name: String
     /// A `NetworkSignature`, such as `IPv4.Router=172.20.10.1;IPv4.RouterHardwareAddress=…`.
     var network: String?
-    var schedule: Schedule?
+    /// Time blocks, each with its own weekdays and times.
+    var schedules: [Schedule] = []
+    /// The user's colour, such as `#4fb3c9`. Nil: a default by position.
+    var color: String?
 }
 
 struct Schedule: Codable, Equatable {
@@ -202,4 +210,27 @@ struct Schedule: Codable, Equatable {
     /// Minutes after midnight.
     var start: Int
     var end: Int
+
+    /// Whether the block covers this weekday and minute. An end before the start runs past midnight.
+    func covers(weekday: Int, minute: Int) -> Bool {
+        guard weekdays.contains(weekday) else { return false }
+        return start <= end ? (start..<end).contains(minute) : minute >= start || minute < end
+    }
+}
+
+extension Profile {
+    // An older config held one `schedule`. It becomes the first block.
+    private enum Older: String, CodingKey { case schedule }
+
+    init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let older = try decoder.container(keyedBy: Older.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        name = try values.decode(String.self, forKey: .name)
+        network = try values.decodeIfPresent(String.self, forKey: .network)
+        schedules =
+            try values.decodeIfPresent([Schedule].self, forKey: .schedules)
+            ?? older.decodeIfPresent(Schedule.self, forKey: .schedule).map { [$0] } ?? []
+        color = try values.decodeIfPresent(String.self, forKey: .color)
+    }
 }

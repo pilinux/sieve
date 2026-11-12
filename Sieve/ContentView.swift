@@ -168,7 +168,8 @@ private struct Sidebar: View {
                     Spacer()
                     if let active {
                         HStack(spacing: 5) {
-                            RoundedRectangle(cornerRadius: 3).fill(Color.profile(active)).frame(width: 10, height: 10)
+                            RoundedRectangle(cornerRadius: 3).fill(Color.profile(active, filter.config.profiles[active].color)).frame(
+                                width: 10, height: 10)
                             Text(filter.config.profiles[active].name)
                         }
                         .font(.aileron(11, .semibold))

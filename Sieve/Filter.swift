@@ -21,6 +21,8 @@ final class Filter: NSObject {
     private static let extensionID = "me.pilinux.Sieve.SieveExtension"
     @ObservationIgnored private var connection: NSXPCConnection?
     @ObservationIgnored private var sample = (bytes: [String: Int](), time: Date.now)
+    // Counts local edits. A config read that started before the latest edit would undo it, so it is dropped.
+    @ObservationIgnored private var edits = 0
 
     /// Once turned on, activate again on each launch, so a new build replaces the old extension.
     func resume() async {
@@ -49,8 +51,9 @@ final class Filter: NSObject {
 
     /// Reads config and stats from the extension.
     func refresh() async {
+        let start = edits
         if let data = await send({ $0.config(reply: $1) }),
-            let config = try? JSONDecoder().decode(Config.self, from: data)
+            let config = try? JSONDecoder().decode(Config.self, from: data), edits == start
         {
             self.config = config
         }
@@ -88,10 +91,12 @@ final class Filter: NSObject {
     /// Changes the config here at once, then in the extension.
     func update(_ change: (inout Config) -> Void) {
         change(&config)
+        edits += 1
+        let edit = edits
         guard let data = try? JSONEncoder().encode(config) else { return }
         Task {
             if let saved = await send({ $0.setConfig(data, reply: $1) }),
-                let config = try? JSONDecoder().decode(Config.self, from: saved)
+                let config = try? JSONDecoder().decode(Config.self, from: saved), edit == edits
             {
                 self.config = config
             }
