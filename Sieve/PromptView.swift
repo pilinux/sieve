@@ -3,6 +3,8 @@ import SwiftUI
 /// What Ask mode shows when an unknown app connects.
 struct PromptView: View {
     let filter: Filter
+    let app: String
+    /// Empty when the extension could not find the process on disk.
     let path: String
     /// A Team ID, `Apple`, or empty if not verified.
     let signer: String
@@ -13,9 +15,9 @@ struct PromptView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            AppIcon(path: path, size: 56)
+            AppIcon(path: path.isEmpty ? nil : path, size: 56)
             VStack(spacing: 2) {
-                Text(FileManager.default.displayName(atPath: path)).font(.aileron(15, .bold))
+                Text(path.isEmpty ? app : FileManager.default.displayName(atPath: path)).font(.aileron(15, .bold))
                 Text("wants to connect").foregroundStyle(.ink2)
             }
             // Name and icon come from the file, so anyone can copy them. Path and signer cannot be faked.

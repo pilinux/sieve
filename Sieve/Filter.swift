@@ -249,6 +249,8 @@ final class Filter: NSObject {
 extension Filter: PromptXPC {
     nonisolated func prompt(app: String, path: String, signer: String, host: String, reply: @escaping @Sendable () -> Void) {
         Task { @MainActor in
+            // With no window open, no poll runs. The tracker mark needs fresh stats.
+            await refresh()
             var answer = (action: Action.allow, hostOnly: false)
             // No close button: only Allow or Block end the prompt.
             let panel = NSPanel(
@@ -262,7 +264,7 @@ extension Filter: PromptXPC {
             panel.isOpaque = false
             panel.backgroundColor = .clear
             let view = NSHostingView(
-                rootView: PromptView(filter: self, path: path, signer: signer, host: host) { action, hostOnly in
+                rootView: PromptView(filter: self, app: app, path: path, signer: signer, host: host) { action, hostOnly in
                     answer = (action, hostOnly)
                     NSApp.stopModal()
                 })
