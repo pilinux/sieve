@@ -120,7 +120,9 @@ struct ProfilesView: View {
                 Image(systemName: "clock").foregroundStyle(.ink2).padding(.trailing, 4)
                 ForEach(week, id: \.self) { day in
                     let on = profile.schedule?.weekdays.contains(day) == true
-                    Button { weekday(id, day).wrappedValue.toggle() } label: {
+                    Button {
+                        weekday(id, day).wrappedValue.toggle()
+                    } label: {
                         Text(Calendar.current.veryShortWeekdaySymbols[day - 1]).font(.aileron(12, .semibold))
                             .foregroundStyle(on ? .ink : .ink3)
                             .frame(width: 30, height: 30)

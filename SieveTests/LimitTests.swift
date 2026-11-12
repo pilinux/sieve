@@ -20,10 +20,12 @@ struct LimitTests {
 
     @Test func monthLimitCountsThisMonthOnly() {
         // November: 300 + 200. October's 500 does not count.
-        #expect(Config(limits: [Limit(app: app, bytes: 500, period: .month)])
-            .isOverLimit(app, daily: daily, today: "2026-11-11"))
-        #expect(!Config(limits: [Limit(app: app, bytes: 501, period: .month)])
-            .isOverLimit(app, daily: daily, today: "2026-11-11"))
+        #expect(
+            Config(limits: [Limit(app: app, bytes: 500, period: .month)])
+                .isOverLimit(app, daily: daily, today: "2026-11-11"))
+        #expect(
+            !Config(limits: [Limit(app: app, bytes: 501, period: .month)])
+                .isOverLimit(app, daily: daily, today: "2026-11-11"))
     }
 
     @Test func overLimitBeatsAllowRules() {

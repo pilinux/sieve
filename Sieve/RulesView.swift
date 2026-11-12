@@ -46,8 +46,10 @@ struct RulesView: View {
                     // The decision order needs room for its labels: below the counts in a narrow window.
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: 12) {
-                            total.frame(width: 168).frame(maxHeight: .infinity, alignment: .top).card().fixedSize(horizontal: true, vertical: false)
-                            unneeded.frame(width: 198).frame(maxHeight: .infinity, alignment: .top).card().fixedSize(horizontal: true, vertical: false)
+                            total.frame(width: 168).frame(maxHeight: .infinity, alignment: .top).card().fixedSize(
+                                horizontal: true, vertical: false)
+                            unneeded.frame(width: 198).frame(maxHeight: .infinity, alignment: .top).card().fixedSize(
+                                horizontal: true, vertical: false)
                             decisionOrder.frame(minWidth: 680, maxHeight: .infinity, alignment: .top).card()
                         }
                         VStack(spacing: 12) {

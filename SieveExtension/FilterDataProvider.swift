@@ -69,9 +69,9 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
     // Pauses the flow until the user answers. Allows it if the Sieve app is not running.
     private func pauseAndAsk(app: String, host: String?, flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
         guard let client = ask.withLockUnchecked({ $0.client }),
-              let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in
-                  answer(app: app, host: nil, action: nil)
-              }) as? PromptXPC
+            let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in
+                answer(app: app, host: nil, action: nil)
+            }) as? PromptXPC
         else { return .allow() }
 
         let first = ask.withLockUnchecked {

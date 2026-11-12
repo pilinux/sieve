@@ -46,7 +46,8 @@ struct Config: Codable, Equatable {
         if rule.action == .block, isListed(host, .block, domains) { return .blockList }
         // The nearest parent domain rule decides the host when this rule is gone.
         if let dot = host.firstIndex(of: "."),
-           hostRule(for: rule.app, host: String(host[host.index(after: dot)...]))?.action == rule.action {
+            hostRule(for: rule.app, host: String(host[host.index(after: dot)...]))?.action == rule.action
+        {
             return .parentRule
         }
         return nil

@@ -1,6 +1,6 @@
 import Foundation
-import os
 import Synchronization
+import os
 
 /// Config and stats, shared by the filter and XPC, saved as JSON files.
 final class Store: Sendable {
@@ -55,10 +55,12 @@ final class Store: Sendable {
         for list in (config ?? Config()).lists {
             let cached = folder.appending(path: "lists/\(list.id).txt")
             // Tracker Shield works before its first refresh.
-            let bundled = list.id == DomainList.trackerShield.id
+            let bundled =
+                list.id == DomainList.trackerShield.id
                 ? Bundle.main.url(forResource: "trackers", withExtension: "txt") : nil
             if let text = (try? String(contentsOf: cached, encoding: .utf8))
-                ?? bundled.flatMap({ try? String(contentsOf: $0, encoding: .utf8) }) {
+                ?? bundled.flatMap({ try? String(contentsOf: $0, encoding: .utf8) })
+            {
                 domains[list.id] = DomainList.parse(text)
             }
         }

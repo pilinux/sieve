@@ -78,7 +78,9 @@ struct ListsView: View {
                             .sorted { $0.count > $1.count }
                             .prefix(7)
                         RankedBars(
-                            items: apps.map { .init(key: $0.key, name: stats.name($0.key), value: Double($0.count), text: "\($0.count) hosts") },
+                            items: apps.map {
+                                .init(key: $0.key, name: stats.name($0.key), value: Double($0.count), text: "\($0.count) hosts")
+                            },
                             color: .block, nameWidth: 190
                         ) { item in AppIcon(path: stats.paths[item.key], size: 22) }
                     }
@@ -159,9 +161,11 @@ struct ListsView: View {
     private func enabled(_ id: String) -> Binding<Bool> {
         Binding(
             get: { filter.config.lists.first { $0.id == id }?.enabled ?? false },
-            set: { on in filter.update { config in
-                if let index = config.lists.firstIndex(where: { $0.id == id }) { config.lists[index].enabled = on }
-            } }
+            set: { on in
+                filter.update { config in
+                    if let index = config.lists.firstIndex(where: { $0.id == id }) { config.lists[index].enabled = on }
+                }
+            }
         )
     }
 }

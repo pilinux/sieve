@@ -50,18 +50,21 @@ final class Filter: NSObject {
     /// Reads config and stats from the extension.
     func refresh() async {
         if let data = await send({ $0.config(reply: $1) }),
-           let config = try? JSONDecoder().decode(Config.self, from: data) {
+            let config = try? JSONDecoder().decode(Config.self, from: data)
+        {
             self.config = config
         }
         if let data = await send({ $0.stats(reply: $1) }),
-           let stats = try? JSONDecoder().decode(Stats.self, from: data) {
+            let stats = try? JSONDecoder().decode(Stats.self, from: data)
+        {
             self.stats = stats
             // The window and the menu may both poll. Skip a sample that comes too soon.
             let elapsed = Date.now.timeIntervalSince(sample.time)
             if elapsed >= 0.5 {
-                rates = Dictionary(uniqueKeysWithValues: stats.bytes.map { app, bytes in
-                    (app, Double(bytes - (sample.bytes[app] ?? bytes)) / elapsed)
-                })
+                rates = Dictionary(
+                    uniqueKeysWithValues: stats.bytes.map { app, bytes in
+                        (app, Double(bytes - (sample.bytes[app] ?? bytes)) / elapsed)
+                    })
                 sample = (stats.bytes, .now)
                 history = Array((history + [rates]).suffix(60))
             }
@@ -87,7 +90,8 @@ final class Filter: NSObject {
         guard let data = try? JSONEncoder().encode(config) else { return }
         Task {
             if let saved = await send({ $0.setConfig(data, reply: $1) }),
-               let config = try? JSONDecoder().decode(Config.self, from: saved) {
+                let config = try? JSONDecoder().decode(Config.self, from: saved)
+            {
                 self.config = config
             }
         }
@@ -115,9 +119,10 @@ final class Filter: NSObject {
         await withCheckedContinuation { continuation in
             // XPC calls either the reply or the error handler, never both.
             // `@Sendable` keeps the handler off the main actor. XPC calls it on its own queue.
-            let proxy = xpc().remoteObjectProxyWithErrorHandler { @Sendable _ in
-                continuation.resume(returning: nil)
-            } as? FilterXPC
+            let proxy =
+                xpc().remoteObjectProxyWithErrorHandler { @Sendable _ in
+                    continuation.resume(returning: nil)
+                } as? FilterXPC
             guard let proxy else { return continuation.resume(returning: nil) }
             message(proxy) { continuation.resume(returning: $0) }
         }
@@ -171,10 +176,11 @@ extension Filter: PromptXPC {
             // Clear, so the prompt's glass is its background.
             panel.isOpaque = false
             panel.backgroundColor = .clear
-            let view = NSHostingView(rootView: PromptView(filter: self, app: app, host: host) { action, hostOnly in
-                answer = (action, hostOnly)
-                NSApp.stopModal()
-            })
+            let view = NSHostingView(
+                rootView: PromptView(filter: self, app: app, host: host) { action, hostOnly in
+                    answer = (action, hostOnly)
+                    NSApp.stopModal()
+                })
             panel.contentView = view
             panel.setContentSize(view.fittingSize)
             panel.center()

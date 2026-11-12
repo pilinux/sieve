@@ -364,9 +364,11 @@ private struct XRay: View {
             if let limit {
                 HStack(spacing: 14) {
                     Meter(used: used, limit: limit.bytes)
-                    Text("\(Text(bytes(used)).font(.aileron(13, .semibold)).foregroundStyle(.ink)) of \(bytes(limit.bytes)) · \(used * 100 / max(limit.bytes, 1)) %")
-                        .foregroundStyle(.ink3)
-                        .monospacedDigit()
+                    Text(
+                        "\(Text(bytes(used)).font(.aileron(13, .semibold)).foregroundStyle(.ink)) of \(bytes(limit.bytes)) · \(used * 100 / max(limit.bytes, 1)) %"
+                    )
+                    .foregroundStyle(.ink3)
+                    .monospacedDigit()
                 }
             }
             DayBars(

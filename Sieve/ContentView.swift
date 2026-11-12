@@ -129,12 +129,15 @@ private struct Sidebar: View {
             .padding(.horizontal, 8)
             .padding(.bottom, 22)
             ForEach(Screen.allCases, id: \.self) { item in
-                let count = switch item {
-                case .apps: stats.undecided(filter.config).count
-                case .rules: filter.config.rules.filter { stats.flags[$0.id] != nil }.count
-                default: 0
-                }
-                Button { screen = item } label: {
+                let count =
+                    switch item {
+                    case .apps: stats.undecided(filter.config).count
+                    case .rules: filter.config.rules.filter { stats.flags[$0.id] != nil }.count
+                    default: 0
+                    }
+                Button {
+                    screen = item
+                } label: {
                     HStack(spacing: 10) {
                         Image(systemName: item.icon).frame(width: 16).foregroundStyle(item == screen ? .allow : .ink2)
                         Text(item.rawValue)

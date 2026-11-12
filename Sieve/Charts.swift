@@ -118,8 +118,11 @@ struct DayBars: View {
                 )
                 .foregroundStyle(bar.color ?? color)
                 .opacity(hovered == nil || hovered == bar.id ? 1 : 0.7)
-                .clipShape(UnevenRoundedRectangle(topLeadingRadius: cumulative ? 2 : 4, bottomLeadingRadius: cumulative ? 2 : 0,
-                                                  bottomTrailingRadius: cumulative ? 2 : 0, topTrailingRadius: cumulative ? 2 : 4))
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: cumulative ? 2 : 4, bottomLeadingRadius: cumulative ? 2 : 0,
+                        bottomTrailingRadius: cumulative ? 2 : 0, topTrailingRadius: cumulative ? 2 : 4)
+                )
                 .annotation(position: .trailing, alignment: .center) {
                     if cumulative, index == bars.count - 1 {
                         Text(format(total)).font(.aileron(11, .semibold)).foregroundStyle(.ink).fixedSize()

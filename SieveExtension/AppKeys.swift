@@ -38,7 +38,8 @@ struct AppKeys {
         // An XPC service, such as WebKit's networking process, counts as the app that launched it.
         // Not command-line tools: those would count as the terminal app.
         if path.contains(".xpc/"), let responsible = responsiblePID?(pid), responsible > 0,
-           let appPath = Self.path(of: responsible) {
+            let appPath = Self.path(of: responsible)
+        {
             path = appPath
         }
 
@@ -50,11 +51,11 @@ struct AppKeys {
         var code: SecStaticCode?
         var info: CFDictionary?
         guard SecStaticCodeCreateWithPath(URL(fileURLWithPath: path) as CFURL, [], &code) == errSecSuccess,
-              let code,
-              SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info)
+            let code,
+            SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info)
                 == errSecSuccess,
-              let info = info as? [String: Any],
-              let identifier = info[kSecCodeInfoIdentifier as String] as? String
+            let info = info as? [String: Any],
+            let identifier = info[kSecCodeInfoIdentifier as String] as? String
         else { return App(path, path: path) }
 
         if let team = info[kSecCodeInfoTeamIdentifier as String] as? String {
@@ -64,7 +65,8 @@ struct AppKeys {
         let flags = SecCSFlags(rawValue: kSecCSDoNotValidateResources | kSecCSDoNotValidateExecutable)
         var apple: SecRequirement?
         if SecRequirementCreateWithString("anchor apple" as CFString, [], &apple) == errSecSuccess, let apple,
-           SecStaticCodeCheckValidity(code, flags, apple) == errSecSuccess {
+            SecStaticCodeCheckValidity(code, flags, apple) == errSecSuccess
+        {
             return App(identifier, path: path, isApple: true)
         }
         return App(path, path: path)

@@ -35,11 +35,19 @@ struct PromptView: View {
                 }
             }
             HStack(spacing: 8) {
-                Button { answer(.block, hostOnly) } label: {
-                    Label { Text("Block") } icon: { Image(systemName: "xmark").foregroundStyle(.block) }
-                        .frame(maxWidth: .infinity)
+                Button {
+                    answer(.block, hostOnly)
+                } label: {
+                    Label {
+                        Text("Block")
+                    } icon: {
+                        Image(systemName: "xmark").foregroundStyle(.block)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                Button { answer(.allow, hostOnly) } label: {
+                Button {
+                    answer(.allow, hostOnly)
+                } label: {
                     Label("Allow", systemImage: "checkmark").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)

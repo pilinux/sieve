@@ -53,12 +53,13 @@ extension Color {
 extension Font {
     /// Aileron, bundled with the app. Light, regular, semibold, and bold.
     static func aileron(_ size: CGFloat, _ weight: Weight = .regular) -> Font {
-        let face = switch weight {
-        case .light: "UltraLight"
-        case .semibold: "SemiBold"
-        case .bold: "Bold"
-        default: "Regular"
-        }
+        let face =
+            switch weight {
+            case .light: "UltraLight"
+            case .semibold: "SemiBold"
+            case .bold: "Bold"
+            default: "Regular"
+            }
         return .custom("Aileron-\(face)", size: size)
     }
 
@@ -212,7 +213,9 @@ struct Segments<Value: Hashable>: View {
         HStack(spacing: 2) {
             ForEach(options, id: \.value) { option in
                 let on = option.value == selection
-                Button { choose(option.value) } label: {
+                Button {
+                    choose(option.value)
+                } label: {
                     HStack(spacing: 6) {
                         if let icon = option.icon {
                             Image(systemName: icon).font(.system(size: small ? 9 : 10, weight: .bold))
@@ -326,10 +329,13 @@ struct AppRow: View {
                 }
                 .animation(.easeOut(duration: 0.6), value: current)
             }
-            Toggle("Allow", isOn: Binding(
-                get: { on },
-                set: { allow in filter.update { $0.setAction(allow ? .allow : .block, for: app) } }
-            ))
+            Toggle(
+                "Allow",
+                isOn: Binding(
+                    get: { on },
+                    set: { allow in filter.update { $0.setAction(allow ? .allow : .block, for: app) } }
+                )
+            )
             .toggleStyle(.switch)
             .labelsHidden()
             .tint(.allow)
@@ -352,11 +358,16 @@ struct LaunchAtLogin: View {
         HStack {
             Text("Launch at login").font(.aileron(12)).foregroundStyle(.ink2)
             Spacer()
-            Toggle("Launch at login", isOn: Binding(get: { on }, set: { wanted in
-                let service = SMAppService.mainApp
-                try? wanted ? service.register() : service.unregister()
-                on = service.status == .enabled
-            }))
+            Toggle(
+                "Launch at login",
+                isOn: Binding(
+                    get: { on },
+                    set: { wanted in
+                        let service = SMAppService.mainApp
+                        try? wanted ? service.register() : service.unregister()
+                        on = service.status == .enabled
+                    })
+            )
             .toggleStyle(.switch)
             .labelsHidden()
             .controlSize(.small)

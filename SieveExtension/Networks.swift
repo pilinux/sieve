@@ -13,10 +13,12 @@ final class Networks: @unchecked Sendable {
         var context = SCDynamicStoreContext(
             version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil
         )
-        store = SCDynamicStoreCreate(nil, "Sieve" as CFString, { store, _, info in
-            guard let info else { return }
-            Unmanaged<Networks>.fromOpaque(info).takeUnretainedValue().read(store)
-        }, &context)
+        store = SCDynamicStoreCreate(
+            nil, "Sieve" as CFString,
+            { store, _, info in
+                guard let info else { return }
+                Unmanaged<Networks>.fromOpaque(info).takeUnretainedValue().read(store)
+            }, &context)
         guard let store else { return }
         SCDynamicStoreSetNotificationKeys(store, nil, [Self.pattern] as CFArray)
         SCDynamicStoreSetDispatchQueue(store, DispatchQueue(label: "me.pilinux.Sieve.networks"))
