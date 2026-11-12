@@ -90,11 +90,16 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
     // Resumes the app's waiting flows by the rules. The Sieve app saved the answer as a rule before it replied.
     // Flows the rules leave undecided are allowed once.
     private func resumeFlows(of app: String) {
-        let flows = ask.withLockUnchecked { $0.waiting.removeValue(forKey: app) ?? [] }
-        let config = store.config
-        for flow in flows {
-            let verdict = config.verdict(app: app, host: flow.hostname, isApple: false)
-            resumeFlow(flow, with: verdict == .block ? NEFilterNewFlowVerdict.drop() : counted(.allow()))
+        // `NEFilterFlow` is not `Sendable`. Once out of `waiting`, only the block below uses these.
+        nonisolated(unsafe) let flows = ask.withLockUnchecked { $0.waiting.removeValue(forKey: app) ?? [] }
+        // Only a paused flow resumes. A flow joins `waiting` before `handleNewFlow` returns `.pause()`,
+        // and a failed send can land here before that, even on the same stack.
+        DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(100)) { [self] in
+            let config = store.config
+            for flow in flows {
+                let verdict = config.verdict(app: app, host: flow.hostname, isApple: false)
+                resumeFlow(flow, with: verdict == .block ? NEFilterNewFlowVerdict.drop() : counted(.allow()))
+            }
         }
     }
 
