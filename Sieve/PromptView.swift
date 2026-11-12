@@ -3,7 +3,9 @@ import SwiftUI
 /// What Ask mode shows when an unknown app connects.
 struct PromptView: View {
     let filter: Filter
-    let app: String
+    let path: String
+    /// A Team ID, `Apple`, or empty if not verified.
+    let signer: String
     /// Empty when the flow has no host name.
     let host: String
     let answer: (Action, Bool) -> Void
@@ -11,11 +13,19 @@ struct PromptView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            AppIcon(path: filter.stats.paths[app], size: 56)
+            AppIcon(path: path, size: 56)
             VStack(spacing: 2) {
-                Text(filter.stats.name(app)).font(.aileron(15, .bold))
+                Text(FileManager.default.displayName(atPath: path)).font(.aileron(15, .bold))
                 Text("wants to connect").foregroundStyle(.ink2)
             }
+            // Name and icon come from the file, so anyone can copy them. Path and signer cannot be faked.
+            VStack(spacing: 2) {
+                Text(path).foregroundStyle(.ink2).lineLimit(2).truncationMode(.middle)
+                Text(signer.isEmpty ? "Signer not verified" : signer == "Apple" ? "Signed by Apple" : "Team ID \(signer)")
+                    .foregroundStyle(signer.isEmpty ? .block : .ink2)
+            }
+            .font(.aileron(11))
+            .multilineTextAlignment(.center)
             HStack(spacing: 8) {
                 if host.isEmpty {
                     Text("Unknown host").foregroundStyle(.ink3)

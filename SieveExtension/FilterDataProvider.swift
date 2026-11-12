@@ -62,23 +62,26 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         switch action {
         case .allow: return counted(.allow())
         case .block: return .drop()
-        case nil: return pauseAndAsk(app: app.key, host: host, flow: flow)
+        case nil: return pauseAndAsk(app: app, host: host, flow: flow)
         }
     }
 
     // Pauses the flow until the user answers. Allows it if the Sieve app is not running.
-    private func pauseAndAsk(app: String, host: String?, flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
+    private func pauseAndAsk(app: App, host: String?, flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
+        let key = app.key
         guard let client = ask.withLockUnchecked({ $0.client }),
-            let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in resumeFlows(of: app) }) as? PromptXPC
+            let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in resumeFlows(of: key) }) as? PromptXPC
         else { return .allow() }
 
         let first = ask.withLockUnchecked {
-            defer { $0.waiting[app, default: []].append(flow) }
-            return $0.waiting[app] == nil
+            defer { $0.waiting[key, default: []].append(flow) }
+            return $0.waiting[key] == nil
         }
         // Later flows of the same app wait for the same answer.
         if first {
-            prompt.prompt(app: app, host: host ?? "") { [self] in resumeFlows(of: app) }
+            // A key that is the path names no verified signer.
+            let signer = app.isApple ? "Apple" : app.key == app.path || app.path.isEmpty ? "" : String(app.key.prefix { $0 != "." })
+            prompt.prompt(app: key, path: app.path, signer: signer, host: host ?? "") { [self] in resumeFlows(of: key) }
         }
         return .pause()
     }
