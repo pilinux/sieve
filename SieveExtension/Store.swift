@@ -73,6 +73,15 @@ final class Store: Sendable {
     }
 
     /// Saves a downloaded list and uses it at once.
+    /// Clears the app's history and saves it at once. Keeps its config.
+    func forget(_ app: String) {
+        state.withLock {
+            $0.stats.forget(app, rules: $0.config.rules.filter { $0.app == app }.map(\.id))
+            $0.statsChanged = true
+        }
+        saveStats()
+    }
+
     func setList(_ id: String, text: String) {
         // The ID names a file. Keep it inside the lists folder.
         guard !id.contains("/") else { return }

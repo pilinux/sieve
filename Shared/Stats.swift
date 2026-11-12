@@ -47,6 +47,17 @@ struct Stats: Codable, Equatable {
         apps.keys.filter { !apple.contains($0) && config.action(for: $0) == nil }.sorted()
     }
 
+    /// Clears what the app did: its hosts, bytes, and rule hits. Keeps the app in the list, with its path.
+    /// - Parameter rules: the IDs of the app's rules.
+    mutating func forget(_ app: String, rules: [UUID]) {
+        apps[app] = []
+        bytes[app] = nil
+        for day in daily.keys { daily[day]?[app] = nil }
+        for rule in rules { hits[rule] = nil }
+        // A tracker that no other app reached was this app's history too.
+        trackers = trackers.filter { host in apps.values.contains { $0.contains(host) } }
+    }
+
     /// The local date, such as `2026-11-11`.
     static func day(_ date: Date) -> String {
         date.formatted(Date.ISO8601FormatStyle(timeZone: .current).year().month().day())

@@ -7,6 +7,8 @@ import Foundation
     func stats(reply: @escaping @Sendable (Data) -> Void)
     /// Stores a downloaded list, as UTF-8 text. Replies when done.
     func setList(_ id: String, domains: Data, reply: @escaping @Sendable (Data) -> Void)
+    /// Clears an app's history, not its config. Replies when done.
+    func forget(_ app: String, reply: @escaping @Sendable (Data) -> Void)
 }
 
 /// What the extension asks the app, in Ask mode.

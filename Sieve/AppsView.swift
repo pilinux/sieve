@@ -229,6 +229,7 @@ private struct XRay: View {
     let filter: Filter
     let app: String
     @FocusState private var editing: Bool
+    @State private var clearing = false
 
     var body: some View {
         let stats = filter.stats
@@ -250,6 +251,12 @@ private struct XRay: View {
                 if let limit, used >= limit.bytes {
                     Chip(text: "Over limit", icon: "exclamationmark.triangle.fill", iconColor: .serious, fill: .crit.opacity(0.2))
                 }
+                IconButton(icon: "clock.arrow.circlepath", help: "Clear history", ring: true) { clearing = true }
+                    .confirmationDialog("Clear the history of \(stats.name(app))?", isPresented: $clearing) {
+                        Button("Clear History", role: .destructive) { Task { await filter.forget(app) } }
+                    } message: {
+                        Text("Its traffic, hosts, and rule hits go. Its rules and data limit stay.")
+                    }
                 Segments(verdict: config.action(for: app)) { action in filter.update { $0.setAction(action, for: app) } }
             }
             HStack(spacing: 12) {

@@ -63,7 +63,8 @@ final class Filter: NSObject {
             if elapsed >= 0.5 {
                 rates = Dictionary(
                     uniqueKeysWithValues: stats.bytes.map { app, bytes in
-                        (app, Double(bytes - (sample.bytes[app] ?? bytes)) / elapsed)
+                        // Never below zero: clearing an app's history resets its bytes.
+                        (app, max(Double(bytes - (sample.bytes[app] ?? bytes)) / elapsed, 0))
                     })
                 sample = (stats.bytes, .now)
                 history = Array((history + [rates]).suffix(60))
@@ -95,6 +96,12 @@ final class Filter: NSObject {
                 self.config = config
             }
         }
+    }
+
+    /// Clears the app's history in the extension, then reads the stats again.
+    func forget(_ app: String) async {
+        _ = await send { $0.forget(app, reply: $1) }
+        await refresh()
     }
 
     /// Downloads the list and hands it to the extension.

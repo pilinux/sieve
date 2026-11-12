@@ -177,4 +177,9 @@ extension FilterDataProvider: FilterXPC {
         store.setList(id, text: String(decoding: domains, as: UTF8.self))
         reply(Data())
     }
+
+    func forget(_ app: String, reply: @escaping @Sendable (Data) -> Void) {
+        store.forget(app)
+        reply(Data())
+    }
 }
