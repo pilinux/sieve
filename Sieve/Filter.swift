@@ -7,7 +7,7 @@ import SystemExtensions
 /// Installs the system extension, turns on the content filter, and talks to it over XPC.
 @Observable
 final class Filter: NSObject {
-    /// Activating until `resume()` knows whether the filter was turned on before.
+    /// Activating until `resume()` knows whether the filter was turned on before. On only once the config is read.
     private(set) var status = "Activating"
     private(set) var config = Config()
     private(set) var stats = Stats()
@@ -23,7 +23,9 @@ final class Filter: NSObject {
     @ObservationIgnored private var sample = (bytes: [String: Int](), time: Date.now)
     // Counts local edits. A config read that started before the latest edit would undo it, so it is dropped.
     @ObservationIgnored private var edits = 0
-    @ObservationIgnored private var reconnecting = false
+    // True once the filter is turned on: from then on the link to the extension must stay up.
+    @ObservationIgnored private var enabled = false
+    @ObservationIgnored private var link: Task<Void, Never>?
 
     // At launch, not from a window: Ask mode needs the app as its client even with every window closed.
     override init() {
@@ -58,12 +60,7 @@ final class Filter: NSObject {
 
     /// Reads config and stats from the extension.
     func refresh() async {
-        let start = edits
-        if let data = await send({ $0.config(reply: $1) }),
-            let config = try? JSONDecoder().decode(Config.self, from: data), edits == start
-        {
-            self.config = config
-        }
+        _ = await readConfig()
         if let data = await send({ $0.stats(reply: $1) }),
             let stats = try? JSONDecoder().decode(Stats.self, from: data)
         {
@@ -95,13 +92,16 @@ final class Filter: NSObject {
         }
     }
 
-    /// Changes the config here at once, then in the extension.
-    func update(_ change: (inout Config) -> Void) {
+    /// Changes the config here at once, then in the extension. The task ends when the extension has it.
+    /// Does nothing until the config is read: an edit of the defaults would replace every stored rule.
+    @discardableResult
+    func update(_ change: (inout Config) -> Void) -> Task<Void, Never>? {
+        guard status == "On" else { return nil }
         change(&config)
         edits += 1
         let edit = edits
-        guard let data = try? JSONEncoder().encode(config) else { return }
-        Task {
+        guard let data = try? JSONEncoder().encode(config) else { return nil }
+        return Task {
             if let saved = await send({ $0.setConfig(data, reply: $1) }),
                 let config = try? JSONDecoder().decode(Config.self, from: saved), edit == edits
             {
@@ -190,27 +190,42 @@ final class Filter: NSObject {
             manager.localizedDescription = "Sieve"
             manager.isEnabled = true
             try await manager.saveToPreferences()
-            status = "On"
+            enabled = true
             await reconnect()
+            status = "On"
         } catch {
             status = "Error: \(error.localizedDescription)"
         }
     }
 
+    // Returns once the extension has sent its config.
     // The extension takes the sender of a message as its Ask mode client, and forgets it when the link drops.
     // A failed send drops the link again, so only one loop runs.
     private func reconnect() async {
-        guard !reconnecting else { return }
-        reconnecting = true
-        defer { reconnecting = false }
-        while status == "On", await send({ $0.config(reply: $1) }) == nil {
-            try? await Task.sleep(for: .seconds(1))
+        if link == nil {
+            link = Task {
+                while enabled, !(await readConfig()) {
+                    try? await Task.sleep(for: .seconds(1))
+                }
+                link = nil
+            }
         }
+        await link?.value
+    }
+
+    // False if the extension cannot be reached.
+    private func readConfig() async -> Bool {
+        let start = edits
+        guard let data = await send({ $0.config(reply: $1) }),
+            let config = try? JSONDecoder().decode(Config.self, from: data)
+        else { return false }
+        if edits == start { self.config = config }
+        return true
     }
 }
 
 extension Filter: PromptXPC {
-    nonisolated func prompt(app: String, host: String, reply: @escaping @Sendable (String, Bool) -> Void) {
+    nonisolated func prompt(app: String, host: String, reply: @escaping @Sendable () -> Void) {
         Task { @MainActor in
             var answer = (action: Action.allow, hostOnly: false)
             // No close button: only Allow or Block end the prompt.
@@ -235,7 +250,9 @@ extension Filter: PromptXPC {
             NSApp.activate()
             NSApp.runModal(for: panel)
             panel.close()
-            reply(answer.action.rawValue, answer.hostOnly)
+            // The app is the only writer of the config: the rule is saved before the extension resumes the flows.
+            await update { $0.setAction(answer.action, for: app, host: answer.hostOnly ? host : nil) }?.value
+            reply()
         }
     }
 }

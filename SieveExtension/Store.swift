@@ -109,14 +109,6 @@ final class Store: Sendable {
         write(config, "config.json")
     }
 
-    func setAction(_ action: Action, for app: String, host: String?) {
-        let config = state.withLock {
-            $0.config.setAction(action, for: app, host: host)
-            return $0.config
-        }
-        write(config, "config.json")
-    }
-
     /// Decides one flow and records the app and host. Nil means: ask the user.
     func verdict(app: App, host: String?) -> Action? {
         let today = Stats.day(.now)

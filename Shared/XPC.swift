@@ -17,8 +17,8 @@ import Foundation
 
 /// What the extension asks the app, in Ask mode.
 @objc protocol PromptXPC {
-    /// Replies with an `Action` raw value, and whether it covers only this host.
-    func prompt(app: String, host: String, reply: @escaping @Sendable (String, Bool) -> Void)
+    /// Replies once the app has saved the answer as a rule.
+    func prompt(app: String, host: String, reply: @escaping @Sendable () -> Void)
 }
 
 extension Bundle {
