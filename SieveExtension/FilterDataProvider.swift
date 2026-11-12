@@ -176,6 +176,10 @@ extension FilterDataProvider: FilterXPC {
         reply((try? JSONEncoder().encode(store.statsForApp)) ?? Data())
     }
 
+    func usage(reply: @escaping @Sendable (Data) -> Void) {
+        reply((try? JSONEncoder().encode(store.usage)) ?? Data())
+    }
+
     func setList(_ id: String, domains: Data, reply: @escaping @Sendable (Data) -> Void) {
         // The app caps lists too. Check again: this process runs as root, with no sandbox.
         if domains.count <= DomainList.maxBytes {

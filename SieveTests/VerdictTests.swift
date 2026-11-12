@@ -98,7 +98,7 @@ struct VerdictTests {
     }
 
     @Test func undecidedSkipsAppleAndAppsWithRules() {
-        let stats = Stats(apps: [app: [], "com.apple.Safari": [], "decided": [], "host-only": []], apple: ["com.apple.Safari"])
+        let stats = Stats(apps: [app: [:], "com.apple.Safari": [:], "decided": [:], "host-only": [:]], apple: ["com.apple.Safari"])
         let config = Config(rules: [
             Rule(app: "decided", action: .block),
             Rule(app: "host-only", host: "example.com", action: .block),

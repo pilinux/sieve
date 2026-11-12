@@ -8,7 +8,10 @@ struct GradeTests {
 
     @Test func gradeCountsOnlyTheAppsTrackers() {
         let stats = Stats(
-            apps: ["app": ["ads.example.com", "example.com"], "other": ["t1.example", "t2.example", "t3.example"]],
+            apps: [
+                "app": ["ads.example.com": "2026-11-12", "example.com": "2026-11-12"],
+                "other": ["t1.example": "2026-11-12", "t2.example": "2026-11-12", "t3.example": "2026-11-12"],
+            ],
             trackers: ["ads.example.com", "t1.example", "t2.example", "t3.example"]
         )
         #expect(stats.grade("app") == "B")

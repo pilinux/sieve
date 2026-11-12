@@ -73,7 +73,7 @@ struct ListsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     VStack(alignment: .leading, spacing: 14) {
                         Caption("Apps that reach trackers")
-                        let apps = stats.apps.map { (key: $0.key, count: $0.value.intersection(stats.trackers).count) }
+                        let apps = stats.apps.map { (key: $0.key, count: $0.value.keys.filter(stats.trackers.contains).count) }
                             .filter { $0.count > 0 }
                             .sorted { $0.count > $1.count }
                             .prefix(7)
@@ -87,7 +87,7 @@ struct ListsView: View {
                     .card()
                     VStack(alignment: .leading, spacing: 14) {
                         Caption("Most common trackers")
-                        let hosts = stats.trackers.map { host in (host: host, count: stats.apps.values.filter { $0.contains(host) }.count) }
+                        let hosts = stats.trackers.map { host in (host: host, count: stats.apps.values.filter { $0[host] != nil }.count) }
                             .sorted { ($0.count, $1.host) > ($1.count, $0.host) }
                             .prefix(7)
                         RankedBars(

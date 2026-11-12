@@ -7,7 +7,7 @@ struct HistoryTests {
 
     var stats: Stats {
         Stats(
-            apps: ["app": ["ads.example.com", "shared.example"], "other": ["shared.example"]],
+            apps: ["app": ["ads.example.com": "2026-11-12", "shared.example": "2026-11-12"], "other": ["shared.example": "2026-11-12"]],
             bytes: ["app": 100, "other": 50],
             paths: ["app": "/Applications/App.app"],
             hits: [rule.id: Hit(), other.id: Hit()],
@@ -19,7 +19,7 @@ struct HistoryTests {
     @Test func forgetClearsOnlyTheAppsHistory() {
         var stats = stats
         stats.forget("app", rules: [rule.id])
-        #expect(stats.apps == ["app": [], "other": ["shared.example"]])
+        #expect(stats.apps == ["app": [:], "other": ["shared.example": "2026-11-12"]])
         #expect(stats.bytes == ["other": 50])
         #expect(stats.daily == ["2026-11-11": ["other": 20], "2026-11-12": ["other": 30]])
         #expect(Set(stats.hits.keys) == [other.id])

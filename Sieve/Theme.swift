@@ -71,10 +71,17 @@ extension Font {
     }
 }
 
+// Display names by path. Launch Services takes about a millisecond per lookup, and lists sort by name each second.
+@MainActor private var displayNames: [String: String] = [:]
+
 extension Stats {
     /// The app's name from its file on disk, else its key.
-    func name(_ app: String) -> String {
-        paths[app].map { FileManager.default.displayName(atPath: $0) } ?? app
+    @MainActor func name(_ app: String) -> String {
+        guard let path = paths[app] else { return app }
+        if let name = displayNames[path] { return name }
+        let name = FileManager.default.displayName(atPath: path)
+        displayNames[path] = name
+        return name
     }
 }
 
@@ -317,7 +324,7 @@ struct AppRow: View {
                         Text(stats.name(app)).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
                         GradeBadge(grade: stats.grade(app))
                     }
-                    Text("\(bytes(stats.bytes[app] ?? 0)) · \(stats.apps[app, default: []].count) hosts")
+                    Text("\(bytes(stats.bytes[app] ?? 0)) · \(stats.apps[app]?.count ?? 0) hosts")
                         .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit().lineLimit(1)
                 }
             }

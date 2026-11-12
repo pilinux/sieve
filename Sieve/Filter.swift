@@ -58,25 +58,38 @@ final class Filter: NSObject {
         OSSystemExtensionManager.shared.submitRequest(request)
     }
 
-    /// Reads config and stats from the extension.
+    /// Reads all the stats from the extension. The config needs no read: the app is its only writer.
     func refresh() async {
-        _ = await readConfig()
         if let data = await send({ $0.stats(reply: $1) }),
             let stats = try? JSONDecoder().decode(Stats.self, from: data)
         {
             self.stats = stats
-            // The window and the menu may both poll. Skip a sample that comes too soon.
-            let elapsed = Date.now.timeIntervalSince(sample.time)
-            if elapsed >= 0.5 {
-                rates = Dictionary(
-                    uniqueKeysWithValues: stats.bytes.map { app, bytes in
-                        // Never below zero: clearing an app's history resets its bytes.
-                        (app, max(Double(bytes - (sample.bytes[app] ?? bytes)) / elapsed, 0))
-                    })
-                sample = (stats.bytes, .now)
-                history = Array((history + [rates]).suffix(60))
-            }
+            measure(stats.bytes)
         }
+    }
+
+    // Reads only the bytes and blocked counts.
+    private func readUsage() async {
+        if let data = await send({ $0.usage(reply: $1) }),
+            let usage = try? JSONDecoder().decode(Stats.self, from: data)
+        {
+            stats.bytes = usage.bytes
+            stats.blocked = usage.blocked
+            measure(usage.bytes)
+        }
+    }
+
+    private func measure(_ bytes: [String: Int]) {
+        // The window and the menu may both poll. Skip a sample that comes too soon.
+        let elapsed = Date.now.timeIntervalSince(sample.time)
+        guard elapsed >= 0.5 else { return }
+        rates = Dictionary(
+            uniqueKeysWithValues: bytes.map { app, bytes in
+                // Never below zero: clearing an app's history resets its bytes.
+                (app, max(Double(bytes - (sample.bytes[app] ?? bytes)) / elapsed, 0))
+            })
+        sample = (bytes, .now)
+        history = Array((history + [rates]).suffix(60))
     }
 
     /// The rate history of one app, or of all apps when nil.
@@ -84,10 +97,12 @@ final class Filter: NSObject {
         history.map { sample in app.map { sample[$0] ?? 0 } ?? sample.values.reduce(0, +) }
     }
 
-    /// Refreshes once a second until cancelled.
+    /// Reads all the stats at once and every 10 seconds, the bytes every second in between, until cancelled.
     func poll() async {
+        var tick = 0
         while !Task.isCancelled {
-            await refresh()
+            if tick.isMultiple(of: 10) { await refresh() } else { await readUsage() }
+            tick += 1
             try? await Task.sleep(for: .seconds(1))
         }
     }
@@ -107,6 +122,8 @@ final class Filter: NSObject {
             {
                 self.config = config
             }
+            // Rule flags and pruned stats follow the new config. The prompt's reply need not wait for them.
+            Task { await refresh() }
         }
     }
 

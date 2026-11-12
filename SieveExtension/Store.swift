@@ -8,6 +8,8 @@ final class Store: Sendable {
         var config = Config()
         var stats = Stats()
         var statsChanged = false
+        // The `Stats.day(_:)` of the last prune.
+        var pruned = ""
         // The hosts of each list, by list ID.
         var domains: [String: Set<String>] = [:]
         // Bytes counted so far for each open flow.
@@ -22,6 +24,8 @@ final class Store: Sendable {
 
     var config: Config { state.withLock { $0.config } }
     var stats: Stats { state.withLock { $0.stats } }
+    /// Only the bytes and blocked counts, for the app's live view.
+    var usage: Stats { state.withLock { Stats(bytes: $0.stats.bytes, blocked: $0.stats.blocked) } }
     /// The config file that could not be read, or nil.
     var brokenConfig: Data? { try? Data(contentsOf: brokenConfigFile) }
     // Where `read` moves a config it cannot decode.
@@ -72,6 +76,7 @@ final class Store: Sendable {
             $0.config = config ?? Config()
             $0.stats = stats ?? Stats()
             $0.domains = domains
+            Self.prune(&$0)
         }
         if config == nil { write(Config(), "config.json") }
     }
@@ -108,20 +113,25 @@ final class Store: Sendable {
     }
 
     func setConfig(_ config: Config) {
-        state.withLock { $0.config = config }
+        state.withLock {
+            $0.config = config
+            Self.prune(&$0)
+        }
         write(config, "config.json")
+    }
+
+    private static func prune(_ state: inout State) {
+        state.stats.prune(state.config, cutoff: Stats.cutoff(.now))
+        state.pruned = Stats.day(.now)
+        state.statsChanged = true
     }
 
     /// Decides one flow and records the app and host. Nil means: ask the user.
     func verdict(app: App, host: String?) -> Action? {
         let today = Stats.day(.now)
         return state.withLock {
-            var hosts = $0.stats.apps[app.key] ?? []
-            if let host { hosts.insert(host) }
-            if $0.stats.apps[app.key] != hosts {
-                $0.stats.apps[app.key] = hosts
-                $0.statsChanged = true
-            }
+            if $0.pruned != today { Self.prune(&$0) }
+            if $0.stats.see(app.key, host: host, day: today) { $0.statsChanged = true }
             if app.isApple, $0.stats.apple.insert(app.key).inserted { $0.statsChanged = true }
             if let host, $0.config.isTracker(host, domains: $0.domains), $0.stats.trackers.insert(host).inserted {
                 $0.statsChanged = true
@@ -150,14 +160,12 @@ final class Store: Sendable {
     /// Adds a flow's new bytes to its app. `total` is the flow's count so far.
     func count(flow: UUID, app: String, total: Int, closed: Bool) {
         let today = Stats.day(.now)
-        let cutoff = Stats.day(.now.addingTimeInterval(-31 * 24 * 60 * 60))
         state.withLock {
             let new = max(total - ($0.flowBytes[flow] ?? 0), 0)
             $0.flowBytes[flow] = closed ? nil : total
+            // A flow may outlive the day of its app's last new flow.
+            _ = $0.stats.see(app, host: nil, day: today)
             $0.stats.bytes[app, default: 0] += new
-            if $0.stats.daily[today] == nil {
-                $0.stats.daily = $0.stats.daily.filter { $0.key > cutoff }
-            }
             $0.stats.daily[today, default: [:]][app, default: 0] += new
             $0.statsChanged = true
         }

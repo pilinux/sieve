@@ -98,7 +98,7 @@ struct AppsView: View {
 
     private func undecidedRow(_ app: String) -> some View {
         let stats = filter.stats
-        let hosts = stats.apps[app, default: []]
+        let hosts = stats.hosts(app)
         return HStack(spacing: 10) {
             AppIcon(path: stats.paths[app])
             VStack(alignment: .leading, spacing: 1) {
@@ -163,7 +163,7 @@ private struct Overview: View {
         }
         let top = stats.bytes.sorted { $0.value > $1.value }.prefix(5)
         let todayBytes = split(bytes(total(today)))
-        let withTrackers = stats.apps.values.filter { !$0.isDisjoint(with: stats.trackers) }.count
+        let withTrackers = stats.apps.values.filter { $0.keys.contains(where: stats.trackers.contains) }.count
         let grades = zip(["A", "B", "C", "D", "F"], ["no trackers", "1–2", "3–5", "6–10", "11 or more"]).map { grade, range in
             SegmentBar.Part(
                 name: "\(grade) · \(range)", value: stats.apps.keys.filter { stats.grade($0) == grade }.count,
@@ -234,7 +234,7 @@ private struct XRay: View {
     var body: some View {
         let stats = filter.stats
         let config = filter.config
-        let hosts = stats.apps[app, default: []]
+        let hosts = stats.hosts(app)
         let trackers = hosts.intersection(stats.trackers)
         let limit = config.limits.first { $0.app == app }
         let used = limit.map { config.usage(app, period: $0.period, daily: stats.daily, today: Stats.day(.now)) } ?? 0
@@ -388,11 +388,11 @@ private struct XRay: View {
     }
 
     private func hostList(_ hosts: [String], trackers: Set<String>) -> some View {
-        let config = filter.config
+        let rows = hosts.map { (host: $0, action: filter.config.action(for: app, host: $0)) }
         let parts = [
-            SegmentBar.Part(name: "Allowed", value: hosts.filter { config.action(for: app, host: $0) == .allow }.count, color: .allow),
-            SegmentBar.Part(name: "Blocked", value: hosts.filter { config.action(for: app, host: $0) == .block }.count, color: .block),
-            SegmentBar.Part(name: "No rule", value: hosts.filter { config.action(for: app, host: $0) == nil }.count, color: .s3),
+            SegmentBar.Part(name: "Allowed", value: rows.filter { $0.action == .allow }.count, color: .allow),
+            SegmentBar.Part(name: "Blocked", value: rows.filter { $0.action == .block }.count, color: .block),
+            SegmentBar.Part(name: "No rule", value: rows.filter { $0.action == nil }.count, color: .s3),
         ]
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
@@ -402,22 +402,25 @@ private struct XRay: View {
                 Legend(parts: parts.map { ($0.name, $0.color) })
             }
             SegmentBar(parts: parts).padding(.top, 14).padding(.bottom, 12)
-            ForEach(hosts, id: \.self) { host in
-                let tracker = trackers.contains(host)
-                Rectangle().fill(.line).frame(height: 1)
-                HStack(spacing: 10) {
-                    Image(systemName: tracker ? "exclamationmark.triangle" : "circle")
-                        .font(.system(size: tracker ? 12 : 5, weight: .semibold))
-                        .foregroundStyle(tracker ? .warn : .ink3)
-                        .frame(width: 16)
-                    Text(host).lineLimit(1).truncationMode(.middle)
-                    Spacer()
-                    if tracker { Chip.tracker }
-                    Segments(verdict: config.action(for: app, host: host), small: true) { action in
-                        filter.update { $0.setAction(action, for: app, host: host) }
+            // Up to 1,000 hosts: build only the rows on screen.
+            LazyVStack(spacing: 0) {
+                ForEach(rows, id: \.host) { host, action in
+                    let tracker = trackers.contains(host)
+                    Rectangle().fill(.line).frame(height: 1)
+                    HStack(spacing: 10) {
+                        Image(systemName: tracker ? "exclamationmark.triangle" : "circle")
+                            .font(.system(size: tracker ? 12 : 5, weight: .semibold))
+                            .foregroundStyle(tracker ? .warn : .ink3)
+                            .frame(width: 16)
+                        Text(host).lineLimit(1).truncationMode(.middle)
+                        Spacer()
+                        if tracker { Chip.tracker }
+                        Segments(verdict: action, small: true) { action in
+                            filter.update { $0.setAction(action, for: app, host: host) }
+                        }
                     }
+                    .frame(height: 38)
                 }
-                .frame(height: 38)
             }
         }
         .card()
