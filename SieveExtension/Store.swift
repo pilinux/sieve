@@ -8,11 +8,11 @@ final class Store: Sendable {
         var config = Config()
         var stats = Stats()
         var statsChanged = false
-        /// The hosts of each list, by list ID.
+        // The hosts of each list, by list ID.
         var domains: [String: Set<String>] = [:]
-        /// Bytes counted so far for each open flow.
+        // Bytes counted so far for each open flow.
         var flowBytes: [UUID: Int] = [:]
-        /// The `NetworkSignature` of each network the Mac is on.
+        // The `NetworkSignature` of each network the Mac is on.
         var networks: Set<String> = []
     }
 

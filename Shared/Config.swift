@@ -57,7 +57,7 @@ struct Config: Codable, Equatable {
         rule(for: app, host: host)?.action
     }
 
-    /// A rule of the active profile beats one without a profile.
+    // A rule of the active profile beats one without a profile.
     private func rule(for app: String, host: String? = nil, profile: UUID? = nil) -> Rule? {
         let matches = rules.filter { $0.app == app && $0.host == host }
         return matches.first { profile != nil && $0.profile == profile } ?? matches.first { $0.profile == nil }
@@ -106,7 +106,7 @@ struct Config: Codable, Equatable {
         rules.append(Rule(app: app, host: host, action: action))
     }
 
-    /// Checks the host, then each parent domain, so the most specific rule wins.
+    // Checks the host, then each parent domain, so the most specific rule wins.
     private func hostRule(for app: String, host: String, profile: UUID? = nil) -> Rule? {
         var domain = Substring(host)
         while true {
@@ -121,7 +121,7 @@ struct Config: Codable, Equatable {
         lists.contains { $0.action == .block && domains[$0.id]?.contains(host) == true }
     }
 
-    /// List entries match the exact host only.
+    // List entries match the exact host only.
     private func isListed(_ host: String, _ action: Action, _ domains: [String: Set<String>]) -> Bool {
         lists.contains { $0.enabled && $0.action == action && domains[$0.id]?.contains(host) == true }
     }

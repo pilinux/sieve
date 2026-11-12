@@ -2,7 +2,7 @@ import Charts
 import SwiftUI
 
 // The value leads, the label follows.
-struct Tooltip: View {
+private struct Tooltip: View {
     let value: String
     let label: String
 
@@ -20,7 +20,7 @@ struct Tooltip: View {
     }
 }
 
-extension View {
+private extension View {
     func hoverX<X: Plottable>(_ selection: Binding<X?>) -> some View {
         chartOverlay { proxy in
             GeometryReader { geometry in
@@ -36,7 +36,7 @@ extension View {
     }
 }
 
-func niceMax(_ value: Double) -> Double {
+private func niceMax(_ value: Double) -> Double {
     guard value > 0 else { return 1 }
     let power = pow(10, floor(log10(value)))
     return [1, 1.5, 2, 3, 4, 5, 6, 8, 10].map { $0 * power }.first { $0 >= value } ?? value

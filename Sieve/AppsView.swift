@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AppsView: View {
     let filter: Filter
-    /// Nil: all apps.
+    // Nil: all apps.
     @State private var selected: String?
 
     var body: some View {
@@ -130,7 +130,7 @@ private func split(_ text: String) -> (value: String, unit: String?) {
     return (parts.first ?? text, parts.dropFirst().first)
 }
 
-extension DayBars.Bar {
+private extension DayBars.Bar {
     init(day: Date, value: Double, tick: String? = nil, color: Color? = nil) {
         self.init(
             id: Stats.day(day), label: day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)),

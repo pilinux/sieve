@@ -11,9 +11,9 @@ import os
 // Shared state lives in `Store` and behind `ask`'s lock. `listener` and `saving` change only in start and stop.
 final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
     private struct Ask {
-        /// The Sieve app, while it runs. Ask mode needs it.
+        // The Sieve app, while it runs. Ask mode needs it.
         var client: NSXPCConnection?
-        /// Flows waiting for the user's answer, by app key.
+        // Flows waiting for the user's answer, by app key.
         var waiting: [String: [NEFilterFlow]] = [:]
     }
 
@@ -66,7 +66,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         }
     }
 
-    /// Pauses the flow until the user answers. Allows it if the Sieve app is not running.
+    // Pauses the flow until the user answers. Allows it if the Sieve app is not running.
     private func pauseAndAsk(app: String, host: String?, flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
         guard let client = ask.withLockUnchecked({ $0.client }),
               let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in
@@ -87,8 +87,8 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         return .pause()
     }
 
-    /// Saves the answer as a rule, then resumes the app's waiting flows by the rules.
-    /// Flows the rules leave undecided are allowed once.
+    // Saves the answer as a rule, then resumes the app's waiting flows by the rules.
+    // Flows the rules leave undecided are allowed once.
     private func answer(app: String, host: String?, action: Action?) {
         if let action { store.setAction(action, for: app, host: host) }
         let flows = ask.withLockUnchecked { $0.waiting.removeValue(forKey: app) ?? [] }
@@ -105,7 +105,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         return token.flatMap(apps.app) ?? App("unknown")
     }
 
-    /// Asks for the flow's byte counts about once a second, and when it closes.
+    // Asks for the flow's byte counts about once a second, and when it closes.
     private func counted(_ verdict: NEFilterNewFlowVerdict) -> NEFilterNewFlowVerdict {
         verdict.shouldReport = true
         verdict.statisticsReportFrequency = .medium

@@ -110,7 +110,7 @@ final class Filter: NSObject {
         }
     }
 
-    /// Sends one message. Nil if the extension cannot be reached.
+    // Sends one message. Nil if the extension cannot be reached.
     private func send(_ message: (FilterXPC, @escaping @Sendable (Data) -> Void) -> Void) async -> Data? {
         await withCheckedContinuation { continuation in
             // XPC calls either the reply or the error handler, never both.
