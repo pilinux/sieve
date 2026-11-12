@@ -431,6 +431,8 @@ private struct XRay: View {
         Binding(
             get: { filter.config.limits.first { $0.app == app }.map { $0.bytes / 1_000_000 } },
             set: { megabytes in
+                // Up to 1 PB. A larger number overflows `Int` in bytes, and zero or less would block the app at once.
+                guard megabytes.map({ (1...1_000_000_000).contains($0) }) ?? true else { return }
                 filter.update { config in
                     let period = config.limits.first { $0.app == app }?.period ?? .day
                     config.setLimit(megabytes.map { $0 * 1_000_000 }, period: period, for: app)

@@ -48,6 +48,9 @@ struct ListsView: View {
                                 }
                                 Chip(action: list.action)
                                 IconButton(icon: "arrow.clockwise", help: "Refresh") { Task { await filter.load(list) } }
+                                IconButton(icon: "trash", help: "Delete this list") {
+                                    filter.update { $0.lists.removeAll { $0.id == list.id } }
+                                }
                             }
                             .padding(.top, 8)
                         }

@@ -81,7 +81,6 @@ final class Store: Sendable {
         if config == nil { write(Config(), "config.json") }
     }
 
-    /// Saves a downloaded list and uses it at once.
     /// Clears the app's history and saves it at once. Keeps its config.
     func forget(_ app: String) {
         state.withLock {
@@ -95,6 +94,7 @@ final class Store: Sendable {
         try? FileManager.default.removeItem(at: brokenConfigFile)
     }
 
+    /// Saves a downloaded list and uses it at once.
     func setList(_ id: String, text: String) {
         guard let file = listFile(id) else { return }
         let hosts = DomainList.parse(text)
@@ -112,12 +112,17 @@ final class Store: Sendable {
         id.contains("/") ? nil : folder.appending(path: "lists/\(id).txt")
     }
 
+    /// Replaces the config. Drops the domains and the cached file of each list it no longer has.
     func setConfig(_ config: Config) {
-        state.withLock {
+        let gone = state.withLock {
             $0.config = config
             Self.prune(&$0)
+            let gone = Set($0.domains.keys).subtracting(config.lists.map(\.id))
+            for id in gone { $0.domains[id] = nil }
+            return gone
         }
         write(config, "config.json")
+        for file in gone.compactMap(listFile) { try? FileManager.default.removeItem(at: file) }
     }
 
     private static func prune(_ state: inout State) {

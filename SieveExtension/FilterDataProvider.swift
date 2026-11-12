@@ -27,8 +27,9 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
 
     override func startFilter() async throws {
         store.load()
-        startListener()
-        networks = Networks { [store] in store.setNetworks($0) }
+        // `stopFilter` keeps both. A restart in the same process must not add a second set.
+        if listener == nil { startListener() }
+        if networks == nil { networks = Networks { [store] in store.setNetworks($0) } }
         saving = Task { [store] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(60))
@@ -72,7 +73,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         let key = app.key
         guard let client = ask.withLockUnchecked({ $0.client }),
             let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in resumeFlows(of: key) }) as? PromptXPC
-        else { return .allow() }
+        else { return counted(.allow()) }
 
         let first = ask.withLockUnchecked {
             defer { $0.waiting[key, default: []].append(flow) }

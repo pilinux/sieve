@@ -157,6 +157,11 @@ final class Filter: NSObject {
             guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= DomainList.maxBytes
             else { throw URLError(.dataLengthExceedsMaximum) }
             let data = try Data(contentsOf: file)
+            // A reply with no hosts, such as an error page, would replace a good copy.
+            guard !DomainList.parse(String(decoding: data, as: UTF8.self)).isEmpty else {
+                message = ("\(list.name) has no hosts. Kept the old copy.", true)
+                return
+            }
             if await send({ $0.setList(list.id, domains: data, reply: $1) }) == nil {
                 throw URLError(.cannotConnectToHost)
             }
