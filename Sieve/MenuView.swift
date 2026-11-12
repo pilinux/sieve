@@ -13,6 +13,7 @@ struct MenuView: View {
                 Spacer()
                 ModePicker(filter: filter)
             }
+            if filter.stats.brokenConfig { BrokenConfigNotice(filter: filter, compact: true) }
             VStack(alignment: .leading, spacing: 6) {
                 Caption("Now")
                 Text(rate(filter.rates.values.reduce(0, +))).font(.aileron(52, .light)).monospacedDigit()

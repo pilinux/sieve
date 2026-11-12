@@ -26,6 +26,8 @@ struct Stats: Codable, Equatable {
     var daily: [String: [String: Int]] = [:]
     /// Domains in each list, by list ID. Filled in for the app only.
     var listSizes: [String: Int] = [:]
+    /// Whether the extension holds a config file it could not read. Filled in for the app only.
+    var brokenConfig = false
 
     /// A to F, from the number of tracker hosts the app contacted.
     func grade(_ app: String) -> String {
@@ -80,6 +82,7 @@ extension Stats {
         trackers = try values.decodeIfPresent(Set<String>.self, forKey: .trackers) ?? []
         daily = try values.decodeIfPresent([String: [String: Int]].self, forKey: .daily) ?? [:]
         listSizes = try values.decodeIfPresent([String: Int].self, forKey: .listSizes) ?? [:]
+        brokenConfig = try values.decodeIfPresent(Bool.self, forKey: .brokenConfig) ?? false
     }
 }
 

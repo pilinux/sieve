@@ -22,6 +22,10 @@ final class Store: Sendable {
 
     var config: Config { state.withLock { $0.config } }
     var stats: Stats { state.withLock { $0.stats } }
+    /// The config file that could not be read, or nil.
+    var brokenConfig: Data? { try? Data(contentsOf: brokenConfigFile) }
+    // Where `read` moves a config it cannot decode.
+    private var brokenConfigFile: URL { folder.appending(path: "config.json.broken") }
 
     /// The stats, plus what only the app needs: rule flags, networks, the active profile, and list sizes.
     var statsForApp: Stats {
@@ -34,6 +38,7 @@ final class Store: Sendable {
         result.networks = networks
         result.profile = Self.activeProfile(config, networks)
         result.listSizes = domains.mapValues(\.count)
+        result.brokenConfig = FileManager.default.fileExists(atPath: brokenConfigFile.path)
         return result
     }
 
@@ -80,6 +85,10 @@ final class Store: Sendable {
             $0.statsChanged = true
         }
         saveStats()
+    }
+
+    func discardBrokenConfig() {
+        try? FileManager.default.removeItem(at: brokenConfigFile)
     }
 
     func setList(_ id: String, text: String) {
@@ -173,7 +182,10 @@ final class Store: Sendable {
         } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
             return nil
         } catch {
-            // Keep the broken file for the user to inspect.
+            // Keep the broken file for the user to inspect. The next save would replace it.
+            let broken = folder.appending(path: name + ".broken")
+            try? FileManager.default.removeItem(at: broken)
+            try? FileManager.default.moveItem(at: folder.appending(path: name), to: broken)
             logger.error("Cannot read \(name, privacy: .public), using defaults: \(error, privacy: .public)")
             return nil
         }

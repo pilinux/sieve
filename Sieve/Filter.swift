@@ -116,6 +116,17 @@ final class Filter: NSObject {
         await refresh()
     }
 
+    /// The config file the extension could not read. Nil or empty if there is none.
+    func brokenConfig() async -> Data? {
+        await send { $0.brokenConfig(reply: $1) }
+    }
+
+    /// Deletes that file in the extension, then reads the stats again.
+    func discardBrokenConfig() async {
+        _ = await send { $0.discardBrokenConfig(reply: $1) }
+        await refresh()
+    }
+
     /// Downloads the list and hands it to the extension.
     func load(_ list: DomainList) async {
         do {

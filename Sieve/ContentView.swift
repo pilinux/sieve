@@ -22,6 +22,9 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.leading, 16)
                             .frame(height: 60)
+                        if filter.stats.brokenConfig {
+                            BrokenConfigNotice(filter: filter).padding(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 24))
+                        }
                         Group {
                             switch screen {
                             case .apps: AppsView(filter: filter)

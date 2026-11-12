@@ -182,4 +182,13 @@ extension FilterDataProvider: FilterXPC {
         store.forget(app)
         reply(Data())
     }
+
+    func brokenConfig(reply: @escaping @Sendable (Data) -> Void) {
+        reply(store.brokenConfig ?? Data())
+    }
+
+    func discardBrokenConfig(reply: @escaping @Sendable (Data) -> Void) {
+        store.discardBrokenConfig()
+        reply(Data())
+    }
 }
