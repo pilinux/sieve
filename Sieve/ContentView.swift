@@ -52,10 +52,7 @@ struct ContentView: View {
         .frame(minWidth: 1240, minHeight: 760)
         .containerBackground(.bg, for: .window)
         .preferredColorScheme(.dark)
-        .task {
-            await filter.resume()
-            await filter.poll()
-        }
+        .task { await filter.poll() }
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {

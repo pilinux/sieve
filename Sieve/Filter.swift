@@ -23,9 +23,16 @@ final class Filter: NSObject {
     @ObservationIgnored private var sample = (bytes: [String: Int](), time: Date.now)
     // Counts local edits. A config read that started before the latest edit would undo it, so it is dropped.
     @ObservationIgnored private var edits = 0
+    @ObservationIgnored private var reconnecting = false
 
-    /// Once turned on, activate again on each launch, so a new build replaces the old extension.
-    func resume() async {
+    // At launch, not from a window: Ask mode needs the app as its client even with every window closed.
+    override init() {
+        super.init()
+        Task { await resume() }
+    }
+
+    // Once turned on, activate again on each launch, so a new build replaces the old extension.
+    private func resume() async {
         let manager = NEFilterManager.shared()
         do {
             try await manager.loadFromPreferences()
@@ -148,8 +155,14 @@ final class Filter: NSObject {
         connection.remoteObjectInterface = NSXPCInterface(with: FilterXPC.self)
         connection.exportedInterface = NSXPCInterface(with: PromptXPC.self)
         connection.exportedObject = self
+        connection.interruptionHandler = { @Sendable [weak self] in
+            Task { @MainActor in await self?.reconnect() }
+        }
         connection.invalidationHandler = { @Sendable [weak self] in
-            Task { @MainActor in self?.connection = nil }
+            Task { @MainActor in
+                self?.connection = nil
+                await self?.reconnect()
+            }
         }
         connection.resume()
         self.connection = connection
@@ -167,8 +180,20 @@ final class Filter: NSObject {
             manager.isEnabled = true
             try await manager.saveToPreferences()
             status = "On"
+            await reconnect()
         } catch {
             status = "Error: \(error.localizedDescription)"
+        }
+    }
+
+    // The extension takes the sender of a message as its Ask mode client, and forgets it when the link drops.
+    // A failed send drops the link again, so only one loop runs.
+    private func reconnect() async {
+        guard !reconnecting else { return }
+        reconnecting = true
+        defer { reconnecting = false }
+        while status == "On", await send({ $0.config(reply: $1) }) == nil {
+            try? await Task.sleep(for: .seconds(1))
         }
     }
 }
