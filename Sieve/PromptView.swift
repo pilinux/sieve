@@ -52,7 +52,6 @@ struct PromptView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.allow)
-                .keyboardShortcut(.defaultAction)
             }
             .controlSize(.large)
         }
