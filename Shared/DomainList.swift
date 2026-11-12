@@ -21,6 +21,13 @@ struct DomainList: Codable, Equatable, Identifiable {
         enabled: false
     )
 
+    /// The host as lists hold it: lowercase, with no dot at either end. Nil if nothing is left.
+    /// `Example.COM.` and `example.com` name the same host, so both must match the same entry.
+    static func normalize(_ host: String) -> String? {
+        let host = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        return host.isEmpty ? nil : host
+    }
+
     /// Reads one host per line, or hosts-file lines such as `0.0.0.0 example.com`.
     /// Skips `#` comments and names without a dot, such as `localhost`.
     static func parse(_ text: String) -> Set<String> {

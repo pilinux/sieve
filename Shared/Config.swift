@@ -8,6 +8,9 @@ struct Config: Codable, Equatable {
     var limits: [Limit] = []
     var profiles: [Profile] = []
 
+    /// The key of a process that exited before its lookup. Many processes share it, so no rule covers it.
+    static let unknownApp = "unknown"
+
     /// Decides one flow. Nil means: ask the user.
     /// - Parameter domains: the hosts of each list, by list ID.
     func verdict(
@@ -34,6 +37,8 @@ struct Config: Codable, Equatable {
         }
         if let appRule { return (appRule.action, appRule) }
         if isApple { return (.allow, nil) }
+        // Ask mode cannot ask about a process that is gone.
+        if mode == .ask, app == Self.unknownApp { return (.block, nil) }
         return (mode == .ask ? nil : .allow, nil)
     }
 
@@ -60,6 +65,7 @@ struct Config: Codable, Equatable {
 
     // A rule of the active profile beats one without a profile.
     private func rule(for app: String, host: String? = nil, profile: UUID? = nil) -> Rule? {
+        guard app != Self.unknownApp else { return nil }
         let matches = rules.filter { $0.app == app && $0.host == host }
         return matches.first { profile != nil && $0.profile == profile } ?? matches.first { $0.profile == nil }
     }
@@ -99,12 +105,14 @@ struct Config: Codable, Equatable {
 
     /// Replaces the app's rule for this host. Leaves rules of profiles alone.
     mutating func setAction(_ action: Action, for app: String, host: String? = nil) {
+        guard app != Self.unknownApp else { return }
         rules.removeAll { $0.app == app && $0.host == host && $0.profile == nil }
         rules.append(Rule(app: app, host: host, action: action))
     }
 
     /// Sets the rule for this app, host, and profile. Picking the rule's own action again removes it.
     mutating func pick(_ action: Action, for app: String, host: String?, profile: UUID?) {
+        guard app != Self.unknownApp else { return }
         if let index = rules.firstIndex(where: { $0.app == app && $0.host == host && $0.profile == profile }) {
             if rules[index].action == action { rules.remove(at: index) } else { rules[index].action = action }
         } else {

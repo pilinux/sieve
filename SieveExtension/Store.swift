@@ -137,7 +137,10 @@ final class Store: Sendable {
         return state.withLock {
             if $0.pruned != today { Self.prune(&$0) }
             if $0.stats.see(app.key, host: host, day: today) { $0.statsChanged = true }
-            if app.isApple, $0.stats.apple.insert(app.key).inserted { $0.statsChanged = true }
+            // A user tool may have counted as Apple in an earlier build.
+            if app.isApple ? $0.stats.apple.insert(app.key).inserted : $0.stats.apple.remove(app.key) != nil {
+                $0.statsChanged = true
+            }
             if let host, $0.config.isTracker(host, domains: $0.domains), $0.stats.trackers.insert(host).inserted {
                 $0.statsChanged = true
             }

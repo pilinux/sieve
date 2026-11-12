@@ -54,9 +54,9 @@ struct Stats: Codable, Equatable {
         }
     }
 
-    /// Non-Apple apps without an app rule, sorted.
+    /// Non-Apple apps without an app rule, sorted. Never `Config.unknownApp`, which takes no rule.
     func undecided(_ config: Config) -> [String] {
-        apps.keys.filter { !apple.contains($0) && config.action(for: $0) == nil }.sorted()
+        apps.keys.filter { $0 != Config.unknownApp && !apple.contains($0) && config.action(for: $0) == nil }.sorted()
     }
 
     /// Records that the app made a flow on `day`, to `host` if known. Returns whether anything changed.

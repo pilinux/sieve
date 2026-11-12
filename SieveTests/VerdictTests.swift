@@ -97,6 +97,21 @@ struct VerdictTests {
         #expect(config.verdict(app: app, host: "other.com", isApple: false) == nil)
     }
 
+    @Test func unknownTakesNoRule() {
+        let unknown = Config.unknownApp
+        var config = Config(mode: .ask, rules: [Rule(app: unknown, action: .allow)])
+        config.setAction(.allow, for: unknown, host: "example.com")
+        config.pick(.allow, for: unknown, host: nil, profile: UUID())
+        #expect(config.rules.count == 1)
+        #expect(config.verdict(app: unknown, host: "example.com", isApple: false) == .block)
+        config.mode = .quiet
+        #expect(config.verdict(app: unknown, host: "example.com", isApple: false) == .allow)
+        let domains = ["b": Set(["example.com"])]
+        config.lists = [DomainList(id: "b", name: "B", url: "https://b.example", action: .block)]
+        #expect(config.verdict(app: unknown, host: "example.com", isApple: false, domains: domains) == .block)
+        #expect(Stats(apps: [unknown: [:]]).undecided(config).isEmpty)
+    }
+
     @Test func undecidedSkipsAppleAndAppsWithRules() {
         let stats = Stats(apps: [app: [:], "com.apple.Safari": [:], "decided": [:], "host-only": [:]], apple: ["com.apple.Safari"])
         let config = Config(rules: [

@@ -257,7 +257,10 @@ private struct XRay: View {
                     } message: {
                         Text("Its traffic, hosts, and rule hits go. Its rules and data limit stay.")
                     }
-                Segments(verdict: config.action(for: app)) { action in filter.update { $0.setAction(action, for: app) } }
+                // No rule covers `unknown`: many processes share it.
+                if app != Config.unknownApp {
+                    Segments(verdict: config.action(for: app)) { action in filter.update { $0.setAction(action, for: app) } }
+                }
             }
             HStack(spacing: 12) {
                 grade(stats.grade(app), trackers: trackers.count, hosts: hosts.count).frame(width: 250)
@@ -415,8 +418,10 @@ private struct XRay: View {
                         Text(host).lineLimit(1).truncationMode(.middle)
                         Spacer()
                         if tracker { Chip.tracker }
-                        Segments(verdict: action, small: true) { action in
-                            filter.update { $0.setAction(action, for: app, host: host) }
+                        if app != Config.unknownApp {
+                            Segments(verdict: action, small: true) { action in
+                                filter.update { $0.setAction(action, for: app, host: host) }
+                            }
                         }
                     }
                     .frame(height: 38)

@@ -68,12 +68,13 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         }
     }
 
-    // Pauses the flow until the user answers. Allows it if the Sieve app is not running.
+    // Pauses the flow until the user answers. Drops it if the Sieve app is not running: killing the app must not open the filter.
     private func pauseAndAsk(app: App, host: String?, flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
         let key = app.key
         guard let client = ask.withLockUnchecked({ $0.client }),
-            let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in resumeFlows(of: key) }) as? PromptXPC
-        else { return counted(.allow()) }
+            let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in resumeFlows(of: key, answered: false) })
+                as? PromptXPC
+        else { return .drop() }
 
         let first = ask.withLockUnchecked {
             defer { $0.waiting[key, default: []].append(flow) }
@@ -81,16 +82,14 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         }
         // Later flows of the same app wait for the same answer.
         if first {
-            // A key that is the path names no verified signer.
-            let signer = app.isApple ? "Apple" : app.key == app.path || app.path.isEmpty ? "" : String(app.key.prefix { $0 != "." })
-            prompt.prompt(app: key, path: app.path, signer: signer, host: host ?? "") { [self] in resumeFlows(of: key) }
+            prompt.prompt(app: key, path: app.path, signer: app.signer, host: host ?? "") { [self] in resumeFlows(of: key, answered: true) }
         }
         return .pause()
     }
 
     // Resumes the app's waiting flows by the rules. The Sieve app saved the answer as a rule before it replied.
-    // Flows the rules leave undecided are allowed once.
-    private func resumeFlows(of app: String) {
+    // Flows the rules leave undecided are allowed once after an answer, and dropped when the app could not be asked.
+    private func resumeFlows(of app: String, answered: Bool) {
         // `NEFilterFlow` is not `Sendable`. Once out of `waiting`, only the block below uses these.
         nonisolated(unsafe) let flows = ask.withLockUnchecked { $0.waiting.removeValue(forKey: app) ?? [] }
         // Only a paused flow resumes. A flow joins `waiting` before `handleNewFlow` returns `.pause()`,
@@ -99,7 +98,8 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
             let config = store.config
             for flow in flows {
                 let verdict = config.verdict(app: app, host: flow.hostname, isApple: false)
-                resumeFlow(flow, with: verdict == .block ? NEFilterNewFlowVerdict.drop() : counted(.allow()))
+                let allow = verdict == .allow || (verdict == nil && answered)
+                resumeFlow(flow, with: allow ? counted(.allow()) : NEFilterNewFlowVerdict.drop())
             }
         }
     }
@@ -107,7 +107,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
     private func app(of flow: NEFilterFlow) -> App {
         // Some flows carry only the process token.
         let token = flow.sourceAppAuditToken ?? flow.sourceProcessAuditToken
-        return token.flatMap(apps.app) ?? App("unknown")
+        return token.flatMap(apps.app) ?? App(Config.unknownApp)
     }
 
     // Asks for the flow's byte counts about once a second, and when it closes.
@@ -149,7 +149,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
 }
 
 private extension NEFilterFlow {
-    var hostname: String? { url?.host ?? (self as? NEFilterSocketFlow)?.remoteHostname }
+    var hostname: String? { (url?.host ?? (self as? NEFilterSocketFlow)?.remoteHostname).flatMap(DomainList.normalize) }
 }
 
 extension FilterDataProvider: NSXPCListenerDelegate {

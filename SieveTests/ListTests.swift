@@ -18,6 +18,11 @@ struct ListTests {
         #expect(DomainList.parse(text) == ["ads.example.com", "tracker.example.net", "one.example", "two.example"])
     }
 
+    @Test(arguments: [("Ads.Example.COM", "ads.example.com"), ("ads.example.com.", "ads.example.com"), (".", nil)])
+    func normalizesHost(host: String, normalized: String?) {
+        #expect(DomainList.normalize(host) == normalized)
+    }
+
     @Test func blockListDrops() {
         let config = Config(lists: [blocked])
         let domains = ["b": Set(["ads.example.com"])]
