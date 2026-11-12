@@ -30,6 +30,8 @@ struct Stats: Codable, Equatable {
     var listSizes: [String: Int] = [:]
     /// Whether the extension holds a config file it could not read. Filled in for the app only.
     var brokenConfig = false
+    /// Tracker hosts that the current rules and lists block, by app key. Filled in for the app only.
+    var blockedTrackers: [String: Set<String>] = [:]
 
     /// The most hosts kept for one app.
     static let maxHosts = 1_000
@@ -39,9 +41,14 @@ struct Stats: Codable, Equatable {
         Set(apps[app, default: [:]].keys)
     }
 
-    /// A to F, from the number of tracker hosts the app contacted.
+    /// Tracker hosts the app contacted that the current rules and lists let through.
+    func openTrackers(_ app: String) -> Int {
+        apps[app, default: [:]].keys.filter { trackers.contains($0) && blockedTrackers[app]?.contains($0) != true }.count
+    }
+
+    /// A to F, from `openTrackers(_:)`. `–` when the app gave no host names, so its trackers are unknown.
     func grade(_ app: String) -> String {
-        Self.grade(trackers: apps[app, default: [:]].keys.filter(trackers.contains).count)
+        apps[app, default: [:]].isEmpty ? "–" : Self.grade(trackers: openTrackers(app))
     }
 
     static func grade(trackers: Int) -> String {
@@ -54,9 +61,9 @@ struct Stats: Codable, Equatable {
         }
     }
 
-    /// Non-Apple apps without an app rule, sorted. Never `Config.unknownApp`, which takes no rule.
+    /// Non-Apple apps without an app rule in any column, sorted. Never `Config.unknownApp`, which takes no rule.
     func undecided(_ config: Config) -> [String] {
-        apps.keys.filter { $0 != Config.unknownApp && !apple.contains($0) && config.action(for: $0) == nil }.sorted()
+        apps.keys.filter { $0 != Config.unknownApp && !apple.contains($0) && !config.hasAppRule($0) }.sorted()
     }
 
     /// Records that the app made a flow on `day`, to `host` if known. Returns whether anything changed.

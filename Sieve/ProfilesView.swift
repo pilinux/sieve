@@ -113,11 +113,19 @@ struct ProfilesView: View {
                 Image(systemName: "wifi").foregroundStyle(.ink2)
                 Text(router(profile.network) ?? "No network").foregroundStyle(.ink2).lineLimit(1)
                 Spacer()
-                Button("Use this network") {
-                    let network = filter.stats.networks.sorted().first
-                    filter.update { $0.profiles[id]?.network = network }
+                let networks = filter.stats.networks.sorted()
+                if networks.count > 1 {
+                    // On Wi-Fi and Ethernet at once, only the user knows which one the profile is for.
+                    Menu("Use this network") {
+                        ForEach(networks, id: \.self) { network in
+                            Button(router(network) ?? network) { filter.update { $0.profiles[id]?.network = network } }
+                        }
+                    }
+                    .fixedSize()
+                } else {
+                    Button("Use this network") { filter.update { $0.profiles[id]?.network = networks.first } }
+                        .disabled(networks.isEmpty)
                 }
-                .disabled(filter.stats.networks.isEmpty)
                 IconButton(icon: "xmark", help: "Clear network") { filter.update { $0.profiles[id]?.network = nil } }
                     .disabled(profile.network == nil)
             }

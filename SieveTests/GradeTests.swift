@@ -17,6 +17,21 @@ struct GradeTests {
         #expect(stats.grade("app") == "B")
     }
 
+    @Test func blockedTrackersDoNotCount() {
+        var stats = Stats(
+            apps: ["app": ["t1.example": "2026-11-12", "t2.example": "2026-11-12", "t3.example": "2026-11-12"]],
+            trackers: ["t1.example", "t2.example", "t3.example"]
+        )
+        #expect(stats.grade("app") == "C")
+        stats.blockedTrackers = ["app": ["t1.example", "t2.example", "t3.example"]]
+        #expect(stats.openTrackers("app") == 0)
+        #expect(stats.grade("app") == "A")
+    }
+
+    @Test func appWithoutHostNamesHasNoGrade() {
+        #expect(Stats(apps: ["app": [:]]).grade("app") == "–")
+    }
+
     @Test func disabledBlockListStillMarksTrackers() {
         var list = DomainList.trackerShield
         list.enabled = false

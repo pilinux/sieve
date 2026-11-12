@@ -34,11 +34,12 @@ final class Filter: NSObject {
     }
 
     // Once turned on, activate again on each launch, so a new build replaces the old extension.
+    // A filter the user turned off in System Settings stays off until they press Turn on.
     private func resume() async {
         let manager = NEFilterManager.shared()
         do {
             try await manager.loadFromPreferences()
-            if manager.providerConfiguration != nil {
+            if manager.providerConfiguration != nil, manager.isEnabled {
                 turnOn()
             } else {
                 status = "Off"

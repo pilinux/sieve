@@ -263,7 +263,8 @@ private struct XRay: View {
                 }
             }
             HStack(spacing: 12) {
-                grade(stats.grade(app), trackers: trackers.count, hosts: hosts.count).frame(width: 250)
+                let open = stats.openTrackers(app)
+                grade(stats.grade(app), trackers: open, blocked: trackers.count - open, hosts: hosts.count).frame(width: 250)
                 VStack(alignment: .leading, spacing: 6) {
                     Caption("Now")
                     Text(rate(filter.rates[app] ?? 0)).font(.aileron(26, .light)).monospacedDigit()
@@ -288,7 +289,7 @@ private struct XRay: View {
         .onTapGesture { editing = false }
     }
 
-    private func grade(_ grade: String, trackers: Int, hosts: Int) -> some View {
+    private func grade(_ grade: String, trackers: Int, blocked: Int, hosts: Int) -> some View {
         let letters = ["A", "B", "C", "D", "F"]
         let ranges = ["0", "1–2", "3–5", "6–10", "11 or more"]
         return VStack(alignment: .leading, spacing: 16) {
@@ -298,9 +299,9 @@ private struct XRay: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Text("\(trackers)").font(.aileron(26, .light))
-                        Text("trackers").foregroundStyle(.ink3)
+                        Text("trackers open").foregroundStyle(.ink3)
                     }
-                    Text("of \(hosts) hosts").font(.aileron(12)).foregroundStyle(.ink3)
+                    Text("\(blocked) blocked · \(hosts) hosts").font(.aileron(12)).foregroundStyle(.ink3)
                 }
             }
             HStack(spacing: 2) {
@@ -391,11 +392,12 @@ private struct XRay: View {
     }
 
     private func hostList(_ hosts: [String], trackers: Set<String>) -> some View {
-        let rows = hosts.map { (host: $0, action: filter.config.action(for: app, host: $0)) }
+        // A parent domain's rule covers the host too.
+        let rows = hosts.map { (host: $0, rule: filter.config.hostRule(for: app, host: $0)) }
         let parts = [
-            SegmentBar.Part(name: "Allowed", value: rows.filter { $0.action == .allow }.count, color: .allow),
-            SegmentBar.Part(name: "Blocked", value: rows.filter { $0.action == .block }.count, color: .block),
-            SegmentBar.Part(name: "No rule", value: rows.filter { $0.action == nil }.count, color: .s3),
+            SegmentBar.Part(name: "Allowed", value: rows.filter { $0.rule?.action == .allow }.count, color: .allow),
+            SegmentBar.Part(name: "Blocked", value: rows.filter { $0.rule?.action == .block }.count, color: .block),
+            SegmentBar.Part(name: "No rule", value: rows.filter { $0.rule == nil }.count, color: .s3),
         ]
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
@@ -407,7 +409,7 @@ private struct XRay: View {
             SegmentBar(parts: parts).padding(.top, 14).padding(.bottom, 12)
             // Up to 1,000 hosts: build only the rows on screen.
             LazyVStack(spacing: 0) {
-                ForEach(rows, id: \.host) { host, action in
+                ForEach(rows, id: \.host) { host, rule in
                     let tracker = trackers.contains(host)
                     Rectangle().fill(.line).frame(height: 1)
                     HStack(spacing: 10) {
@@ -416,10 +418,13 @@ private struct XRay: View {
                             .foregroundStyle(tracker ? .warn : .ink3)
                             .frame(width: 16)
                         Text(host).lineLimit(1).truncationMode(.middle)
+                        if let parent = rule?.host, parent != host {
+                            Text("from \(parent)").font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1)
+                        }
                         Spacer()
                         if tracker { Chip.tracker }
                         if app != Config.unknownApp {
-                            Segments(verdict: action, small: true) { action in
+                            Segments(verdict: rule?.action, small: true) { action in
                                 filter.update { $0.setAction(action, for: app, host: host) }
                             }
                         }

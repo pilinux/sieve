@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 struct FlagTests {
@@ -18,6 +19,19 @@ struct FlagTests {
         let rule = Rule(app: app, host: "example.com", action: .allow)
         let config = Config(rules: [Rule(app: app, action: .block), rule])
         #expect(config.flag(rule, gone: [], domains: [:]) == .appBlocked)
+    }
+
+    @Test func appBlockFlagsOnlyWhereItCounts() {
+        let profile = UUID()
+        let always = Rule(app: app, host: "example.com", action: .allow)
+        let inProfile = Rule(app: app, host: "example.com", action: .allow, profile: profile)
+        // Blocked in the profile only: the Always host rule still fires elsewhere.
+        var config = Config(rules: [Rule(app: app, action: .block, profile: profile), always, inProfile])
+        #expect(config.flag(always, gone: [], domains: [:]) == nil)
+        #expect(config.flag(inProfile, gone: [], domains: [:]) == .appBlocked)
+        // Blocked always but allowed in a profile: the Always host rule fires there.
+        config.rules = [Rule(app: app, action: .block), Rule(app: app, action: .allow, profile: profile), always]
+        #expect(config.flag(always, gone: [], domains: [:]) == nil)
     }
 
     @Test func blockRuleOnBlockListIsFlagged() {

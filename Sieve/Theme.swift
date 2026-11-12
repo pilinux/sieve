@@ -39,6 +39,7 @@ extension Color {
         case "B": Color(hex: 0x8FB51F)
         case "C": .warn
         case "D": .serious
+        case "–": .ink3
         default: .crit
         }
     }

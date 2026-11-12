@@ -31,7 +31,7 @@ final class Store: Sendable {
     // Where `read` moves a config it cannot decode.
     private var brokenConfigFile: URL { folder.appending(path: "config.json.broken") }
 
-    /// The stats, plus what only the app needs: rule flags, networks, the active profile, and list sizes.
+    /// The stats, plus what only the app needs: rule flags, networks, the active profile, list sizes, and blocked trackers.
     var statsForApp: Stats {
         let (config, stats, domains, networks) = state.withLock { ($0.config, $0.stats, $0.domains, $0.networks) }
         let gone = Set(stats.paths.filter { !FileManager.default.fileExists(atPath: $0.value) }.keys)
@@ -43,6 +43,13 @@ final class Store: Sendable {
         result.profile = Self.activeProfile(config, networks)
         result.listSizes = domains.mapValues(\.count)
         result.brokenConfig = FileManager.default.fileExists(atPath: brokenConfigFile.path)
+        for (app, hosts) in stats.apps {
+            let blocked = hosts.keys.filter { host in
+                stats.trackers.contains(host)
+                    && config.verdict(app: app, host: host, isApple: false, domains: domains, profile: result.profile) == .block
+            }
+            if !blocked.isEmpty { result.blockedTrackers[app] = Set(blocked) }
+        }
         return result
     }
 

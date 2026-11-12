@@ -112,6 +112,11 @@ struct VerdictTests {
         #expect(Stats(apps: [unknown: [:]]).undecided(config).isEmpty)
     }
 
+    @Test func profileAppRuleIsADecision() {
+        let config = Config(rules: [Rule(app: app, action: .block, profile: UUID())])
+        #expect(Stats(apps: [app: [:]]).undecided(config).isEmpty)
+    }
+
     @Test func undecidedSkipsAppleAndAppsWithRules() {
         let stats = Stats(apps: [app: [:], "com.apple.Safari": [:], "decided": [:], "host-only": [:]], apple: ["com.apple.Safari"])
         let config = Config(rules: [

@@ -47,7 +47,7 @@ struct Config: Codable, Equatable {
     func flag(_ rule: Rule, gone: Set<String>, domains: [String: Set<String>]) -> Flag? {
         if gone.contains(rule.app) { return .appGone }
         guard let host = rule.host else { return nil }
-        if action(for: rule.app) == .block { return .appBlocked }
+        if isAppBlocked(rule.app, profile: rule.profile) { return .appBlocked }
         if rule.action == .block, isListed(host, .block, domains) { return .blockList }
         // The nearest parent domain rule decides the host when this rule is gone.
         if let dot = host.firstIndex(of: "."),
@@ -56,6 +56,18 @@ struct Config: Codable, Equatable {
             return .parentRule
         }
         return nil
+    }
+
+    // Whether the app is blocked wherever a rule of `profile` counts: in that profile,
+    // or with no profile, in every profile, since a profile without its own app rule falls back to Always.
+    private func isAppBlocked(_ app: String, profile: UUID?) -> Bool {
+        if let profile { return rule(for: app, profile: profile)?.action == .block }
+        return rule(for: app)?.action == .block && !rules.contains { $0.app == app && $0.host == nil && $0.action == .allow }
+    }
+
+    /// Whether the app has an app rule in any column: Always or a profile.
+    func hasAppRule(_ app: String) -> Bool {
+        rules.contains { $0.app == app && $0.host == nil }
     }
 
     /// The app's rule for exactly this host. A nil host means the app rule.
@@ -121,7 +133,8 @@ struct Config: Codable, Equatable {
     }
 
     // Checks the host, then each parent domain, so the most specific rule wins.
-    private func hostRule(for app: String, host: String, profile: UUID? = nil) -> Rule? {
+    /// The app's rule for the host or its nearest parent domain.
+    func hostRule(for app: String, host: String, profile: UUID? = nil) -> Rule? {
         var domain = Substring(host)
         while true {
             if let rule = rule(for: app, host: String(domain), profile: profile) { return rule }
