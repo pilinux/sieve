@@ -58,12 +58,11 @@ final class Store: Sendable {
         let stats = read(Stats.self, "stats.json")
         var domains: [String: Set<String>] = [:]
         for list in (config ?? Config()).lists {
-            let cached = folder.appending(path: "lists/\(list.id).txt")
             // Tracker Shield works before its first refresh.
             let bundled =
                 list.id == DomainList.trackerShield.id
                 ? Bundle.main.url(forResource: "trackers", withExtension: "txt") : nil
-            if let text = (try? String(contentsOf: cached, encoding: .utf8))
+            if let text = listFile(list.id).flatMap({ try? String(contentsOf: $0, encoding: .utf8) })
                 ?? bundled.flatMap({ try? String(contentsOf: $0, encoding: .utf8) })
             {
                 domains[list.id] = DomainList.parse(text)
@@ -92,16 +91,20 @@ final class Store: Sendable {
     }
 
     func setList(_ id: String, text: String) {
-        // The ID names a file. Keep it inside the lists folder.
-        guard !id.contains("/") else { return }
+        guard let file = listFile(id) else { return }
         let hosts = DomainList.parse(text)
         state.withLock { $0.domains[id] = hosts }
         do {
             try FileManager.default.createDirectory(at: folder.appending(path: "lists"), withIntermediateDirectories: true)
-            try text.write(to: folder.appending(path: "lists/\(id).txt"), atomically: true, encoding: .utf8)
+            try text.write(to: file, atomically: true, encoding: .utf8)
         } catch {
             logger.error("Cannot save list \(id, privacy: .public): \(error, privacy: .public)")
         }
+    }
+
+    // The ID names a file. Keep it inside the lists folder.
+    private func listFile(_ id: String) -> URL? {
+        id.contains("/") ? nil : folder.appending(path: "lists/\(id).txt")
     }
 
     func setConfig(_ config: Config) {

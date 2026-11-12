@@ -58,7 +58,8 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         let app = app(of: flow)
         let host = flow.hostname
         let action = store.verdict(app: app, host: host)
-        logger.log("\(action?.rawValue ?? "ask", privacy: .public) \(app.key, privacy: .public) to \(host ?? "?", privacy: .public)")
+        // App and host stay private: the log ends up in sysdiagnose reports.
+        logger.log("\(action?.rawValue ?? "ask", privacy: .public) \(app.key, privacy: .private) to \(host ?? "?", privacy: .private)")
         switch action {
         case .allow: return counted(.allow())
         case .block: return .drop()
@@ -125,12 +126,16 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
             logger.error("No NEMachServiceName in Info.plist")
             return
         }
-        // The service name starts with the team ID. Accept only apps signed by that team.
+        // The service name starts with the team ID. Accept only the Sieve app, signed by that team.
         let team = name.prefix { $0 != "." }
+        var requirement =
+            "anchor apple generic and identifier \"me.pilinux.Sieve\" and certificate leaf[subject.OU] = \"\(team)\""
+        #if !DEBUG
+            // A debugger can inject code into an app with `get-task-allow`. Only Debug builds have it.
+            requirement += " and !(entitlement[\"com.apple.security.get-task-allow\"] exists)"
+        #endif
         let listener = NSXPCListener(machServiceName: name)
-        listener.setConnectionCodeSigningRequirement(
-            "anchor apple generic and certificate leaf[subject.OU] = \"\(team)\""
-        )
+        listener.setConnectionCodeSigningRequirement(requirement)
         listener.delegate = self
         listener.resume()
         self.listener = listener
@@ -172,7 +177,10 @@ extension FilterDataProvider: FilterXPC {
     }
 
     func setList(_ id: String, domains: Data, reply: @escaping @Sendable (Data) -> Void) {
-        store.setList(id, text: String(decoding: domains, as: UTF8.self))
+        // The app caps lists too. Check again: this process runs as root, with no sandbox.
+        if domains.count <= DomainList.maxBytes {
+            store.setList(id, text: String(decoding: domains, as: UTF8.self))
+        }
         reply(Data())
     }
 

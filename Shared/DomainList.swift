@@ -9,6 +9,9 @@ struct DomainList: Codable, Equatable, Identifiable {
     var action: Action
     var enabled = true
 
+    /// The largest list Sieve takes, in bytes.
+    static let maxBytes = 16_000_000
+
     /// Steven Black's unified hosts, MIT licence. Its first copy ships with the extension.
     static let trackerShield = DomainList(
         id: "tracker-shield",

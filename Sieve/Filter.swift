@@ -131,10 +131,15 @@ final class Filter: NSObject {
     func load(_ list: DomainList) async {
         do {
             guard let url = URL(string: list.url) else { throw URLError(.badURL) }
-            let (data, response) = try await URLSession.shared.data(from: url)
+            // To a file, so a huge list never fills memory here or in the extension.
+            let (file, response) = try await URLSession.shared.download(from: url)
+            defer { try? FileManager.default.removeItem(at: file) }
             if let response = response as? HTTPURLResponse, response.statusCode != 200 {
                 throw URLError(.badServerResponse)
             }
+            guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= DomainList.maxBytes
+            else { throw URLError(.dataLengthExceedsMaximum) }
+            let data = try Data(contentsOf: file)
             if await send({ $0.setList(list.id, domains: data, reply: $1) }) == nil {
                 throw URLError(.cannotConnectToHost)
             }
