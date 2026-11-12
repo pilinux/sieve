@@ -24,10 +24,26 @@ struct ListTests {
         #expect(config.verdict(app: app, host: "ads.example.com", isApple: true, domains: domains) == .block)
     }
 
-    @Test func listMatchesExactHostOnly() {
+    @Test func listEntryCoversSubdomains() {
         let config = Config(lists: [blocked])
         let domains = ["b": Set(["example.com"])]
+        #expect(config.verdict(app: app, host: "www.example.com", isApple: false, domains: domains) == .block)
+        #expect(config.verdict(app: app, host: "a.b.example.com", isApple: false, domains: domains) == .block)
+        #expect(config.verdict(app: app, host: "notexample.com", isApple: false, domains: domains) == .allow)
+    }
+
+    @Test func subdomainEntryLeavesParentAlone() {
+        let config = Config(lists: [blocked])
+        let domains = ["b": Set(["ads.example.com"])]
+        #expect(config.verdict(app: app, host: "example.com", isApple: false, domains: domains) == .allow)
         #expect(config.verdict(app: app, host: "www.example.com", isApple: false, domains: domains) == .allow)
+        #expect(config.verdict(app: app, host: "x.ads.example.com", isApple: false, domains: domains) == .block)
+    }
+
+    @Test func allowListCoversSubdomains() {
+        let config = Config(lists: [blocked, allowed])
+        let domains = ["a": Set(["example.com"]), "b": Set(["ads.example.com"])]
+        #expect(config.verdict(app: app, host: "ads.example.com", isApple: false, domains: domains) == .allow)
     }
 
     @Test func disabledListIsIgnored() {

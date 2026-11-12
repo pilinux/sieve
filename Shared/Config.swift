@@ -117,14 +117,23 @@ struct Config: Codable, Equatable {
         }
     }
 
-    /// Whether any block list has the host, enabled or not.
+    /// Whether any block list covers the host, enabled or not.
     func isTracker(_ host: String, domains: [String: Set<String>]) -> Bool {
-        lists.contains { $0.action == .block && domains[$0.id]?.contains(host) == true }
+        lists.contains { $0.action == .block && Self.covers(domains[$0.id] ?? [], host) }
     }
 
-    // List entries match the exact host only.
     private func isListed(_ host: String, _ action: Action, _ domains: [String: Set<String>]) -> Bool {
-        lists.contains { $0.enabled && $0.action == action && domains[$0.id]?.contains(host) == true }
+        lists.contains { $0.enabled && $0.action == action && Self.covers(domains[$0.id] ?? [], host) }
+    }
+
+    // An entry covers its own host and every subdomain: check the host, then each parent domain.
+    private static func covers(_ entries: Set<String>, _ host: String) -> Bool {
+        var domain = Substring(host)
+        while true {
+            if entries.contains(String(domain)) { return true }
+            guard let dot = domain.firstIndex(of: ".") else { return false }
+            domain = domain[domain.index(after: dot)...]
+        }
     }
 }
 

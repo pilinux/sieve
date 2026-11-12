@@ -19,6 +19,7 @@ struct GradeTests {
         list.enabled = false
         let config = Config(lists: [list])
         #expect(config.isTracker("ads.example.com", domains: [list.id: ["ads.example.com"]]))
+        #expect(config.isTracker("x.ads.example.com", domains: [list.id: ["ads.example.com"]]))
         #expect(!config.isTracker("example.com", domains: [list.id: ["ads.example.com"]]))
     }
 }
