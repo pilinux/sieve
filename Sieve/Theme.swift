@@ -338,16 +338,19 @@ struct AppRow: View {
                 }
                 .animation(.easeOut(duration: 0.6), value: current)
             }
-            Toggle(
-                "Allow",
-                isOn: Binding(
-                    get: { on },
-                    set: { allow in filter.update { $0.setAction(allow ? .allow : .block, for: app) } }
+            // No rule covers `unknown`: many processes share it.
+            if app != Config.unknownApp {
+                Toggle(
+                    "Allow",
+                    isOn: Binding(
+                        get: { on },
+                        set: { allow in filter.update { $0.setAction(allow ? .allow : .block, for: app) } }
+                    )
                 )
-            )
-            .toggleStyle(.switch)
-            .labelsHidden()
-            .tint(.allow)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .tint(.allow)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

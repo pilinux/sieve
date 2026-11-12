@@ -19,8 +19,10 @@ import Foundation
 
 /// What the extension asks the app, in Ask mode.
 @objc protocol PromptXPC {
-    /// Replies once the app has saved the answer as a rule. `signer` is a Team ID, `Apple`, or empty if not verified.
-    func prompt(app: String, path: String, signer: String, host: String, reply: @escaping @Sendable () -> Void)
+    /// Replies with the answer once the app has tried to save it as a rule: Allow or Block, and whether it
+    /// covers only `host`. `signer` is a Team ID, `Apple`, or empty if not verified.
+    func prompt(
+        app: String, path: String, signer: String, host: String, reply: @escaping @Sendable (_ allow: Bool, _ hostOnly: Bool) -> Void)
 }
 
 extension Bundle {

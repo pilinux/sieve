@@ -11,7 +11,12 @@ struct MenuView: View {
                 Image(systemName: "line.3.horizontal.decrease.circle").font(.system(size: 17)).foregroundStyle(.allow)
                 Text("Sieve").font(.aileron(15, .bold))
                 Spacer()
-                ModePicker(filter: filter)
+                // A mode means nothing while the system filter is off.
+                if filter.status == "On" {
+                    ModePicker(filter: filter)
+                } else {
+                    Text(filter.status).foregroundStyle(.ink3).lineLimit(1)
+                }
             }
             if filter.stats.brokenConfig { BrokenConfigNotice(filter: filter, compact: true) }
             VStack(alignment: .leading, spacing: 6) {

@@ -31,6 +31,17 @@ final class Filter: NSObject {
     override init() {
         super.init()
         Task { await resume() }
+        Task { await followSystemSettings() }
+    }
+
+    // The user can turn the filter off in System Settings at any time. Then nothing filters, so show Off.
+    private func followSystemSettings() async {
+        for await _ in NotificationCenter.default.notifications(named: .NEFilterConfigurationDidChange) {
+            let manager = NEFilterManager.shared()
+            guard status == "On", (try? await manager.loadFromPreferences()) != nil, !manager.isEnabled else { continue }
+            enabled = false
+            status = "Off"
+        }
     }
 
     // Once turned on, activate again on each launch, so a new build replaces the old extension.
@@ -255,7 +266,9 @@ final class Filter: NSObject {
 }
 
 extension Filter: PromptXPC {
-    nonisolated func prompt(app: String, path: String, signer: String, host: String, reply: @escaping @Sendable () -> Void) {
+    nonisolated func prompt(
+        app: String, path: String, signer: String, host: String, reply: @escaping @Sendable (Bool, Bool) -> Void
+    ) {
         Task { @MainActor in
             // With no window open, no poll runs. The tracker mark needs fresh stats.
             await refresh()
@@ -283,8 +296,9 @@ extension Filter: PromptXPC {
             NSApp.runModal(for: panel)
             panel.close()
             // The app is the only writer of the config: the rule is saved before the extension resumes the flows.
+            // The reply carries the answer too, so a failed save cannot turn Block into Allow.
             await update { $0.setAction(answer.action, for: app, host: answer.hostOnly ? host : nil) }?.value
-            reply()
+            reply(answer.action == .allow, answer.hostOnly)
         }
     }
 }

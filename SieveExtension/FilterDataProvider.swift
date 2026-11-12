@@ -64,17 +64,22 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         switch action {
         case .allow: return counted(.allow())
         case .block: return .drop()
-        case nil: return pauseAndAsk(app: app, host: host, flow: flow)
+        case nil:
+            if waitForAnswer(app: app, host: host, flow: flow) { return .pause() }
+            store.countBlocked()
+            return .drop()
         }
     }
 
-    // Pauses the flow until the user answers. Drops it if the Sieve app is not running: killing the app must not open the filter.
-    private func pauseAndAsk(app: App, host: String?, flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
+    // Queues a paused flow for the user's answer. False if the Sieve app is not running:
+    // killing the app must not open the filter.
+    private func waitForAnswer(app: App, host: String?, flow: NEFilterFlow) -> Bool {
         let key = app.key
+        let host = host ?? ""
         guard let client = ask.withLockUnchecked({ $0.client }),
-            let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in resumeFlows(of: key, answered: false) })
+            let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in resumeFlows(of: app, host: host, answer: nil) })
                 as? PromptXPC
-        else { return .drop() }
+        else { return false }
 
         let first = ask.withLockUnchecked {
             defer { $0.waiting[key, default: []].append(flow) }
@@ -82,24 +87,37 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         }
         // Later flows of the same app wait for the same answer.
         if first {
-            prompt.prompt(app: key, path: app.path, signer: app.signer, host: host ?? "") { [self] in resumeFlows(of: key, answered: true) }
+            prompt.prompt(app: key, path: app.path, signer: app.signer, host: host) { [self] allow, hostOnly in
+                resumeFlows(of: app, host: host, answer: (allow ? .allow : .block, hostOnly))
+            }
         }
-        return .pause()
+        return true
     }
 
-    // Resumes the app's waiting flows by the rules. The Sieve app saved the answer as a rule before it replied.
-    // Flows the rules leave undecided are allowed once after an answer, and dropped when the app could not be asked.
-    private func resumeFlows(of app: String, answered: Bool) {
+    // Resumes the app's waiting flows as new flows. The Sieve app saved the answer as a rule before it replied,
+    // so lists, limits, and profiles still beat it. The answer itself covers a flow whose rule could not be saved.
+    // A flow to a host the answer does not cover waits for a new prompt. With no answer, it is dropped.
+    private func resumeFlows(of app: App, host: String, answer: (action: Action, hostOnly: Bool)?) {
         // `NEFilterFlow` is not `Sendable`. Once out of `waiting`, only the block below uses these.
-        nonisolated(unsafe) let flows = ask.withLockUnchecked { $0.waiting.removeValue(forKey: app) ?? [] }
+        nonisolated(unsafe) let flows = ask.withLockUnchecked { $0.waiting.removeValue(forKey: app.key) ?? [] }
         // Only a paused flow resumes. A flow joins `waiting` before `handleNewFlow` returns `.pause()`,
         // and a failed send can land here before that, even on the same stack.
         DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(100)) { [self] in
-            let config = store.config
             for flow in flows {
-                let verdict = config.verdict(app: app, host: flow.hostname, isApple: false)
-                let allow = verdict == .allow || (verdict == nil && answered)
-                resumeFlow(flow, with: allow ? counted(.allow()) : NEFilterNewFlowVerdict.drop())
+                let flowHost = flow.hostname
+                var action = store.verdict(app: app, host: flowHost)
+                if action == nil, let answer, !answer.hostOnly || flowHost == host {
+                    action = answer.action
+                    if action == .block { store.countBlocked() }
+                }
+                switch action {
+                case .allow: resumeFlow(flow, with: counted(.allow()))
+                case .block: resumeFlow(flow, with: NEFilterNewFlowVerdict.drop())
+                case nil:
+                    if answer != nil, waitForAnswer(app: app, host: flowHost, flow: flow) { continue }
+                    store.countBlocked()
+                    resumeFlow(flow, with: NEFilterNewFlowVerdict.drop())
+                }
             }
         }
     }

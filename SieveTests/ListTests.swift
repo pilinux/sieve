@@ -18,6 +18,18 @@ struct ListTests {
         #expect(DomainList.parse(text) == ["ads.example.com", "tracker.example.net", "one.example", "two.example"])
     }
 
+    @Test func normalizesEntriesAndSkipsAdblockLines() {
+        let text = """
+            Trailing.Example.com.
+            ||adblock.example.com^
+            *.wild.example.com
+            example.
+            under_score.example.com
+
+            """
+        #expect(DomainList.parse(text) == ["trailing.example.com", "under_score.example.com"])
+    }
+
     @Test(arguments: [("Ads.Example.COM", "ads.example.com"), ("ads.example.com.", "ads.example.com"), (".", nil)])
     func normalizesHost(host: String, normalized: String?) {
         #expect(DomainList.normalize(host) == normalized)

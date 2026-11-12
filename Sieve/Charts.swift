@@ -174,7 +174,8 @@ struct DayBars: View {
 
 /// One row of `RankedBars`.
 struct RankedItem: Identifiable {
-    var id: String { name }
+    // Two apps can share a name, never a key.
+    var id: String { key.isEmpty ? name : key }
     /// The app key, when the item is an app.
     var key = ""
     let name: String
@@ -277,7 +278,9 @@ struct Legend: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            ForEach(parts, id: \.name) { part in
+            // By position: two profiles can share a name.
+            ForEach(parts.indices, id: \.self) { index in
+                let part = parts[index]
                 HStack(spacing: 6) {
                     RoundedRectangle(cornerRadius: 3).fill(part.color).frame(width: 10, height: 10)
                     Text(part.name)

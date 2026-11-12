@@ -180,6 +180,14 @@ final class Store: Sendable {
         }
     }
 
+    /// Counts a flow dropped outside `verdict(app:host:)`, such as when the Sieve app cannot be asked.
+    func countBlocked() {
+        state.withLock {
+            $0.stats.blocked[Stats.day(.now), default: 0] += 1
+            $0.statsChanged = true
+        }
+    }
+
     /// Adds a flow's new bytes to its app. `total` is the flow's count so far.
     func count(flow: UUID, app: String, total: Int, closed: Bool) {
         let today = Stats.day(.now)
