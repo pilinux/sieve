@@ -113,7 +113,9 @@ final class Filter: NSObject {
     @discardableResult
     func update(_ change: (inout Config) -> Void) -> Task<Void, Never>? {
         guard status == "On" else { return nil }
+        let old = config
         change(&config)
+        config.approveCode(since: old, running: stats.codes ?? [:])
         edits += 1
         let edit = edits
         guard let data = try? JSONEncoder().encode(config) else { return nil }

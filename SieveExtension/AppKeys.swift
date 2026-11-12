@@ -11,11 +11,15 @@ final class App: Sendable {
     let signer: String
     /// Apple code allowed with no rule. Not a user tool such as `curl`, which any app can run.
     let isApple: Bool
+    /// For a path key: the code directory hash of the running code, in hex.
+    /// Nil if the code has no signature, or its file on disk is not the code that runs.
+    let code: String?
 
-    init(_ key: String, path: String = "", signer: String = "") {
+    init(_ key: String, path: String = "", signer: String = "", code: String? = nil) {
         self.key = key
         self.path = path
         self.signer = signer
+        self.code = code
         // Daemons in `/usr/libexec`, `/usr/sbin`, and `/System` stay allowed, or each would prompt.
         isApple = signer == "Apple" && !["/usr/bin/", "/bin/", "/Library/Developer/"].contains { path.hasPrefix($0) }
     }
@@ -91,6 +95,12 @@ struct AppKeys {
             let identifier = info[kSecCodeInfoIdentifier as String] as? String
         else { return App(path, path: path) }
 
+        // Anyone who can write to the path can put other code there. The hash names the code itself.
+        func pathKey() -> App {
+            let hash = (info[kSecCodeInfoUnique as String] as? Data)?.map { String(format: "%02x", $0) }.joined()
+            return App(path, path: path, code: hash.flatMap { satisfies("cdhash H\"\($0)\"") ? $0 : nil })
+        }
+
         if let team = info[kSecCodeInfoTeamIdentifier as String] as? String {
             // The Team ID is a claim until a certificate backs it. Apple re-signs Mac App Store apps with its own.
             // A Team ID is letters and digits; anything else could rewrite the requirement.
@@ -98,13 +108,13 @@ struct AppKeys {
                 satisfies(
                     "anchor apple generic and (certificate leaf[subject.OU] = \"\(team)\""
                         + " or certificate leaf[field.1.2.840.113635.100.6.1.9])")
-            else { return App(path, path: path) }
+            else { return pathKey() }
             return App("\(team).\(identifier)", path: path, signer: team)
         }
         if satisfies("anchor apple") {
             return App(identifier, path: path, signer: "Apple")
         }
-        return App(path, path: path)
+        return pathKey()
     }
 
     private static func guest(_ attributes: [CFString: Any]) -> SecCode? {

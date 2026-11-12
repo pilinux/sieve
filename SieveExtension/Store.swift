@@ -16,6 +16,8 @@ final class Store: Sendable {
         var flowBytes: [UUID: Int] = [:]
         // The `NetworkSignature` of each network the Mac is on.
         var networks: Set<String> = []
+        // The code directory hash of each path key's last flow.
+        var codes: [String: String] = [:]
     }
 
     private let state = Mutex(State())
@@ -33,13 +35,16 @@ final class Store: Sendable {
 
     /// The stats, plus what only the app needs: rule flags, networks, the active profile, list sizes, and blocked trackers.
     var statsForApp: Stats {
-        let (config, stats, domains, networks) = state.withLock { ($0.config, $0.stats, $0.domains, $0.networks) }
+        let (config, stats, domains, networks, codes) = state.withLock {
+            ($0.config, $0.stats, $0.domains, $0.networks, $0.codes)
+        }
         let gone = Set(stats.paths.filter { !FileManager.default.fileExists(atPath: $0.value) }.keys)
         var result = stats
         for rule in config.rules {
             result.flags[rule.id] = config.flag(rule, gone: gone, domains: domains)
         }
         result.networks = networks
+        result.codes = codes
         result.profile = Self.activeProfile(config, networks)
         result.listSizes = domains.mapValues(\.count)
         result.brokenConfig = FileManager.default.fileExists(atPath: brokenConfigFile.path)
@@ -134,6 +139,7 @@ final class Store: Sendable {
 
     private static func prune(_ state: inout State) {
         state.stats.prune(state.config, cutoff: Stats.cutoff(.now))
+        state.codes = state.codes.filter { state.stats.apps[$0.key] != nil }
         state.pruned = Stats.day(.now)
         state.statsChanged = true
     }
@@ -154,10 +160,12 @@ final class Store: Sendable {
             if !app.path.isEmpty, $0.stats.paths.updateValue(app.path, forKey: app.key) != app.path {
                 $0.statsChanged = true
             }
+            if app.signer.isEmpty { $0.codes[app.key] = app.code }
             let overLimit = $0.config.isOverLimit(app.key, daily: $0.stats.daily, today: today)
             let (action, rule) = $0.config.decide(
                 app: app.key, host: host, isApple: app.isApple, domains: $0.domains, overLimit: overLimit,
-                profile: Self.activeProfile($0.config, $0.networks)
+                profile: Self.activeProfile($0.config, $0.networks),
+                trusted: $0.config.trusts(app.key, signer: app.signer, code: app.code)
             )
             if let rule {
                 $0.stats.hits[rule.id, default: Hit()].count += 1

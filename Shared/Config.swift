@@ -7,6 +7,8 @@ struct Config: Codable, Equatable {
     var lists: [DomainList] = [.trackerShield]
     var limits: [Limit] = []
     var profiles: [Profile] = []
+    /// The code directory hash the user allowed, by path key. Optional, so a config without it still loads.
+    var codes: [String: String]?
 
     /// The key of a process that exited before its lookup. Many processes share it, so no rule covers it.
     static let unknownApp = "unknown"
@@ -21,17 +23,19 @@ struct Config: Codable, Equatable {
     }
 
     /// The verdict, and the rule that gave it.
-    /// - Parameter profile: the active profile. Rules of other profiles do not count.
+    /// - Parameters:
+    ///   - profile: the active profile. Rules of other profiles do not count.
+    ///   - trusted: false drops the app's Allow rules. Its Block rules still count.
     func decide(
         app: String, host: String?, isApple: Bool, domains: [String: Set<String>], overLimit: Bool = false,
-        profile: UUID? = nil
+        profile: UUID? = nil, trusted: Bool = true
     ) -> (action: Action?, rule: Rule?) {
         if mode == .off { return (.allow, nil) }
-        let appRule = rule(for: app, profile: profile)
+        let appRule = rule(for: app, profile: profile, trusted: trusted)
         if appRule?.action == .block { return (.block, appRule) }
         if overLimit { return (.block, nil) }
         if let host {
-            if let rule = hostRule(for: app, host: host, profile: profile) { return (rule.action, rule) }
+            if let rule = hostRule(for: app, host: host, profile: profile, trusted: trusted) { return (rule.action, rule) }
             if isListed(host, .allow, domains) { return (.allow, nil) }
             if isListed(host, .block, domains) { return (.block, nil) }
         }
@@ -76,10 +80,29 @@ struct Config: Codable, Equatable {
     }
 
     // A rule of the active profile beats one without a profile.
-    private func rule(for app: String, host: String? = nil, profile: UUID? = nil) -> Rule? {
+    private func rule(for app: String, host: String? = nil, profile: UUID? = nil, trusted: Bool = true) -> Rule? {
         guard app != Self.unknownApp else { return nil }
-        let matches = rules.filter { $0.app == app && $0.host == host }
+        let matches = rules.filter { $0.app == app && $0.host == host && (trusted || $0.action == .block) }
         return matches.first { profile != nil && $0.profile == profile } ?? matches.first { $0.profile == nil }
+    }
+
+    /// Whether the app's Allow rules count. A verified signer names the app wherever it is.
+    /// A path key names a file that other code can replace, so only the code the user allowed counts.
+    /// - Parameter code: the code directory hash of the running code, if it has one.
+    func trusts(_ app: String, signer: String, code: String?) -> Bool {
+        !signer.isEmpty || (code != nil && codes?[app] == code)
+    }
+
+    /// Allows the code each app runs now, for each Allow rule that `old` does not have.
+    /// Drops the hash of an app with no rule left.
+    /// - Parameter running: the code directory hash of each path key, as in `Stats.codes`.
+    mutating func approveCode(since old: Config, running: [String: String]) {
+        let allowed = Set(old.rules.filter { $0.action == .allow }.map(\.id))
+        var codes = self.codes ?? [:]
+        for rule in rules where rule.action == .allow && !allowed.contains(rule.id) {
+            codes[rule.app] = running[rule.app]
+        }
+        self.codes = codes.filter { app, _ in rules.contains { $0.app == app } }
     }
 
     /// The first profile whose network or any time block matches.
@@ -134,10 +157,10 @@ struct Config: Codable, Equatable {
 
     // Checks the host, then each parent domain, so the most specific rule wins.
     /// The app's rule for the host or its nearest parent domain.
-    func hostRule(for app: String, host: String, profile: UUID? = nil) -> Rule? {
+    func hostRule(for app: String, host: String, profile: UUID? = nil, trusted: Bool = true) -> Rule? {
         var domain = Substring(host)
         while true {
-            if let rule = rule(for: app, host: String(domain), profile: profile) { return rule }
+            if let rule = rule(for: app, host: String(domain), profile: profile, trusted: trusted) { return rule }
             guard let dot = domain.firstIndex(of: ".") else { return nil }
             domain = domain[domain.index(after: dot)...]
         }

@@ -32,6 +32,9 @@ struct Stats: Codable, Equatable {
     var brokenConfig = false
     /// Tracker hosts that the current rules and lists block, by app key. Filled in for the app only.
     var blockedTrackers: [String: Set<String>] = [:]
+    /// The code directory hash of each path key's last flow. Filled in for the app only.
+    /// Optional, so a saved file without it still loads.
+    var codes: [String: String]?
 
     /// The most hosts kept for one app.
     static let maxHosts = 1_000

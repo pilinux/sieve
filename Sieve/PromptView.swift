@@ -25,6 +25,10 @@ struct PromptView: View {
                 Text(path).foregroundStyle(.ink2).lineLimit(2).truncationMode(.middle)
                 Text(signer.isEmpty ? "Signer not verified" : signer == "Apple" ? "Signed by Apple" : "Team ID \(signer)")
                     .foregroundStyle(signer.isEmpty ? .block : .ink2)
+                // Other code at an allowed path, such as after an update, or a swap by another app.
+                if let allowed = filter.config.codes?[app], allowed != filter.stats.codes?[app] {
+                    Text("Code changed since you allowed it").foregroundStyle(.block)
+                }
             }
             .font(.aileron(11))
             .multilineTextAlignment(.center)
