@@ -14,27 +14,42 @@ struct ContentView: View {
     var body: some View {
         Group {
             if filter.status == "On" {
+                // The toolbar makes the title bar tall, which sets the window buttons inside the sidebar pane.
                 HStack(spacing: 0) {
                     Sidebar(filter: filter, screen: $screen)
                     VStack(spacing: 0) {
-                        header
-                        Rectangle().fill(.line).frame(height: 1)
-                        switch screen {
-                        case .apps: AppsView(filter: filter)
-                        case .lists: ListsView(filter: filter)
-                        case .rules: RulesView(filter: filter)
-                        case .profiles: ProfilesView(filter: filter)
+                        Text(screen.rawValue).font(.aileron(18, .bold))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, 16)
+                            .frame(height: 60)
+                        Group {
+                            switch screen {
+                            case .apps: AppsView(filter: filter)
+                            case .lists: ListsView(filter: filter)
+                            case .rules: RulesView(filter: filter)
+                            case .profiles: ProfilesView(filter: filter)
+                            }
+                        }
+                        // A soft scroll edge under the title. A mask costs less than a blur.
+                        .mask {
+                            VStack(spacing: 0) {
+                                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: 14)
+                                Color.black
+                            }
                         }
                     }
                 }
+                .ignoresSafeArea(edges: .top)
+                .navigationTitle(screen.rawValue)
+                .toolbar { toolbar }
             } else {
-                SetupView(filter: filter)
+                SetupView(filter: filter).ignoresSafeArea()
             }
         }
+        .toolbar(removing: .title)
         .font(.aileron(13))
         .foregroundStyle(.ink)
-        .frame(minWidth: 1100, minHeight: 700)
-        .ignoresSafeArea()
+        .frame(minWidth: 1240, minHeight: 760)
         .containerBackground(.bg, for: .window)
         .preferredColorScheme(.dark)
         .task {
@@ -43,23 +58,44 @@ struct ContentView: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 16) {
-            Text(screen.rawValue).font(.aileron(18, .bold))
-            Spacer()
-            if screen == .profiles {
-                Button("Add profile", systemImage: "plus") {
-                    filter.update { $0.profiles.append(Profile(name: "New profile")) }
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        ToolbarSpacer(.flexible)
+        ToolbarItem {
+            // One container renders the capsules together, which is cheaper than one by one.
+            GlassEffectContainer {
+                HStack(spacing: 16) {
+                    if screen == .profiles {
+                        Button {
+                            filter.update { $0.profiles.append(Profile(name: "New profile")) }
+                        } label: {
+                            Label("Add profile", systemImage: "plus")
+                                .labelStyle(.titleAndIcon)
+                                .font(.aileron(12, .semibold))
+                                .padding(.horizontal, 14)
+                                .frame(height: 34)
+                                .contentShape(.capsule)
+                        }
+                        .buttonStyle(.plain)
+                        .glassEffect(.regular.interactive(), in: .capsule)
+                    }
+                    HStack(spacing: 10) {
+                        RateLine(values: filter.trend(nil)).frame(width: 72, height: 22)
+                        Text(rate(filter.rates.values.reduce(0, +)))
+                            .font(.aileron(13, .semibold)).monospacedDigit()
+                            .frame(minWidth: 76, alignment: .trailing)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 34)
+                    .glassEffect(.regular, in: .capsule)
+                    ModePicker(filter: filter, glass: true)
                 }
             }
-            RateLine(values: filter.trend(nil)).frame(width: 72, height: 22)
-            Text(rate(filter.rates.values.reduce(0, +)))
-                .font(.aileron(13, .semibold)).monospacedDigit()
-                .frame(minWidth: 76, alignment: .trailing)
-            ModePicker(filter: filter)
+            // The design's 24 pt margin: the toolbar itself leaves 6.
+            .padding(.trailing, 18)
+            // Level with the title, which sits lower than the window buttons.
+            .offset(y: 4)
         }
-        .padding(.horizontal, 24)
-        .frame(height: 60)
+        .sharedBackgroundVisibility(.hidden)
     }
 }
 
@@ -114,12 +150,12 @@ private struct Sidebar: View {
                     .foregroundStyle(item == screen ? .ink : .ink2)
                     .padding(.horizontal, 10)
                     .frame(height: 34)
-                    .background(item == screen ? .s2 : .clear, in: .rect(cornerRadius: 8))
+                    .background(item == screen ? .white.opacity(0.1) : .clear, in: .rect(cornerRadius: 8))
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
             }
-            Spacer()
+            // Status stays near the top: a window moved off screen can hide the bottom of the sidebar.
             VStack(spacing: 10) {
                 HStack(spacing: 8) {
                     let on = filter.config.mode != .off
@@ -147,13 +183,16 @@ private struct Sidebar: View {
                 .font(.aileron(12))
             }
             .card(padding: 12)
-            LaunchAtLogin().padding(.horizontal, 6).padding(.top, 8)
+            .padding(.top, 16)
+            Spacer()
+            LaunchAtLogin().padding(.horizontal, 6)
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 14)
         .frame(width: 208)
         .frame(maxHeight: .infinity)
-        .background(.side)
-        .overlay(alignment: .trailing) { Rectangle().fill(.line).frame(width: 1) }
+        // Concentric with the window corner.
+        .glassEffect(.regular, in: .rect(cornerRadius: 19))
+        .padding(EdgeInsets(top: 7, leading: 7, bottom: 7, trailing: 8))
     }
 }

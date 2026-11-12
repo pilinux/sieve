@@ -32,23 +32,31 @@ struct AppsView: View {
         let byName = { (a: String, b: String) in stats.name(a).localizedStandardCompare(stats.name(b)) == .orderedAscending }
         let undecided = stats.undecided(filter.config).sorted(by: byName)
         let decided = stats.apps.keys.filter { !undecided.contains($0) }.sorted(by: byName)
-        return ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                allApps
-                if !undecided.isEmpty {
-                    group("Undecided", undecided.count)
-                    VStack(spacing: 0) { ForEach(undecided, id: \.self, content: undecidedRow) }
-                        .padding(2)
-                        .background(.s1, in: .rect(cornerRadius: 10))
-                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.line))
+        // All apps stays. Each group head pins until the next one pushes it out.
+        return VStack(spacing: 0) {
+            allApps.padding(EdgeInsets(top: 12, leading: 10, bottom: 0, trailing: 10))
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
+                    if !undecided.isEmpty {
+                        Section {
+                            VStack(spacing: 0) { ForEach(undecided, id: \.self, content: undecidedRow) }
+                                .padding(2)
+                                .background(.s1, in: .rect(cornerRadius: 10))
+                                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.line))
+                        } header: {
+                            group("Undecided", undecided.count)
+                        }
+                    }
+                    Section {
+                        ForEach(decided, id: \.self) { app in
+                            AppRow(filter: filter, app: app, selected: app == selected).onTapGesture { selected = app }
+                        }
+                    } header: {
+                        group("Apps", decided.count)
+                    }
                 }
-                group("Apps", decided.count)
-                ForEach(decided, id: \.self) { app in
-                    AppRow(filter: filter, app: app, selected: app == selected).onTapGesture { selected = app }
-                }
+                .padding(EdgeInsets(top: 0, leading: 10, bottom: 12, trailing: 10))
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 12)
         }
     }
 
@@ -84,6 +92,8 @@ struct AppsView: View {
                 .background(.s3, in: .capsule)
         }
         .padding(EdgeInsets(top: 14, leading: 10, bottom: 8, trailing: 10))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.bg)
     }
 
     private func undecidedRow(_ app: String) -> some View {

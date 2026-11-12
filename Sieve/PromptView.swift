@@ -52,7 +52,7 @@ struct PromptView: View {
         .frame(width: 300)
         .font(.aileron(13))
         .foregroundStyle(.ink)
-        .background(.s2)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
         .preferredColorScheme(.dark)
     }
 }

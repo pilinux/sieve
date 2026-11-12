@@ -5,7 +5,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension ShapeStyle where Self == Color {
-    static var side: Color { Color(hex: 0x0A0B0D) }
     static var bg: Color { Color(hex: 0x0E0F12) }
     static var s1: Color { Color(hex: 0x141619) }
     static var s2: Color { Color(hex: 0x1B1E22) }
@@ -14,7 +13,7 @@ extension ShapeStyle where Self == Color {
     static var line2: Color { .white.opacity(0.14) }
     static var ink: Color { Color(hex: 0xF2F1EE) }
     static var ink2: Color { Color(hex: 0xB7B6AF) }
-    static var ink3: Color { Color(hex: 0x807F79) }
+    static var ink3: Color { Color(hex: 0x8A8983) }
     /// Traffic and allow.
     static var allow: Color { Color(hex: 0x3987E5) }
     static var block: Color { Color(hex: 0xD95926) }
@@ -128,6 +127,8 @@ struct Kpi<Footer: View>: View {
             .lineLimit(1)
             footer.font(.aileron(12)).foregroundStyle(.ink3)
         }
+        // Equal shares of the row, equal heights in a fixed-height row.
+        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .card()
     }
 }
@@ -203,6 +204,8 @@ struct Segments<Value: Hashable>: View {
     let options: [Option]
     let selection: Value?
     var small = false
+    /// A glass capsule, for the toolbar.
+    var glass = false
     let choose: (Value) -> Void
 
     var body: some View {
@@ -221,18 +224,19 @@ struct Segments<Value: Hashable>: View {
                     .foregroundStyle(on ? .ink : .ink2)
                     .padding(.horizontal, small ? 8 : 12)
                     .frame(height: small ? 22 : 26)
-                    .background(on ? option.tint.map { $0.opacity(0.16) } ?? .s3 : .clear, in: .rect(cornerRadius: 6))
+                    .background(on ? option.tint.map { $0.opacity(0.16) } ?? .s3 : .clear, in: .rect(cornerRadius: glass ? 13 : 6))
                     .overlay {
-                        if on { RoundedRectangle(cornerRadius: 6).strokeBorder(option.tint?.opacity(0.55) ?? .line2) }
+                        if on { RoundedRectangle(cornerRadius: glass ? 13 : 6).strokeBorder(option.tint?.opacity(0.55) ?? .line2) }
                     }
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(2)
-        .background(.s1, in: .rect(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.line))
+        .padding(glass ? 3 : 2)
+        .background(glass ? .clear : .s1, in: .rect(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(glass ? .clear : .line))
+        .glassEffect(glass ? .regular : .identity, in: .capsule)
         .fixedSize()
     }
 }
@@ -280,11 +284,12 @@ struct IconButton: View {
 /// Off, Ask, or Quiet.
 struct ModePicker: View {
     let filter: Filter
+    var glass = false
 
     var body: some View {
         Segments(
             options: [.init(value: Mode.off, label: "Off"), .init(value: .ask, label: "Ask"), .init(value: .quiet, label: "Quiet")],
-            selection: filter.config.mode
+            selection: filter.config.mode, glass: glass
         ) { mode in filter.update { $0.mode = mode } }
     }
 }

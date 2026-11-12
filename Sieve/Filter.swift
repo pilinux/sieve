@@ -168,6 +168,9 @@ extension Filter: PromptXPC {
             panel.titleVisibility = .hidden
             panel.isMovableByWindowBackground = true
             panel.appearance = NSAppearance(named: .darkAqua)
+            // Clear, so the prompt's glass is its background.
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
             let view = NSHostingView(rootView: PromptView(filter: self, app: app, host: host) { action, hostOnly in
                 answer = (action, hostOnly)
                 NSApp.stopModal()

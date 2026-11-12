@@ -111,9 +111,7 @@ struct ListsView: View {
                 .font(.aileron(13, .semibold))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .background(.tip, in: .rect(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.line2))
-                .shadow(color: .black.opacity(0.6), radius: 20, y: 16)
+                .glassEffect(.regular, in: .capsule)
                 .padding(.bottom, 20)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }

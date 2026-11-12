@@ -154,7 +154,8 @@ struct DayBars: View {
             }
         }
         .chartYAxis {
-            AxisMarks(position: .leading, values: [0, top / 2, top]) { value in
+            // With no data, only the baseline: halves of an empty scale read as nonsense.
+            AxisMarks(position: .leading, values: bars.contains { $0.value > 0 } || limit != nil ? [0, top / 2, top] : [0]) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 1))
                     .foregroundStyle(.white.opacity(value.index == 0 ? 0.16 : 0.06))
                 AxisValueLabel {

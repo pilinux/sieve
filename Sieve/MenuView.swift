@@ -45,7 +45,6 @@ struct MenuView: View {
         .frame(width: 400)
         .font(.aileron(13))
         .foregroundStyle(.ink)
-        .background(.s1)
         .preferredColorScheme(.dark)
         .task { await filter.poll() }
     }
