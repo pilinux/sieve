@@ -38,6 +38,10 @@ struct SetupView: View {
                     Text("Installing the system extension").foregroundStyle(.ink3)
                 case "Allow Sieve in System Settings":
                     settingsHint
+                    // Login Items & Extensions, which lists Network Extensions.
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension") {
+                        Link("Open System Settings", destination: url)
+                    }
                 default:
                     HStack(spacing: 10) {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.serious)

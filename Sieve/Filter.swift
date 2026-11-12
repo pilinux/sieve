@@ -19,6 +19,9 @@ final class Filter: NSObject {
     var message: (text: String, failed: Bool)?
 
     private static let extensionID = "me.pilinux.Sieve.SieveExtension"
+    // The extension inside this app, as macOS installs it.
+    private static let extensionBundle = Bundle(
+        url: Bundle.main.bundleURL.appending(path: "Contents/Library/SystemExtensions/\(extensionID).systemextension"))
     @ObservationIgnored private var connection: NSXPCConnection?
     @ObservationIgnored private var sample = (bytes: [String: Int](), time: Date.now)
     // Counts local edits. A config read that started before the latest edit would undo it, so it is dropped.
@@ -26,6 +29,8 @@ final class Filter: NSObject {
     // True once the filter is turned on: from then on the link to the extension must stay up.
     @ObservationIgnored private var enabled = false
     @ObservationIgnored private var link: Task<Void, Never>?
+    // True from Turn on until its activation request is sent.
+    @ObservationIgnored private var activating = false
 
     // At launch, not from a window: Ask mode needs the app as its client even with every window closed.
     override init() {
@@ -60,12 +65,19 @@ final class Filter: NSObject {
         }
     }
 
+    /// Reads the extension's state, then activates it.
     func turnOn() {
         status = "Activating"
-        let request = OSSystemExtensionRequest.activationRequest(
-            forExtensionWithIdentifier: Self.extensionID,
-            queue: .main
-        )
+        activating = true
+        checkExtension()
+    }
+
+    // The answer comes to `request(_:foundProperties:)`.
+    private func checkExtension() {
+        submit(.propertiesRequest(forExtensionWithIdentifier: Self.extensionID, queue: .main))
+    }
+
+    private func submit(_ request: OSSystemExtensionRequest) {
         request.delegate = self
         OSSystemExtensionManager.shared.submitRequest(request)
     }
@@ -201,8 +213,7 @@ final class Filter: NSObject {
 
     private func xpc() -> NSXPCConnection {
         if let connection { return connection }
-        let url = Bundle.main.bundleURL.appending(path: "Contents/Library/SystemExtensions/\(Self.extensionID).systemextension")
-        let name = Bundle(url: url)?.machServiceName ?? ""
+        let name = Self.extensionBundle?.machServiceName ?? ""
         let connection = NSXPCConnection(machServiceName: name)
         connection.remoteObjectInterface = NSXPCInterface(with: FilterXPC.self)
         connection.exportedInterface = NSXPCInterface(with: PromptXPC.self)
@@ -233,21 +244,25 @@ final class Filter: NSObject {
             try await manager.saveToPreferences()
             enabled = true
             await reconnect()
-            status = "On"
         } catch {
             status = "Error: \(error.localizedDescription)"
         }
     }
 
-    // Returns once the extension has sent its config.
+    // Returns once the extension has sent its config. Then the filter is On.
     // The extension takes the sender of a message as its Ask mode client, and forgets it when the link drops.
     // A failed send drops the link again, so only one loop runs.
     private func reconnect() async {
         if link == nil {
             link = Task {
+                var checked = false
                 while enabled, !(await readConfig()) {
+                    // The user may have switched the extension off. macOS does not always post a change for it.
+                    if !checked { checkExtension() }
+                    checked = true
                     try? await Task.sleep(for: .seconds(1))
                 }
+                if enabled { status = "On" }
                 link = nil
             }
         }
@@ -317,6 +332,20 @@ extension Filter: @preconcurrency OSSystemExtensionRequestDelegate {
 
     func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
         status = "Allow Sieve in System Settings"
+    }
+
+    // Switched off under Network Extensions, the extension still counts as active, and only the user can switch it
+    // on again. Activation then waits in `enable()` until they do.
+    // Old builds stay listed until a reboot, some as enabled, so only the copy of this build counts.
+    func request(_ request: OSSystemExtensionRequest, foundProperties properties: [OSSystemExtensionProperties]) {
+        let version = Self.extensionBundle?.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        // Only while the link is down: a late answer must not hide a link that is back.
+        if activating || link != nil, properties.contains(where: { $0.bundleVersion == version && !$0.isEnabled }) {
+            status = "Allow Sieve in System Settings"
+        }
+        guard activating else { return }
+        activating = false
+        submit(.activationRequest(forExtensionWithIdentifier: Self.extensionID, queue: .main))
     }
 
     func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
