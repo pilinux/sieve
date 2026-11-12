@@ -60,7 +60,7 @@ struct ListsView: View {
                 .frame(width: 440)
                 VStack(spacing: 12) {
                     HStack(spacing: 12) {
-                        Kpi(title: "Domains blocked", value: blocking.reduce(0) { $0 + (stats.listSizes[$1.id] ?? 0) }.formatted()) {
+                        Kpi(title: "Domains blocked", value: (stats.blockedDomains ?? 0).formatted()) {
                             Text("\(blocking.count) lists on")
                         }
                         Kpi(title: "Trackers seen", value: "\(stats.trackers.count)") {

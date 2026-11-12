@@ -166,6 +166,13 @@ struct Config: Codable, Equatable {
         }
     }
 
+    /// The hosts on the enabled block lists that no enabled allow list covers. A host on several lists counts once.
+    func blockedDomainCount(_ domains: [String: Set<String>]) -> Int {
+        lists.filter { $0.enabled && $0.action == .block }
+            .reduce(into: Set<String>()) { $0.formUnion(domains[$1.id] ?? []) }
+            .count(where: { !isListed($0, .allow, domains) })
+    }
+
     /// Whether any block list covers the host, enabled or not.
     func isTracker(_ host: String, domains: [String: Set<String>]) -> Bool {
         lists.contains { $0.action == .block && Self.covers(domains[$0.id] ?? [], host) }

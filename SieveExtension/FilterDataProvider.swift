@@ -5,6 +5,7 @@
 //  Created by Mahir on 11.11.26.
 //
 
+import Network
 import NetworkExtension
 import os
 
@@ -87,7 +88,8 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         }
         // Later flows of the same app wait for the same answer.
         if first {
-            prompt.prompt(app: key, path: app.path, signer: app.signer, host: host) { [self] allow, hostOnly in
+            prompt.prompt(app: key, path: app.path, signer: app.signer, host: host, address: flow.address) {
+                [self] allow, hostOnly in
                 resumeFlows(of: app, host: host, answer: (allow ? .allow : .block, hostOnly))
             }
         }
@@ -168,6 +170,12 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
 
 private extension NEFilterFlow {
     var hostname: String? { (url?.host ?? (self as? NEFilterSocketFlow)?.remoteHostname).flatMap(DomainList.normalize) }
+
+    // The endpoint can still be unset when the flow is new.
+    var address: String {
+        guard case .some(.hostPort(let host, _)) = (self as? NEFilterSocketFlow)?.remoteFlowEndpoint else { return "" }
+        return "\(host)"
+    }
 }
 
 extension FilterDataProvider: NSXPCListenerDelegate {

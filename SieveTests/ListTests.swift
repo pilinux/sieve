@@ -77,6 +77,33 @@ struct ListTests {
         #expect(config.verdict(app: app, host: "ads.example.com", isApple: false, domains: domains) == .allow)
     }
 
+    @Test func blockedDomainsCountEachHostOnceAndSkipAllowed() {
+        var off = blocked
+        off.id = "off"
+        off.enabled = false
+        var allowOff = allowed
+        allowOff.id = "allow-off"
+        allowOff.enabled = false
+        let second = DomainList(id: "c", name: "C", url: "https://c.example", action: .block)
+        let config = Config(lists: [blocked, second, off, allowed, allowOff])
+        let domains = [
+            "b": Set(["ads.example.com", "x.example.com"]),
+            "c": Set(["ads.example.com", "y.example.com", "t.cdn.example"]),
+            "off": Set(["z.example.com"]),
+            // An exact entry and a parent domain each take a host out. A disabled allow list takes none.
+            "a": Set(["x.example.com", "cdn.example"]),
+            "allow-off": Set(["y.example.com"]),
+        ]
+        #expect(config.blockedDomainCount(domains) == 2)
+    }
+
+    @Test func newConfigIsQuietWithTrackerShieldOn() {
+        let config = Config()
+        #expect(config.mode == .quiet)
+        #expect(config.lists == [.trackerShield])
+        #expect(DomainList.trackerShield.enabled)
+    }
+
     @Test func hostRuleBeatsList() {
         let config = Config(rules: [Rule(app: app, host: "ads.example.com", action: .allow)], lists: [blocked])
         let domains = ["b": Set(["ads.example.com"])]

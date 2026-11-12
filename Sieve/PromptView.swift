@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// What Ask mode shows when an unknown app connects.
@@ -10,6 +11,8 @@ struct PromptView: View {
     let signer: String
     /// Empty when the flow has no host name.
     let host: String
+    /// The remote IP address. Empty when not known.
+    let address: String
     let answer: (Action, Bool) -> Void
     @State private var hostOnly = false
 
@@ -22,7 +25,9 @@ struct PromptView: View {
             }
             // Name and icon come from the file, so anyone can copy them. Path and signer cannot be faked.
             VStack(spacing: 2) {
-                Text(path).foregroundStyle(.ink2).lineLimit(2).truncationMode(.middle)
+                if !path.isEmpty {
+                    Copyable(text: path).foregroundStyle(.ink2).lineLimit(2).truncationMode(.middle)
+                }
                 Text(signer.isEmpty ? "Signer not verified" : signer == "Apple" ? "Signed by Apple" : "Team ID \(signer)")
                     .foregroundStyle(signer.isEmpty ? .block : .ink2)
                 // Other code at an allowed path, such as after an update, or a swap by another app.
@@ -33,11 +38,13 @@ struct PromptView: View {
             .font(.aileron(11))
             .multilineTextAlignment(.center)
             HStack(spacing: 8) {
-                if host.isEmpty {
-                    Text("Unknown host").foregroundStyle(.ink3)
-                } else {
-                    Text(host).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
+                if !host.isEmpty {
+                    Copyable(text: host).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
                     if filter.stats.trackers.contains(host) { Chip.tracker }
+                } else if !address.isEmpty {
+                    Copyable(text: address).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
+                } else {
+                    Text("Unknown host").foregroundStyle(.ink3)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 38)
@@ -77,5 +84,30 @@ struct PromptView: View {
         .foregroundStyle(.ink)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
         .preferredColorScheme(.dark)
+    }
+}
+
+// Text that copies itself on a click. A checkmark shows for a moment after.
+private struct Copyable: View {
+    let text: String
+    @State private var copied = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(text)
+            Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.system(size: 9, weight: .semibold))
+        }
+        .contentShape(.rect)
+        .onTapGesture {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            copied = true
+        }
+        .help("Click to copy")
+        .task(id: copied) {
+            guard copied else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
+        }
     }
 }

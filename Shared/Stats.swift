@@ -35,6 +35,8 @@ struct Stats: Codable, Equatable {
     /// The code directory hash of each path key's last flow. Filled in for the app only.
     /// Optional, so a saved file without it still loads.
     var codes: [String: String]?
+    /// `Config.blockedDomainCount(_:)`. Filled in for the app only. Optional, so a saved file without it still loads.
+    var blockedDomains: Int?
 
     /// The most hosts kept for one app.
     static let maxHosts = 1_000

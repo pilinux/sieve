@@ -46,6 +46,7 @@ final class Store: Sendable {
         result.codes = codes
         result.profile = Self.activeProfile(config, networks)
         result.listSizes = domains.mapValues(\.count)
+        result.blockedDomains = config.blockedDomainCount(domains)
         result.brokenConfig = FileManager.default.fileExists(atPath: brokenConfigFile.path)
         for (app, hosts) in stats.apps {
             let blocked = hosts.keys.filter { host in

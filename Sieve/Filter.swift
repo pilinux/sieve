@@ -267,7 +267,8 @@ final class Filter: NSObject {
 
 extension Filter: PromptXPC {
     nonisolated func prompt(
-        app: String, path: String, signer: String, host: String, reply: @escaping @Sendable (Bool, Bool) -> Void
+        app: String, path: String, signer: String, host: String, address: String,
+        reply: @escaping @Sendable (Bool, Bool) -> Void
     ) {
         Task { @MainActor in
             // With no window open, no poll runs. The tracker mark needs fresh stats.
@@ -285,7 +286,8 @@ extension Filter: PromptXPC {
             panel.isOpaque = false
             panel.backgroundColor = .clear
             let view = NSHostingView(
-                rootView: PromptView(filter: self, app: app, path: path, signer: signer, host: host) { action, hostOnly in
+                rootView: PromptView(filter: self, app: app, path: path, signer: signer, host: host, address: address) {
+                    action, hostOnly in
                     answer = (action, hostOnly)
                     NSApp.stopModal()
                 })

@@ -21,8 +21,10 @@ import Foundation
 @objc protocol PromptXPC {
     /// Replies with the answer once the app has tried to save it as a rule: Allow or Block, and whether it
     /// covers only `host`. `signer` is a Team ID, `Apple`, or empty if not verified.
+    /// `address` is the remote IP address, or empty if not known yet.
     func prompt(
-        app: String, path: String, signer: String, host: String, reply: @escaping @Sendable (_ allow: Bool, _ hostOnly: Bool) -> Void)
+        app: String, path: String, signer: String, host: String, address: String,
+        reply: @escaping @Sendable (_ allow: Bool, _ hostOnly: Bool) -> Void)
 }
 
 extension Bundle {
