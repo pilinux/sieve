@@ -27,57 +27,87 @@ struct AppKeys {
         }
         // The PID is `val.5`. `audit_token_to_pid` returns the same, but needs libbsm.
         let pid = auditToken.withUnsafeBytes { $0.loadUnaligned(as: audit_token_t.self) }.val.5
-        guard let app = Self.lookUp(pid: pid_t(bitPattern: pid)) else { return nil }
+        // The token names one process, so a reused PID cannot stand in for it.
+        guard let code = Self.guest([kSecGuestAttributeAudit: auditToken]),
+            let app = Self.lookUp(code, pid: pid_t(bitPattern: pid))
+        else { return nil }
         cache.setObject(app, forKey: auditToken as NSData)
         return app
     }
 
-    private static func lookUp(pid: pid_t) -> App? {
-        guard var path = path(of: pid) else { return nil }
+    private static func lookUp(_ code: SecCode, pid: pid_t) -> App? {
+        var staticCode: SecStaticCode?
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
+            let own = identify(staticCode, running: code)
+        else { return nil }
 
         // An XPC service, such as WebKit's networking process, counts as the app that launched it.
-        // Not command-line tools: those would count as the terminal app.
-        if path.contains(".xpc/"), let responsible = responsiblePID?(pid), responsible > 0,
-            let appPath = Self.path(of: responsible)
+        // Only Apple's: anyone can name a folder `.xpc`. Not command-line tools: those would count as the terminal app.
+        if own.signer == "Apple", (own.app.path + "/").contains(".xpc/"), let responsible = responsiblePID?(pid),
+            responsible > 0, responsible != pid, let parent = guest([kSecGuestAttributePid: responsible])
         {
-            path = appPath
+            return lookUp(parent, pid: responsible)
         }
 
-        // Code inside an app bundle counts as the outermost app.
-        if let end = path.range(of: ".app/")?.lowerBound {
-            path = String(path[..<end]) + ".app"
-        }
-
-        var code: SecStaticCode?
-        var info: CFDictionary?
-        guard SecStaticCodeCreateWithPath(URL(fileURLWithPath: path) as CFURL, [], &code) == errSecSuccess,
-            let code,
-            SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info)
-                == errSecSuccess,
-            let info = info as? [String: Any],
-            let identifier = info[kSecCodeInfoIdentifier as String] as? String
-        else { return App(path, path: path) }
-
-        if let team = info[kSecCodeInfoTeamIdentifier as String] as? String {
-            return App("\(team).\(identifier)", path: path)
-        }
-        // Check the signature only, not every file in the bundle.
-        let flags = SecCSFlags(rawValue: kSecCSDoNotValidateResources | kSecCSDoNotValidateExecutable)
-        var apple: SecRequirement?
-        if SecRequirementCreateWithString("anchor apple" as CFString, [], &apple) == errSecSuccess, let apple,
-            SecStaticCodeCheckValidity(code, flags, apple) == errSecSuccess
+        // Code inside an app bundle counts as the outermost app, but only if the same signer signed both.
+        // Anyone can copy an app and put their own code inside the copy.
+        var outerCode: SecStaticCode?
+        if own.signer != nil, let end = own.app.path.range(of: ".app/")?.lowerBound,
+            SecStaticCodeCreateWithPath(
+                URL(fileURLWithPath: String(own.app.path[..<end]) + ".app") as CFURL, [], &outerCode) == errSecSuccess,
+            let outerCode, let outer = identify(outerCode, running: nil), outer.signer == own.signer
         {
-            return App(identifier, path: path, isApple: true)
+            return outer.app
         }
-        return App(path, path: path)
+        return own.app
     }
 
-    private static func path(of pid: pid_t) -> String? {
-        // PROC_PIDPATHINFO_MAXSIZE, a macro Swift cannot import.
-        var buffer = [UInt8](repeating: 0, count: 4 * Int(MAXPATHLEN))
-        let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
-        guard length > 0 else { return nil }
-        return String(decoding: buffer.prefix(Int(length)), as: UTF8.self)
+    // The app a signature names, and who vouches for it: a Team ID, "Apple", or nil.
+    // With `running`, the check covers the code in memory, not only the file on disk.
+    private static func identify(_ code: SecStaticCode, running: SecCode?) -> (app: App, signer: String?)? {
+        var url: CFURL?
+        guard SecCodeCopyPath(code, [], &url) == errSecSuccess, let path = (url as URL?)?.path else { return nil }
+
+        func satisfies(_ text: String) -> Bool {
+            var requirement: SecRequirement?
+            guard SecRequirementCreateWithString(text as CFString, [], &requirement) == errSecSuccess, let requirement
+            else { return false }
+            if let running {
+                return SecCodeCheckValidity(running, [], requirement) == errSecSuccess
+            }
+            // Check the signature only, not every file in the bundle.
+            let flags = SecCSFlags(rawValue: kSecCSDoNotValidateResources | kSecCSDoNotValidateExecutable)
+            return SecStaticCodeCheckValidity(code, flags, requirement) == errSecSuccess
+        }
+
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+            let info = info as? [String: Any],
+            let identifier = info[kSecCodeInfoIdentifier as String] as? String
+        else { return (App(path, path: path), nil) }
+
+        if let team = info[kSecCodeInfoTeamIdentifier as String] as? String {
+            // The Team ID is a claim until a certificate backs it. Apple re-signs Mac App Store apps with its own.
+            // A Team ID is letters and digits; anything else could rewrite the requirement.
+            guard team.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }),
+                satisfies(
+                    "anchor apple generic and (certificate leaf[subject.OU] = \"\(team)\""
+                        + " or certificate leaf[field.1.2.840.113635.100.6.1.9])")
+            else { return (App(path, path: path), nil) }
+            return (App("\(team).\(identifier)", path: path), team)
+        }
+        if satisfies("anchor apple") {
+            return (App(identifier, path: path, isApple: true), "Apple")
+        }
+        return (App(path, path: path), nil)
+    }
+
+    private static func guest(_ attributes: [CFString: Any]) -> SecCode? {
+        var code: SecCode?
+        guard SecCodeCopyGuestWithAttributes(nil, attributes as CFDictionary, [], &code) == errSecSuccess else {
+            return nil
+        }
+        return code
     }
 
     // Private macOS function with no public replacement. Nil if a future macOS removes it.
