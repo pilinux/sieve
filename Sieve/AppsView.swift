@@ -130,6 +130,13 @@ private func split(_ text: String) -> (value: String, unit: String?) {
     return (parts.first ?? text, parts.dropFirst().first)
 }
 
+// The tracker counts of one grade, such as `1–2` or `11 or more`.
+private func trackerCounts(_ range: ClosedRange<Int>) -> String {
+    if range.upperBound == 0 { return "no trackers" }
+    if range.upperBound == .max { return "\(range.lowerBound) or more" }
+    return "\(range.lowerBound)–\(range.upperBound)"
+}
+
 private extension DayBars.Bar {
     init(day: Date, value: Double, tick: String? = nil, color: Color? = nil) {
         self.init(
@@ -164,9 +171,9 @@ private struct Overview: View {
         let top = stats.bytes.sorted { $0.value > $1.value }.prefix(5)
         let todayBytes = split(bytes(total(today)))
         let withTrackers = stats.apps.values.filter { $0.keys.contains(where: stats.trackers.contains) }.count
-        let grades = zip(["A", "B", "C", "D", "F"], ["no trackers", "1–2", "3–5", "6–10", "11 or more"]).map { grade, range in
+        let grades = Stats.grades.map { grade, range in
             SegmentBar.Part(
-                name: "\(grade) · \(range)", value: stats.apps.keys.filter { stats.grade($0) == grade }.count,
+                name: "\(grade) · \(trackerCounts(range))", value: stats.apps.keys.filter { stats.grade($0) == grade }.count,
                 color: .grade(grade), dark: "BCD".contains(grade)
             )
         }
@@ -290,9 +297,7 @@ private struct XRay: View {
     }
 
     private func grade(_ grade: String, trackers: Int, blocked: Int, hosts: Int) -> some View {
-        let letters = ["A", "B", "C", "D", "F"]
-        let ranges = ["0", "1–2", "3–5", "6–10", "11 or more"]
-        return VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
             Caption("Privacy grade")
             HStack(spacing: 16) {
                 GradeBadge(grade: grade, size: 72)
@@ -305,19 +310,20 @@ private struct XRay: View {
                 }
             }
             HStack(spacing: 2) {
-                ForEach(letters.indices, id: \.self) { index in
-                    let letter = letters[index]
+                ForEach(Stats.grades.indices, id: \.self) { index in
+                    let (letter, range) = Stats.grades[index]
+                    let last = index == Stats.grades.count - 1
                     VStack(spacing: 5) {
                         UnevenRoundedRectangle(
                             topLeadingRadius: index == 0 ? 3 : 0, bottomLeadingRadius: index == 0 ? 3 : 0,
-                            bottomTrailingRadius: index == 4 ? 3 : 0, topTrailingRadius: index == 4 ? 3 : 0
+                            bottomTrailingRadius: last ? 3 : 0, topTrailingRadius: last ? 3 : 0
                         )
                         .fill(letter == grade ? Color.grade(letter) : .s3)
                         .frame(height: 6)
                         Text(letter).font(.aileron(10, letter == grade ? .semibold : .regular))
                             .foregroundStyle(letter == grade ? .ink : .ink3)
                     }
-                    .help("Grade \(letter): \(ranges[index]) trackers")
+                    .help("Grade \(letter) · \(trackerCounts(range))")
                 }
             }
         }

@@ -25,7 +25,6 @@ final class Store: Sendable {
     private let logger = Logger(subsystem: "me.pilinux.Sieve.SieveExtension", category: "store")
 
     var config: Config { state.withLock { $0.config } }
-    var stats: Stats { state.withLock { $0.stats } }
     /// Only the bytes and blocked counts, for the app's live view.
     var usage: Stats { state.withLock { Stats(bytes: $0.stats.bytes, blocked: $0.stats.blocked) } }
     /// The config file that could not be read, or nil.

@@ -54,14 +54,13 @@ struct Stats: Codable, Equatable {
         apps[app, default: [:]].isEmpty ? "–" : Self.grade(trackers: openTrackers(app))
     }
 
+    /// Each grade, with the open tracker counts it covers.
+    static let grades: [(letter: String, trackers: ClosedRange<Int>)] = [
+        ("A", 0...0), ("B", 1...2), ("C", 3...5), ("D", 6...10), ("F", 11...Int.max),
+    ]
+
     static func grade(trackers: Int) -> String {
-        switch trackers {
-        case 0: "A"
-        case 1...2: "B"
-        case 3...5: "C"
-        case 6...10: "D"
-        default: "F"
-        }
+        grades.first { $0.trackers.contains(trackers) }?.letter ?? "F"
     }
 
     /// Non-Apple apps without an app rule in any column, sorted. Never `Config.unknownApp`, which takes no rule.
