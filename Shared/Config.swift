@@ -142,19 +142,6 @@ struct Config: Codable, Equatable {
     }
 }
 
-extension Config {
-    // Missing keys get defaults, so a config from an older build still loads.
-    init(from decoder: any Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        let defaults = Config()
-        mode = try values.decodeIfPresent(Mode.self, forKey: .mode) ?? defaults.mode
-        rules = try values.decodeIfPresent([Rule].self, forKey: .rules) ?? defaults.rules
-        lists = try values.decodeIfPresent([DomainList].self, forKey: .lists) ?? defaults.lists
-        limits = try values.decodeIfPresent([Limit].self, forKey: .limits) ?? defaults.limits
-        profiles = try values.decodeIfPresent([Profile].self, forKey: .profiles) ?? defaults.profiles
-    }
-}
-
 enum Mode: String, Codable {
     case off, ask, quiet
 }
@@ -211,26 +198,8 @@ struct Schedule: Codable, Equatable {
     var start: Int
     var end: Int
 
-    /// Whether the block covers this weekday and minute. An end before the start runs past midnight.
+    /// Whether the block covers this weekday and minute. The end is not included.
     func covers(weekday: Int, minute: Int) -> Bool {
-        guard weekdays.contains(weekday) else { return false }
-        return start <= end ? (start..<end).contains(minute) : minute >= start || minute < end
-    }
-}
-
-extension Profile {
-    // An older config held one `schedule`. It becomes the first block.
-    private enum Older: String, CodingKey { case schedule }
-
-    init(from decoder: any Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        let older = try decoder.container(keyedBy: Older.self)
-        id = try values.decode(UUID.self, forKey: .id)
-        name = try values.decode(String.self, forKey: .name)
-        network = try values.decodeIfPresent(String.self, forKey: .network)
-        schedules =
-            try values.decodeIfPresent([Schedule].self, forKey: .schedules)
-            ?? older.decodeIfPresent(Schedule.self, forKey: .schedule).map { [$0] } ?? []
-        color = try values.decodeIfPresent(String.self, forKey: .color)
+        weekdays.contains(weekday) && minute >= start && minute < end
     }
 }

@@ -6,7 +6,6 @@ struct ProfileTests {
     let hotspot = Profile(name: "Hotspot", network: "IPv4.Router=172.20.10.1")
     // Monday to Friday, 9:00 to 17:00.
     let work = Profile(name: "Work", schedules: [Schedule(weekdays: [2, 3, 4, 5, 6], start: 9 * 60, end: 17 * 60)])
-    let night = Profile(name: "Night", schedules: [Schedule(weekdays: [1, 2, 3, 4, 5, 6, 7], start: 22 * 60, end: 7 * 60)])
 
     @Test func networkActivatesProfile() {
         let config = Config(profiles: [work, hotspot])
@@ -21,11 +20,13 @@ struct ProfileTests {
         #expect(config.activeProfile(networks: [], weekday: 1, minute: 12 * 60) == nil)
     }
 
-    @Test func scheduleRunsPastMidnight() {
-        let config = Config(profiles: [night])
-        #expect(config.activeProfile(networks: [], weekday: 3, minute: 23 * 60) == night.id)
-        #expect(config.activeProfile(networks: [], weekday: 3, minute: 6 * 60) == night.id)
-        #expect(config.activeProfile(networks: [], weekday: 3, minute: 12 * 60) == nil)
+    @Test func blockStaysInOneDay() {
+        // Monday 22:00 to 23:59.
+        let late = Profile(name: "Late", schedules: [Schedule(weekdays: [2], start: 22 * 60, end: 23 * 60 + 59)])
+        let config = Config(profiles: [late])
+        #expect(config.activeProfile(networks: [], weekday: 2, minute: 23 * 60) == late.id)
+        #expect(config.activeProfile(networks: [], weekday: 2, minute: 6 * 60) == nil)
+        #expect(config.activeProfile(networks: [], weekday: 3, minute: 0) == nil)
     }
 
     @Test func anyBlockActivatesProfile() {
@@ -41,16 +42,6 @@ struct ProfileTests {
     @Test func profileWithoutBlocksNeedsItsNetwork() {
         let config = Config(profiles: [Profile(name: "Empty")])
         #expect(config.activeProfile(networks: [], weekday: 2, minute: 10 * 60) == nil)
-    }
-
-    @Test func olderSingleScheduleLoadsAsOneBlock() throws {
-        let data = Data(
-            #"{"name":"Hotspot","id":"735B973D-00BD-4960-A6C7-81B618C845E3","schedule":{"weekdays":[5],"start":540,"end":600}}"#
-                .utf8)
-        let profile = try JSONDecoder().decode(Profile.self, from: data)
-        #expect(profile.schedules == [Schedule(weekdays: [5], start: 540, end: 600)])
-        let saved = try JSONDecoder().decode(Profile.self, from: try JSONEncoder().encode(profile))
-        #expect(saved == profile)
     }
 
     @Test func firstMatchingProfileWins() {

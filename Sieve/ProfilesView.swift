@@ -51,12 +51,10 @@ struct ProfilesView: View {
                                 let blocks = profiles[index].schedules.filter { $0.weekdays.contains(day) }
                                 ForEach(blocks.indices, id: \.self) { block in
                                     let schedule = blocks[block]
-                                    ForEach(spans(schedule), id: \.0) { from, to in
-                                        RoundedRectangle(cornerRadius: 3).fill(Color.profile(index, profiles[index].color))
-                                            .frame(width: width * CGFloat(to - from) / 1440, height: 14)
-                                            .offset(x: width * CGFloat(from) / 1440)
-                                            .help("\(profiles[index].name): \(clock(schedule.start)) to \(clock(schedule.end))")
-                                    }
+                                    RoundedRectangle(cornerRadius: 3).fill(Color.profile(index, profiles[index].color))
+                                        .frame(width: width * CGFloat(schedule.end - schedule.start) / 1440, height: 14)
+                                        .offset(x: width * CGFloat(schedule.start) / 1440)
+                                        .help("\(profiles[index].name): \(clock(schedule.start)) to \(clock(schedule.end))")
                                 }
                             }
                             if day == now.weekday {
@@ -170,28 +168,21 @@ struct ProfilesView: View {
             }
             GeometryReader { geometry in
                 Capsule().fill(.s3).overlay(alignment: .leading) {
-                    ForEach(spans(schedule), id: \.0) { from, to in
-                        Capsule().fill(color)
-                            .frame(width: geometry.size.width * CGFloat(to - from) / 1440)
-                            .offset(x: geometry.size.width * CGFloat(from) / 1440)
-                    }
+                    Capsule().fill(color)
+                        .frame(width: geometry.size.width * CGFloat(schedule.end - schedule.start) / 1440)
+                        .offset(x: geometry.size.width * CGFloat(schedule.start) / 1440)
                 }
             }
             .frame(height: 6)
             HStack(spacing: 8) {
-                TimeField(minutes: minutes(id, block, \.start))
+                TimeField(minutes: minutes(id, block, \.start), range: 0...schedule.end - 1)
                 Text("to").foregroundStyle(.ink3)
-                TimeField(minutes: minutes(id, block, \.end))
+                TimeField(minutes: minutes(id, block, \.end), range: schedule.start + 1...1439)
             }
         }
         .padding(10)
         .background(.bg, in: .rect(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.line))
-    }
-
-    // An end before the start runs past midnight: two spans in one day.
-    private func spans(_ schedule: Schedule) -> [(Int, Int)] {
-        schedule.start <= schedule.end ? [(schedule.start, schedule.end)] : [(0, schedule.end), (schedule.start, 1440)]
     }
 
     private func clock(_ minutes: Int) -> String {
@@ -259,18 +250,26 @@ struct ProfilesView: View {
     }
 }
 
-// The hour and the minute, each a menu of every value. 23:59 ends a day.
+// The hour and the minute, each a menu. Only times in `range` show, so a block always ends after its start.
 private struct TimeField: View {
     @Binding var minutes: Int
+    let range: ClosedRange<Int>
 
     var body: some View {
         HStack(spacing: 2) {
-            Picker("Hour", selection: Binding(get: { minutes / 60 }, set: { minutes = $0 * 60 + minutes % 60 })) {
-                ForEach(0..<24, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+            // A new hour keeps the minute where the range allows it.
+            let hour = Binding(
+                get: { minutes / 60 },
+                set: { minutes = min(max($0 * 60 + minutes % 60, range.lowerBound), range.upperBound) }
+            )
+            Picker("Hour", selection: hour) {
+                ForEach(range.lowerBound / 60...range.upperBound / 60, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
             }
             Text(":").foregroundStyle(.ink3)
             Picker("Minute", selection: Binding(get: { minutes % 60 }, set: { minutes = minutes / 60 * 60 + $0 })) {
-                ForEach(0..<60, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                ForEach((0..<60).filter { range.contains(minutes / 60 * 60 + $0) }, id: \.self) {
+                    Text(String(format: "%02d", $0)).tag($0)
+                }
             }
         }
         .labelsHidden()

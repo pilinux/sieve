@@ -26,7 +26,7 @@ struct PickTests {
     }
 
     @Test func profileWithoutColourStillLoads() throws {
-        let data = Data(#"{"name":"Home","id":"60F2B57D-C7DB-4485-B98A-5802900DC6A5"}"#.utf8)
+        let data = Data(#"{"name":"Home","id":"60F2B57D-C7DB-4485-B98A-5802900DC6A5","schedules":[]}"#.utf8)
         let profile = try JSONDecoder().decode(Profile.self, from: data)
         #expect(profile.color == nil)
     }

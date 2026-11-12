@@ -66,26 +66,6 @@ struct Stats: Codable, Equatable {
     }
 }
 
-extension Stats {
-    // Missing keys get defaults, so stats from an older build still load.
-    init(from decoder: any Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        apps = try values.decodeIfPresent([String: Set<String>].self, forKey: .apps) ?? [:]
-        bytes = try values.decodeIfPresent([String: Int].self, forKey: .bytes) ?? [:]
-        blocked = try values.decodeIfPresent([String: Int].self, forKey: .blocked) ?? [:]
-        apple = try values.decodeIfPresent(Set<String>.self, forKey: .apple) ?? []
-        paths = try values.decodeIfPresent([String: String].self, forKey: .paths) ?? [:]
-        hits = try values.decodeIfPresent([UUID: Hit].self, forKey: .hits) ?? [:]
-        flags = try values.decodeIfPresent([UUID: Flag].self, forKey: .flags) ?? [:]
-        networks = try values.decodeIfPresent(Set<String>.self, forKey: .networks) ?? []
-        profile = try values.decodeIfPresent(UUID.self, forKey: .profile)
-        trackers = try values.decodeIfPresent(Set<String>.self, forKey: .trackers) ?? []
-        daily = try values.decodeIfPresent([String: [String: Int]].self, forKey: .daily) ?? [:]
-        listSizes = try values.decodeIfPresent([String: Int].self, forKey: .listSizes) ?? [:]
-        brokenConfig = try values.decodeIfPresent(Bool.self, forKey: .brokenConfig) ?? false
-    }
-}
-
 struct Hit: Codable, Equatable {
     var count = 0
     var last = Date.now

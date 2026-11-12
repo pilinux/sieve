@@ -65,11 +65,4 @@ struct ListTests {
         let domains = ["b": Set(["ads.example.com"])]
         #expect(config.verdict(app: app, host: "ads.example.com", isApple: false, domains: domains) == .allow)
     }
-
-    @Test func oldConfigGetsTrackerShield() throws {
-        let data = Data(#"{"mode":"ask","rules":[]}"#.utf8)
-        let config = try JSONDecoder().decode(Config.self, from: data)
-        #expect(config.mode == .ask)
-        #expect(config.lists == [.trackerShield])
-    }
 }
