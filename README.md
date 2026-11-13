@@ -515,7 +515,7 @@ limits, and decoding of saved files.
 
 Sieve: a per-app firewall for macOS with Ask and Quiet modes and tracker
 blocking.
-Copyright (C) 2026 pilinux
+Copyright (C) 2026 Mahir Hasan
 
 This program is free software: you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
