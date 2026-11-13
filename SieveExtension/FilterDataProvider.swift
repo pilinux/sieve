@@ -59,7 +59,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
     override func handleNewFlow(_ flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
         let app = app(of: flow)
         let host = flow.hostname
-        let action = store.verdict(app: app, host: host)
+        let action = store.verdict(app: app, host: host, address: flow.address)
         // App and host stay private: the log ends up in sysdiagnose reports.
         logger.log("\(action?.rawValue ?? "ask", privacy: .public) \(app.key, privacy: .private) to \(host ?? "?", privacy: .private)")
         switch action {
@@ -88,7 +88,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         }
         // Later flows of the same app wait for the same answer.
         if first {
-            prompt.prompt(app: key, path: app.path, signer: app.signer, host: host, address: flow.address) {
+            prompt.prompt(app: key, path: app.path, signer: app.signer, host: host, address: flow.address ?? "") {
                 [self] allow, hostOnly in
                 resumeFlows(of: app, host: host, answer: (allow ? .allow : .block, hostOnly))
             }
@@ -107,7 +107,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(100)) { [self] in
             for flow in flows {
                 let flowHost = flow.hostname
-                var action = store.verdict(app: app, host: flowHost)
+                var action = store.verdict(app: app, host: flowHost, address: flow.address)
                 if action == nil, let answer, !answer.hostOnly || flowHost == host {
                     action = answer.action
                     if action == .block { store.countBlocked() }
@@ -171,10 +171,10 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
 private extension NEFilterFlow {
     var hostname: String? { (url?.host ?? (self as? NEFilterSocketFlow)?.remoteHostname).flatMap(DomainList.normalize) }
 
-    // The endpoint can still be unset when the flow is new.
-    var address: String {
-        guard case .some(.hostPort(let host, _)) = (self as? NEFilterSocketFlow)?.remoteFlowEndpoint else { return "" }
-        return "\(host)"
+    // The endpoint can still be unset when the flow is new, or be a name.
+    var address: String? {
+        guard case .some(.hostPort(let host, _)) = (self as? NEFilterSocketFlow)?.remoteFlowEndpoint else { return nil }
+        return Address.normalize("\(host)")
     }
 }
 

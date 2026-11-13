@@ -30,7 +30,7 @@ ad, tracker, and malware domains. Everything stays on your Mac.
 | Quiet mode | Allow and record unknown apps. Decide later, in one pass. |
 | Tracker Shield | Block Steven Black's list of ad and tracker domains. |
 | Domain lists | Add your own allow and block lists by URL or file. |
-| App X-Ray | Every host an app contacts, its trackers, and a grade. |
+| App X-Ray | Hosts and IP addresses an app contacts, trackers, a grade. |
 | Traffic monitor | The live rate of each app, in the window and menu bar. |
 | Rule insights | Hits and last hit per rule, and flags on dead rules. |
 | Data limits | Cap an app's data per day or per month. |
@@ -157,14 +157,17 @@ off cuts the app off.
 
 ![App X-Ray](docs/images/xray.jpg)
 
-Select an app to see every host it contacted.
+Select an app to see every host and IP address it contacted.
 
 - Hosts on a block list carry a tracker mark.
 - Each host has its own Allow and Block.
+- Each IP address shows the host name seen with it, or "No host name"
+  when the app dialled the address or resolved DNS itself. Each has its
+  own Allow and Block. A host rule beats an IP rule.
 - Set a **data limit** per day or per month. Over the limit, the app's
   new connections fail until the period ends.
-- **Clear history** (the round clock button) deletes the app's hosts
-  and byte counts. Its rules and limit stay.
+- **Clear history** (the round clock button) deletes the app's hosts,
+  IP addresses, and byte counts. Its rules and limit stay.
 
 ### Lists
 

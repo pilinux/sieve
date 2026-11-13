@@ -14,12 +14,17 @@ struct Config: Codable, Equatable {
     static let unknownApp = "unknown"
 
     /// Decides one flow. Nil means: ask the user.
-    /// - Parameter domains: the hosts of each list, by list ID.
+    /// - Parameters:
+    ///   - address: the remote IP address, as `Address.normalize(_:)` gives it.
+    ///   - domains: the hosts of each list, by list ID.
     func verdict(
-        app: String, host: String?, isApple: Bool, domains: [String: Set<String>] = [:], overLimit: Bool = false,
-        profile: UUID? = nil
+        app: String, host: String?, address: String? = nil, isApple: Bool, domains: [String: Set<String>] = [:],
+        overLimit: Bool = false, profile: UUID? = nil
     ) -> Action? {
-        decide(app: app, host: host, isApple: isApple, domains: domains, overLimit: overLimit, profile: profile).action
+        decide(
+            app: app, host: host, address: address, isApple: isApple, domains: domains, overLimit: overLimit,
+            profile: profile
+        ).action
     }
 
     /// The verdict, and the rule that gave it.
@@ -27,15 +32,21 @@ struct Config: Codable, Equatable {
     ///   - profile: the active profile. Rules of other profiles do not count.
     ///   - trusted: false drops the app's Allow rules. Its Block rules still count.
     func decide(
-        app: String, host: String?, isApple: Bool, domains: [String: Set<String>], overLimit: Bool = false,
-        profile: UUID? = nil, trusted: Bool = true
+        app: String, host: String?, address: String? = nil, isApple: Bool, domains: [String: Set<String>],
+        overLimit: Bool = false, profile: UUID? = nil, trusted: Bool = true
     ) -> (action: Action?, rule: Rule?) {
         if mode == .off { return (.allow, nil) }
         let appRule = rule(for: app, profile: profile, trusted: trusted)
         if appRule?.action == .block { return (.block, appRule) }
         if overLimit { return (.block, nil) }
+        if let host, let rule = hostRule(for: app, host: host, profile: profile, trusted: trusted) {
+            return (rule.action, rule)
+        }
+        // An IP rule names one address: no parent to check.
+        if let address, let rule = rule(for: app, host: address, profile: profile, trusted: trusted) {
+            return (rule.action, rule)
+        }
         if let host {
-            if let rule = hostRule(for: app, host: host, profile: profile, trusted: trusted) { return (rule.action, rule) }
             if isListed(host, .allow, domains) { return (.allow, nil) }
             if isListed(host, .block, domains) { return (.block, nil) }
         }
@@ -223,7 +234,7 @@ enum Flag: String, Codable {
 struct Rule: Codable, Equatable, Identifiable {
     var id = UUID()
     var app: String
-    /// Nil: the rule covers the whole app. Else this domain and its subdomains.
+    /// Nil: the rule covers the whole app. Else this domain and its subdomains, or this one IP address.
     var host: String?
     var action: Action
     /// Nil: the rule always counts. Else only while this profile is active.

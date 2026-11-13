@@ -262,7 +262,7 @@ private struct XRay: View {
                     .confirmationDialog("Clear the history of \(stats.name(app))?", isPresented: $clearing) {
                         Button("Clear History", role: .destructive) { Task { await filter.forget(app) } }
                     } message: {
-                        Text("Its traffic, hosts, and rule hits go. Its rules and data limit stay.")
+                        Text("Its traffic, hosts, IP addresses, and rule hits go. Its rules and data limit stay.")
                     }
                 // No rule covers `unknown`: many processes share it.
                 if app != Config.unknownApp {
@@ -290,6 +290,7 @@ private struct XRay: View {
             .fixedSize(horizontal: false, vertical: true)
             data(limit: limit, used: used)
             hostList(hosts.sorted { (trackers.contains($0) ? 0 : 1, $0) < (trackers.contains($1) ? 0 : 1, $1) }, trackers: trackers)
+            addressList(stats.addresses?[app] ?? [:])
         }
         // macOS keeps a field focused on a click outside it.
         .contentShape(.rect)
@@ -400,19 +401,8 @@ private struct XRay: View {
     private func hostList(_ hosts: [String], trackers: Set<String>) -> some View {
         // A parent domain's rule covers the host too.
         let rows = hosts.map { (host: $0, rule: filter.config.hostRule(for: app, host: $0)) }
-        let parts = [
-            SegmentBar.Part(name: "Allowed", value: rows.filter { $0.rule?.action == .allow }.count, color: .allow),
-            SegmentBar.Part(name: "Blocked", value: rows.filter { $0.rule?.action == .block }.count, color: .block),
-            SegmentBar.Part(name: "No rule", value: rows.filter { $0.rule == nil }.count, color: .s3),
-        ]
         return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                Caption("Hosts")
-                Text("\(hosts.count)").foregroundStyle(.ink3).monospacedDigit()
-                Spacer()
-                Legend(parts: parts.map { ($0.name, $0.color) })
-            }
-            SegmentBar(parts: parts).padding(.top, 14).padding(.bottom, 12)
+            listHead("Hosts", actions: rows.map { $0.rule?.action })
             // Up to 1,000 hosts: build only the rows on screen.
             LazyVStack(spacing: 0) {
                 ForEach(rows, id: \.host) { host, rule in
@@ -440,6 +430,54 @@ private struct XRay: View {
             }
         }
         .card()
+    }
+
+    // Rows with no host name come first: only an IP rule can catch those flows.
+    private func addressList(_ addresses: [String: Address]) -> some View {
+        let rows = addresses.map { (address: $0.key, host: $0.value.host, action: filter.config.action(for: app, host: $0.key)) }
+            .sorted { ($0.host == nil ? 0 : 1, $0.host ?? "", $0.address) < ($1.host == nil ? 0 : 1, $1.host ?? "", $1.address) }
+        return VStack(alignment: .leading, spacing: 0) {
+            listHead("IP addresses", actions: rows.map(\.action))
+            LazyVStack(spacing: 0) {
+                ForEach(rows, id: \.address) { address, host, action in
+                    Rectangle().fill(.line).frame(height: 1)
+                    HStack(spacing: 10) {
+                        Image(systemName: "circle").font(.system(size: 5, weight: .semibold)).foregroundStyle(.ink3)
+                            .frame(width: 16)
+                        Text(address).monospacedDigit().lineLimit(1)
+                        if let host {
+                            Text(host).font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
+                        } else {
+                            Chip(text: "No host name")
+                        }
+                        Spacer()
+                        if app != Config.unknownApp {
+                            Segments(verdict: action, small: true) { action in
+                                filter.update { $0.setAction(action, for: app, host: address) }
+                            }
+                        }
+                    }
+                    .frame(height: 38)
+                }
+            }
+        }
+        .card()
+    }
+
+    // A list card's title, count, legend, and the bar of allowed, blocked, and no rule.
+    @ViewBuilder private func listHead(_ title: String, actions: [Action?]) -> some View {
+        let parts = [
+            SegmentBar.Part(name: "Allowed", value: actions.count { $0 == .allow }, color: .allow),
+            SegmentBar.Part(name: "Blocked", value: actions.count { $0 == .block }, color: .block),
+            SegmentBar.Part(name: "No rule", value: actions.count { $0 == nil }, color: .s3),
+        ]
+        HStack(spacing: 10) {
+            Caption(title)
+            Text("\(actions.count)").foregroundStyle(.ink3).monospacedDigit()
+            Spacer()
+            Legend(parts: parts.map { ($0.name, $0.color) })
+        }
+        SegmentBar(parts: parts).padding(.top, 14).padding(.bottom, 12)
     }
 
     // In MB. Empty: no limit.

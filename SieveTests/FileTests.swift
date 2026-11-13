@@ -37,5 +37,25 @@ struct FileTests {
         #expect(stats.blocked["2026-11-12"] == 3)
         #expect(stats.hits.values.first?.count == 3)
         #expect(stats.hosts("EQHXZ8M8AV.com.google.Chrome") == ["ads.example.com"])
+        #expect(stats.addresses == nil)
+    }
+
+    // As the build with IP addresses saves them.
+    @Test func statsWithAddressesLoad() throws {
+        let data = Data(
+            #"""
+            {"addresses":{"EQHXZ8M8AV.com.google.Chrome":{"192.0.2.1":{"day":"2026-11-13","host":"ads.example.com"},
+            "2001:db8::1":{"day":"2026-11-13"}}},
+            "apple":[],"apps":{"EQHXZ8M8AV.com.google.Chrome":{"ads.example.com":"2026-11-13"}},
+            "blocked":{},"blockedTrackers":{},"brokenConfig":false,"bytes":{},"daily":{},"flags":[],"hits":[],
+            "listSizes":{},"networks":[],"paths":{},"seen":{"EQHXZ8M8AV.com.google.Chrome":"2026-11-13"},"trackers":[]}
+            """#.utf8)
+        let stats = try JSONDecoder().decode(Stats.self, from: data)
+        #expect(
+            stats.addresses?["EQHXZ8M8AV.com.google.Chrome"] == [
+                "192.0.2.1": Address(day: "2026-11-13", host: "ads.example.com"),
+                "2001:db8::1": Address(day: "2026-11-13"),
+            ]
+        )
     }
 }

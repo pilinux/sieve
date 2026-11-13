@@ -144,12 +144,12 @@ final class Store: Sendable {
         state.statsChanged = true
     }
 
-    /// Decides one flow and records the app and host. Nil means: ask the user.
-    func verdict(app: App, host: String?) -> Action? {
+    /// Decides one flow and records the app, host, and address. Nil means: ask the user.
+    func verdict(app: App, host: String?, address: String?) -> Action? {
         let today = Stats.day(.now)
         return state.withLock {
             if $0.pruned != today { Self.prune(&$0) }
-            if $0.stats.see(app.key, host: host, day: today) { $0.statsChanged = true }
+            if $0.stats.see(app.key, host: host, address: address, day: today) { $0.statsChanged = true }
             // A user tool may have counted as Apple in an earlier build.
             if app.isApple ? $0.stats.apple.insert(app.key).inserted : $0.stats.apple.remove(app.key) != nil {
                 $0.statsChanged = true
@@ -163,7 +163,8 @@ final class Store: Sendable {
             if app.signer.isEmpty { $0.codes[app.key] = app.code }
             let overLimit = $0.config.isOverLimit(app.key, daily: $0.stats.daily, today: today)
             let (action, rule) = $0.config.decide(
-                app: app.key, host: host, isApple: app.isApple, domains: $0.domains, overLimit: overLimit,
+                app: app.key, host: host, address: address, isApple: app.isApple, domains: $0.domains,
+                overLimit: overLimit,
                 profile: Self.activeProfile($0.config, $0.networks),
                 trusted: $0.config.trusts(app.key, signer: app.signer, code: app.code)
             )
@@ -180,7 +181,7 @@ final class Store: Sendable {
         }
     }
 
-    /// Counts a flow dropped outside `verdict(app:host:)`, such as when the Sieve app cannot be asked.
+    /// Counts a flow dropped outside `verdict(app:host:address:)`, such as when the Sieve app cannot be asked.
     func countBlocked() {
         state.withLock {
             $0.stats.blocked[Stats.day(.now), default: 0] += 1
