@@ -8,7 +8,7 @@ struct MenuView: View {
         let most = Double(max(blocked.map(\.count).max() ?? 0, 1))
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Image(systemName: "line.3.horizontal.decrease.circle").font(.system(size: 17)).foregroundStyle(.allow)
+                Image("Mark").resizable().frame(width: 22, height: 22)
                 Text("Sieve").font(.aileron(15, .bold))
                 Spacer()
                 // A mode means nothing while the system filter is off.

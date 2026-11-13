@@ -121,7 +121,7 @@ private struct Sidebar: View {
         let active = filter.config.profiles.firstIndex { $0.id == stats.profile }
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 10) {
-                Image(systemName: "line.3.horizontal.decrease.circle").font(.system(size: 20)).foregroundStyle(.allow)
+                Image("Mark").resizable().frame(width: 26, height: 26)
                 Text("Sieve").font(.aileron(17, .bold))
             }
             // Room for the window buttons.

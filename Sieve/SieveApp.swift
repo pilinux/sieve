@@ -29,8 +29,10 @@ struct SieveApp: App {
                 }
             }
         }
-        MenuBarExtra("Sieve", systemImage: "line.3.horizontal.decrease.circle") {
+        MenuBarExtra {
             MenuView(filter: filter)
+        } label: {
+            Image(filter.status == "On" ? "MenuMark" : "MenuMarkOff").accessibilityLabel("Sieve")
         }
         .menuBarExtraStyle(.window)
     }

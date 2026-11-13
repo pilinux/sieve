@@ -9,9 +9,9 @@ struct SetupView: View {
         let failed = status.hasPrefix("Error")
         let current = status == "Allow Sieve in System Settings" ? 1 : 0
         VStack(spacing: 28) {
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .font(.system(size: 52, weight: .light))
-                .foregroundStyle(.ink3)
+            Image("Mark")
+                .resizable()
+                .frame(width: 64, height: 64)
                 .frame(width: 96, height: 96)
                 .background(.s1, in: .rect(cornerRadius: 28))
                 .overlay(RoundedRectangle(cornerRadius: 28).strokeBorder(.line2))
