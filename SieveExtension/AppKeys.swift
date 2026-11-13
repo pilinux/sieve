@@ -9,7 +9,7 @@ final class App: Sendable {
     let path: String
     /// A Team ID backed by a certificate, `Apple`, or empty.
     let signer: String
-    /// Apple code allowed with no rule. Not a user tool such as `curl`, which any app can run.
+    /// Apple code allowed with no rule. Not a user tool such as `curl` or WebKit's networking service, which any app can use.
     let isApple: Bool
     /// For a path key: the code directory hash of the running code, in hex.
     /// Nil if the code has no signature, or its file on disk is not the code that runs.
@@ -21,7 +21,10 @@ final class App: Sendable {
         self.signer = signer
         self.code = code
         // Daemons in `/usr/libexec`, `/usr/sbin`, and `/System` stay allowed, or each would prompt.
-        isApple = signer == "Apple" && !["/usr/bin/", "/bin/", "/Library/Developer/"].contains { path.hasPrefix($0) }
+        // An `.xpc` service runs for whichever app called it, and no public API names that app.
+        isApple =
+            signer == "Apple" && !(path + "/").contains(".xpc/")
+            && !["/usr/bin/", "/bin/", "/Library/Developer/"].contains { path.hasPrefix($0) }
     }
 }
 
@@ -34,29 +37,18 @@ struct AppKeys {
         if let cached = cache.object(forKey: auditToken as NSData) {
             return cached
         }
-        // The PID is `val.5`. `audit_token_to_pid` returns the same, but needs libbsm.
-        let pid = auditToken.withUnsafeBytes { $0.loadUnaligned(as: audit_token_t.self) }.val.5
         // The token names one process, so a reused PID cannot stand in for it.
-        guard let code = Self.guest([kSecGuestAttributeAudit: auditToken]),
-            let app = Self.lookUp(code, pid: pid_t(bitPattern: pid))
+        guard let code = Self.guest([kSecGuestAttributeAudit: auditToken]), let app = Self.lookUp(code)
         else { return nil }
         cache.setObject(app, forKey: auditToken as NSData)
         return app
     }
 
-    private static func lookUp(_ code: SecCode, pid: pid_t) -> App? {
+    private static func lookUp(_ code: SecCode) -> App? {
         var staticCode: SecStaticCode?
         guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
             let own = identify(staticCode, running: code)
         else { return nil }
-
-        // An XPC service, such as WebKit's networking process, counts as the app that launched it.
-        // Only Apple's: anyone can name a folder `.xpc`. Not command-line tools: those would count as the terminal app.
-        if own.signer == "Apple", (own.path + "/").contains(".xpc/"), let responsible = responsiblePID?(pid),
-            responsible > 0, responsible != pid, let parent = guest([kSecGuestAttributePid: responsible])
-        {
-            return lookUp(parent, pid: responsible)
-        }
 
         // Code inside an app bundle counts as the outermost app, but only if the same signer signed both.
         // Anyone can copy an app and put their own code inside the copy.
@@ -124,11 +116,4 @@ struct AppKeys {
         }
         return code
     }
-
-    // Private macOS function with no public replacement. Nil if a future macOS removes it.
-    private static let responsiblePID: (@convention(c) (pid_t) -> pid_t)? = {
-        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "responsibility_get_pid_responsible_for_pid")
-        else { return nil }
-        return unsafeBitCast(symbol, to: (@convention(c) (pid_t) -> pid_t).self)
-    }()
 }

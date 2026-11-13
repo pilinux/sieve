@@ -22,9 +22,8 @@ struct SieveApp: App {
         .windowBackgroundDragBehavior(.enabled)
         .defaultSize(width: 1240, height: 800)
         .commands {
-            // help menu.
+            // Sieve has no help book, so the policy replaces the empty Help item.
             CommandGroup(replacing: .help) {
-                // privacy policy.
                 if let url = URL(string: "https://github.com/pilinux/sieve/blob/main/PRIVACY.md") {
                     Link("Privacy Policy", destination: url)
                 }
