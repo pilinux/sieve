@@ -213,7 +213,7 @@ extension FilterDataProvider: FilterXPC {
     }
 
     func setList(_ id: String, domains: Data, reply: @escaping @Sendable (Data) -> Void) {
-        // The app caps lists too. Check again: this process runs as root, with no sandbox.
+        // The app caps lists too. Check again: this process runs as root.
         if domains.count <= DomainList.maxBytes {
             store.setList(id, text: String(decoding: domains, as: UTF8.self))
         }

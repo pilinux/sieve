@@ -173,28 +173,51 @@ final class Filter: NSObject {
     /// Downloads the list and hands it to the extension.
     func load(_ list: DomainList) async {
         do {
-            guard let url = URL(string: list.url) else { throw URLError(.badURL) }
+            guard let url = list.url.flatMap(URL.init(string:)) else { throw URLError(.badURL) }
             // To a file, so a huge list never fills memory here or in the extension.
             let (file, response) = try await URLSession.shared.download(from: url)
             defer { try? FileManager.default.removeItem(at: file) }
             if let response = response as? HTTPURLResponse, response.statusCode != 200 {
                 throw URLError(.badServerResponse)
             }
-            guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= DomainList.maxBytes
-            else { throw URLError(.dataLengthExceedsMaximum) }
-            let data = try Data(contentsOf: file)
             // A reply with no hosts, such as an error page, would replace a good copy.
-            guard !DomainList.parse(String(decoding: data, as: UTF8.self)).isEmpty else {
+            guard try await hand(list, file) else {
                 message = ("\(list.name) has no hosts. Kept the old copy.", true)
                 return
-            }
-            if await send({ $0.setList(list.id, domains: data, reply: $1) }) == nil {
-                throw URLError(.cannotConnectToHost)
             }
             message = ("Loaded \(list.name)", false)
         } catch {
             message = ("Cannot load \(list.name): \(error.localizedDescription)", true)
         }
+    }
+
+    /// Reads a list file the user picked, hands it to the extension, and adds the list.
+    func upload(_ list: DomainList, from file: URL) async {
+        // The sandbox lets the app read a picked file only inside this scope.
+        let scoped = file.startAccessingSecurityScopedResource()
+        defer { if scoped { file.stopAccessingSecurityScopedResource() } }
+        do {
+            guard try await hand(list, file) else {
+                message = ("\(list.name) has no hosts", true)
+                return
+            }
+            update { $0.lists.append(list) }
+            message = ("Loaded \(list.name)", false)
+        } catch {
+            message = ("Cannot load \(list.name): \(error.localizedDescription)", true)
+        }
+    }
+
+    // Hands a list file to the extension. False if the file holds no hosts.
+    private func hand(_ list: DomainList, _ file: URL) async throws -> Bool {
+        guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= DomainList.maxBytes
+        else { throw URLError(.dataLengthExceedsMaximum) }
+        let data = try Data(contentsOf: file)
+        guard !DomainList.parse(String(decoding: data, as: UTF8.self)).isEmpty else { return false }
+        if await send({ $0.setList(list.id, domains: data, reply: $1) }) == nil {
+            throw URLError(.cannotConnectToHost)
+        }
+        return true
     }
 
     // Sends one message. Nil if the extension cannot be reached.

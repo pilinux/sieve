@@ -1,9 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ListsView: View {
     let filter: Filter
     @State private var url = ""
     @State private var action = Action.block
+    @State private var picking = false
 
     var body: some View {
         let config = filter.config
@@ -17,17 +19,27 @@ struct ListsView: View {
                     if let shield { shieldCard(shield) }
                     VStack(alignment: .leading, spacing: 14) {
                         Caption("Add a list")
-                        TextField("https or file URL", text: $url).textFieldStyle(.roundedBorder)
+                        TextField("https URL", text: $url).textFieldStyle(.roundedBorder)
                         HStack {
                             Segments(verdict: action) { action = $0 }
                             Spacer()
+                            Button("Upload", systemImage: "square.and.arrow.up") { picking = true }
                             Button("Add", systemImage: "plus") { add() }
                                 .buttonStyle(.borderedProminent)
                                 .tint(.allow)
-                                .disabled(!["https", "file"].contains(URL(string: url)?.scheme))
+                                .disabled(URL(string: url)?.scheme != "https")
                         }
                     }
                     .card()
+                    .fileImporter(isPresented: $picking, allowedContentTypes: [.data]) { result in
+                        switch result {
+                        case .success(let file):
+                            let list = DomainList(name: file.lastPathComponent, action: action)
+                            Task { await filter.upload(list, from: file) }
+                        case .failure(let error):
+                            filter.message = ("Cannot open the file: \(error.localizedDescription)", true)
+                        }
+                    }
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(spacing: 10) {
                             Caption("Lists")
@@ -40,14 +52,17 @@ struct ListsView: View {
                                 Toggle(list.name, isOn: enabled(list.id)).toggleStyle(.switch).labelsHidden().tint(.allow)
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(list.name).font(.aileron(13, .semibold))
-                                    Text(list.url).font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
+                                    Text(list.url ?? "Uploaded file").font(.aileron(11)).foregroundStyle(.ink3)
+                                        .lineLimit(1).truncationMode(.middle)
                                 }
                                 Spacer()
                                 if let size = stats.listSizes[list.id] {
                                     Text(size.formatted()).foregroundStyle(.ink3).monospacedDigit()
                                 }
                                 Chip(action: list.action)
-                                IconButton(icon: "arrow.clockwise", help: "Refresh") { Task { await filter.load(list) } }
+                                if list.url != nil {
+                                    IconButton(icon: "arrow.clockwise", help: "Refresh") { Task { await filter.load(list) } }
+                                }
                                 IconButton(icon: "trash", help: "Delete this list") {
                                     filter.update { $0.lists.removeAll { $0.id == list.id } }
                                 }

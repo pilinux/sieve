@@ -1,11 +1,11 @@
 import Foundation
 
-/// A list of hosts to allow or block, loaded from a URL.
+/// A list of hosts to allow or block, downloaded or uploaded.
 struct DomainList: Codable, Equatable, Identifiable {
     var id = UUID().uuidString
     var name: String
-    /// An `https` or `file` URL.
-    var url: String
+    /// An `https` URL. Nil for an uploaded file, which has no refresh.
+    var url: String?
     var action: Action
     var enabled = true
 
