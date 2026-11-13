@@ -278,11 +278,15 @@ final class Filter: NSObject {
     private func reconnect() async {
         if link == nil {
             link = Task {
-                var checked = false
+                var tries = 0
                 while enabled, !(await readConfig()) {
                     // The user may have switched the extension off. macOS does not always post a change for it.
-                    if !checked { checkExtension() }
-                    checked = true
+                    if tries == 0 { checkExtension() }
+                    // launchd can refuse the extension's Mach service name while an old build still holds it.
+                    if tries >= 10, status == "Activating" {
+                        status = "Error: The filter does not respond. Restart your Mac."
+                    }
+                    tries += 1
                     try? await Task.sleep(for: .seconds(1))
                 }
                 if enabled { status = "On" }
