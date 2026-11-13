@@ -2,7 +2,6 @@ import SwiftUI
 
 struct RulesView: View {
     let filter: Filter
-    @State private var overflow = false
 
     // The order of `Config.decide`, with the verdicts each step can give.
     private static let steps: [(label: String, outs: [Color])] = [
@@ -109,6 +108,41 @@ struct RulesView: View {
         let profiles = filter.config.profiles
         let rows = Self.rows(rules)
         let most = Double(max(rows.map { hits($0).count }.max() ?? 0, 1))
+        let columns = VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(profiles.indices, id: \.self) { index in
+                    let profile = profiles[index]
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 3).fill(Color.profile(index, profile.color)).frame(width: 10, height: 10)
+                        Caption(profile.name).lineLimit(1)
+                        if profile.id == stats.profile { Circle().fill(.good).frame(width: 7, height: 7).help("Active now") }
+                    }
+                    .frame(width: 120, alignment: .leading)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .background(profile.id == stats.profile ? Color.white.opacity(0.03) : .clear)
+                }
+            }
+            .frame(height: 30)
+            ForEach(rows) { row in
+                let always = row.rule(nil)?.action
+                HStack(spacing: 0) {
+                    ForEach(profiles) { profile in
+                        let own = row.rule(profile.id)?.action
+                        let tip =
+                            own.map { "\($0 == .allow ? "Allow" : "Block") while \(profile.name) is active" }
+                            ?? "Follows Always: \(always.map { $0 == .allow ? "Allow" : "Block" } ?? "undecided")"
+                        Pick(value: own, follows: own == nil ? always : nil, tip: tip) { action in
+                            filter.update { $0.pick(action, for: row.app, host: row.host, profile: profile.id) }
+                        }
+                        .frame(width: 120, alignment: .leading)
+                        .frame(maxHeight: .infinity)
+                        .background(profile.id == stats.profile ? Color.white.opacity(0.03) : .clear)
+                    }
+                }
+                .modifier(RowFrame(height: flag(row) == nil ? 48 : 60))
+            }
+        }
+        .padding(.horizontal, profiles.isEmpty ? 0 : 8)
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 16) {
                 Caption("Rules by profile")
@@ -149,51 +183,14 @@ struct RulesView: View {
                         }
                     }
                 }
-                ScrollView(.horizontal) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 0) {
-                            ForEach(profiles.indices, id: \.self) { index in
-                                let profile = profiles[index]
-                                HStack(spacing: 6) {
-                                    RoundedRectangle(cornerRadius: 3).fill(Color.profile(index, profile.color)).frame(width: 10, height: 10)
-                                    Caption(profile.name).lineLimit(1)
-                                    if profile.id == stats.profile { Circle().fill(.good).frame(width: 7, height: 7).help("Active now") }
-                                }
-                                .frame(width: 120, alignment: .leading)
-                                .frame(maxHeight: .infinity, alignment: .top)
-                                .background(profile.id == stats.profile ? Color.white.opacity(0.03) : .clear)
-                            }
-                        }
-                        .frame(height: 30)
-                        ForEach(rows) { row in
-                            let always = row.rule(nil)?.action
-                            HStack(spacing: 0) {
-                                ForEach(profiles) { profile in
-                                    let own = row.rule(profile.id)?.action
-                                    let tip =
-                                        own.map { "\($0 == .allow ? "Allow" : "Block") while \(profile.name) is active" }
-                                        ?? "Follows Always: \(always.map { $0 == .allow ? "Allow" : "Block" } ?? "undecided")"
-                                    Pick(value: own, follows: own == nil ? always : nil, tip: tip) { action in
-                                        filter.update { $0.pick(action, for: row.app, host: row.host, profile: profile.id) }
-                                    }
-                                    .frame(width: 120, alignment: .leading)
-                                    .frame(maxHeight: .infinity)
-                                    .background(profile.id == stats.profile ? Color.white.opacity(0.03) : .clear)
-                                }
-                            }
-                            .modifier(RowFrame(height: flag(row) == nil ? 48 : 60))
-                        }
-                    }
-                    .padding(.horizontal, 8)
+                // As wide as the columns, so no gap is left. A scroll view would take all spare width.
+                ViewThatFits(in: .horizontal) {
+                    columns
+                    ScrollView(.horizontal) { columns }
+                        // Soft edges: columns hide under the fixed parts.
+                        .overlay(alignment: .leading) { edge(.trailing) }
+                        .overlay(alignment: .trailing) { edge(.leading) }
                 }
-                .onScrollGeometryChange(for: Bool.self) {
-                    $0.contentSize.width > $0.containerSize.width
-                } action: { _, wide in
-                    overflow = wide
-                }
-                // Soft edges, only when columns hide under the fixed parts.
-                .overlay(alignment: .leading) { if overflow { edge(.trailing) } }
-                .overlay(alignment: .trailing) { if overflow { edge(.leading) } }
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 0) {
                         Caption("Hits").frame(width: 136, alignment: .leading)
