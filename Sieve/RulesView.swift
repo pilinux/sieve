@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RulesView: View {
     let filter: Filter
+    @State private var query = ""
 
     // The order of `Config.decide`, with the verdicts each step can give.
     private static let steps: [(label: String, outs: [Color])] = [
@@ -106,7 +107,11 @@ struct RulesView: View {
     private func table(_ rules: [Rule]) -> some View {
         let stats = filter.stats
         let profiles = filter.config.profiles
-        let rows = Self.rows(rules)
+        // Case and accents do not count.
+        let rows = Self.rows(rules).filter { row in
+            query.isEmpty || stats.name(row.app).localizedStandardContains(query) || row.app.localizedStandardContains(query)
+                || (row.host ?? "").localizedStandardContains(query)
+        }
         let most = Double(max(rows.map { hits($0).count }.max() ?? 0, 1))
         let columns = VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
@@ -146,6 +151,7 @@ struct RulesView: View {
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 16) {
                 Caption("Rules by profile")
+                SearchField(text: $query, prompt: "Search apps and hosts").frame(width: 240)
                 Spacer()
                 Label("Allow", systemImage: "checkmark")
                 Label("Block", systemImage: "xmark")
@@ -223,6 +229,7 @@ struct RulesView: View {
                     }
                 }
             }
+            if rows.isEmpty { Text("No rules match “\(query)”.").foregroundStyle(.ink3) }
         }
         .card()
     }

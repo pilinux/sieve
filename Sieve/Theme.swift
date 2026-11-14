@@ -362,6 +362,32 @@ struct AppRow: View {
     }
 }
 
+/// A search field: an icon, the text, and a clear button once it holds text. Escape clears it.
+struct SearchField: View {
+    @Binding var text: String
+    let prompt: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(.ink3)
+            TextField(prompt, text: $text).textFieldStyle(.plain).onExitCommand { text = "" }
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.ink3)
+                }
+                .buttonStyle(.plain)
+                .help("Clear")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(.bg, in: .rect(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.line2))
+    }
+}
+
 /// A glass capsule button for the toolbar.
 struct ToolButton: View {
     let title: String

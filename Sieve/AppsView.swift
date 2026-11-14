@@ -4,6 +4,7 @@ struct AppsView: View {
     let filter: Filter
     // Nil: all apps.
     @State private var selected: String?
+    @State private var query = ""
 
     var body: some View {
         if filter.stats.apps.isEmpty {
@@ -30,11 +31,17 @@ struct AppsView: View {
     private var list: some View {
         let stats = filter.stats
         let byName = { (a: String, b: String) in stats.name(a).localizedStandardCompare(stats.name(b)) == .orderedAscending }
-        let undecided = stats.undecided(filter.config).sorted(by: byName)
-        let decided = stats.apps.keys.filter { !undecided.contains($0) }.sorted(by: byName)
-        // All apps stays. Each group head pins until the next one pushes it out.
+        // Case and accents do not count.
+        let match = { (app: String) in
+            query.isEmpty || stats.name(app).localizedStandardContains(query) || app.localizedStandardContains(query)
+        }
+        let all = Set(stats.undecided(filter.config))
+        let undecided = all.filter(match).sorted(by: byName)
+        let decided = stats.apps.keys.filter { !all.contains($0) && match($0) }.sorted(by: byName)
+        // All apps and the search field stay. Each group head pins until the next one pushes it out.
         return VStack(spacing: 0) {
             allApps.padding(EdgeInsets(top: 12, leading: 10, bottom: 0, trailing: 10))
+            SearchField(text: $query, prompt: "Search apps").padding(EdgeInsets(top: 10, leading: 10, bottom: 0, trailing: 10))
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
                     if !undecided.isEmpty {
@@ -53,6 +60,9 @@ struct AppsView: View {
                         }
                     } header: {
                         group("Apps", decided.count)
+                    }
+                    if !query.isEmpty, undecided.isEmpty, decided.isEmpty {
+                        Text("No apps match “\(query)”.").foregroundStyle(.ink3).padding(.horizontal, 10)
                     }
                 }
                 .padding(EdgeInsets(top: 0, leading: 10, bottom: 12, trailing: 10))
