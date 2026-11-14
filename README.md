@@ -49,12 +49,13 @@ It collects no data. See the [privacy policy](PRIVACY.md).
 
 ### Install
 
-- **Mac App Store:** [Sieve on the Mac App Store][appstore].
 - **Homebrew:**
 
   ```sh
   brew install --cask pilinux/tap/sieve
   ```
+
+- **Mac App Store:** coming soon.
 
 macOS runs the filter only when Sieve is in `/Applications`. Both ways
 put it there.
@@ -559,7 +560,6 @@ Public License for more details.
 You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>.
 
-[appstore]: https://apps.apple.com/app/idAPP_ID
 [hosts]: https://github.com/StevenBlack/hosts
 [yoyo]: https://pgl.yoyo.org/adservers/
 [lulu]: https://objective-see.org/products/lulu.html
