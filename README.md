@@ -426,6 +426,10 @@ copy** keeps the file for you. **Discard** deletes it.
 - **Changing code asks again.** An update of a tool with no verified
   signer, such as a Homebrew binary, changes its code. Ask mode prompts
   for it once more. Unsigned code prompts on every connection.
+- **Some Apple tools pass.** Apple code outside `/bin/`, `/usr/bin/`,
+  and `/Library/Developer/` counts as a daemon, allowed with no rule.
+  A few tools live there too, such as `/usr/sbin/ab` and `tclsh`, so
+  any app can connect through them without a prompt.
 - **Outgoing only.** The macOS firewall covers incoming connections.
 - **Not yet tested:** iCloud Private Relay may hide Safari traffic from
   the filter.
