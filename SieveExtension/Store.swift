@@ -1,6 +1,10 @@
 import Foundation
 import Synchronization
-import os
+
+/// The extension's error log, next to its config.
+let errorLog = ErrorLog(
+    folder: URL.applicationSupportDirectory.appending(path: "me.pilinux.Sieve"), source: "extension",
+    subsystem: "me.pilinux.Sieve.SieveExtension")
 
 /// Config and stats, shared by the filter and XPC, saved as JSON files.
 final class Store: Sendable {
@@ -22,7 +26,6 @@ final class Store: Sendable {
 
     private let state = Mutex(State())
     private let folder = URL.applicationSupportDirectory.appending(path: "me.pilinux.Sieve")
-    private let logger = Logger(subsystem: "me.pilinux.Sieve.SieveExtension", category: "store")
 
     var config: Config { state.withLock { $0.config } }
     /// Only the bytes and blocked counts, for the app's live view.
@@ -115,7 +118,7 @@ final class Store: Sendable {
             try FileManager.default.createDirectory(at: folder.appending(path: "lists"), withIntermediateDirectories: true)
             try text.write(to: file, atomically: true, encoding: .utf8)
         } catch {
-            logger.error("Cannot save list \(id, privacy: .public): \(error, privacy: .public)")
+            errorLog.error("store", "Cannot save list \(id)", error)
         }
     }
 
@@ -221,7 +224,7 @@ final class Store: Sendable {
             let broken = folder.appending(path: name + ".broken")
             try? FileManager.default.removeItem(at: broken)
             try? FileManager.default.moveItem(at: folder.appending(path: name), to: broken)
-            logger.error("Cannot read \(name, privacy: .public), using defaults: \(error, privacy: .public)")
+            errorLog.error("store", "Cannot read \(name). Moved it aside", error)
             return nil
         }
     }
@@ -231,7 +234,7 @@ final class Store: Sendable {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try JSONEncoder().encode(value).write(to: folder.appending(path: name), options: .atomic)
         } catch {
-            logger.error("Cannot write \(name, privacy: .public): \(error, privacy: .public)")
+            errorLog.error("store", "Cannot write \(name)", error)
         }
     }
 }

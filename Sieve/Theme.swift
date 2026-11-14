@@ -362,6 +362,26 @@ struct AppRow: View {
     }
 }
 
+/// A glass capsule button for the toolbar.
+struct ToolButton: View {
+    let title: String
+    let icon: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .labelStyle(.titleAndIcon)
+                .font(.aileron(12, .semibold))
+                .padding(.horizontal, 14)
+                .frame(height: 34)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: .capsule)
+    }
+}
+
 /// The "Launch at login" switch. Shows the real state: if (un)registering fails, the switch stays put.
 struct LaunchAtLogin: View {
     @State private var on = SMAppService.mainApp.status == .enabled
@@ -376,7 +396,11 @@ struct LaunchAtLogin: View {
                     get: { on },
                     set: { wanted in
                         let service = SMAppService.mainApp
-                        try? wanted ? service.register() : service.unregister()
+                        do {
+                            try wanted ? service.register() : service.unregister()
+                        } catch {
+                            errorLog.warning("login", "Cannot change Launch at login", error)
+                        }
                         on = service.status == .enabled
                     })
             )

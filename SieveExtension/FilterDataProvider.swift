@@ -78,7 +78,10 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         let key = app.key
         let host = host ?? ""
         guard let client = ask.withLockUnchecked({ $0.client }),
-            let prompt = client.remoteObjectProxyWithErrorHandler({ [self] _ in resumeFlows(of: app, host: host, answer: nil) })
+            let prompt = client.remoteObjectProxyWithErrorHandler({ [self] error in
+                errorLog.warning("xpc", "Cannot send a prompt to the app", error)
+                resumeFlows(of: app, host: host, answer: nil)
+            })
                 as? PromptXPC
         else { return false }
 
@@ -149,7 +152,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
 
     private func startListener() {
         guard let name = Bundle.main.machServiceName else {
-            logger.error("No NEMachServiceName in Info.plist")
+            errorLog.error("xpc", "No NEMachServiceName in Info.plist")
             return
         }
         // The service name starts with the team ID. Accept only the Sieve app, signed by that team.
@@ -198,8 +201,10 @@ extension FilterDataProvider: FilterXPC {
     }
 
     func setConfig(_ config: Data, reply: @escaping @Sendable (Data) -> Void) {
-        if let config = try? JSONDecoder().decode(Config.self, from: config) {
-            store.setConfig(config)
+        do {
+            store.setConfig(try JSONDecoder().decode(Config.self, from: config))
+        } catch {
+            errorLog.warning("xpc", "setConfig got a config that does not decode", error)
         }
         reply((try? JSONEncoder().encode(store.config)) ?? Data())
     }
@@ -231,6 +236,15 @@ extension FilterDataProvider: FilterXPC {
 
     func discardBrokenConfig(reply: @escaping @Sendable (Data) -> Void) {
         store.discardBrokenConfig()
+        reply(Data())
+    }
+
+    func readErrorLog(reply: @escaping @Sendable (Data) -> Void) {
+        reply(errorLog.contents())
+    }
+
+    func resetErrorLog(reply: @escaping @Sendable (Data) -> Void) {
+        errorLog.reset()
         reply(Data())
     }
 }

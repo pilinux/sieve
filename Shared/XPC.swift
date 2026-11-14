@@ -15,6 +15,10 @@ import Foundation
     func brokenConfig(reply: @escaping @Sendable (Data) -> Void)
     /// Deletes that file. Replies when done.
     func discardBrokenConfig(reply: @escaping @Sendable (Data) -> Void)
+    /// The extension's `errors.jsonl`, as stored.
+    func readErrorLog(reply: @escaping @Sendable (Data) -> Void)
+    /// Clears that log. Replies when done.
+    func resetErrorLog(reply: @escaping @Sendable (Data) -> Void)
 }
 
 /// What the extension asks the app, in Ask mode.

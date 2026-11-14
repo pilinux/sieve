@@ -52,6 +52,7 @@ struct BrokenConfigNotice: View {
         do {
             try data.write(to: url)
         } catch {
+            errorLog.error("store", "Cannot save a copy of the broken config", error)
             NSApp.presentError(error)
         }
     }

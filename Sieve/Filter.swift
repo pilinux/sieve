@@ -4,6 +4,10 @@ import Observation
 import SwiftUI
 import SystemExtensions
 
+/// The app's error log, in its own container.
+let errorLog = ErrorLog(
+    folder: URL.applicationSupportDirectory.appending(path: "me.pilinux.Sieve"), source: "app", subsystem: "me.pilinux.Sieve")
+
 /// Installs the system extension, turns on the content filter, and talks to it over XPC.
 @Observable
 final class Filter: NSObject {
@@ -17,6 +21,8 @@ final class Filter: NSObject {
     private(set) var history: [[String: Double]] = []
     /// The result of the last list load. The view clears it.
     var message: (text: String, failed: Bool)?
+    /// Both error logs, by source, as last read. No `extension` key if the extension could not be reached.
+    private(set) var logs: [String: LogFile] = [:]
 
     private static let extensionID = "me.pilinux.Sieve.SieveExtension"
     // The extension inside this app, as macOS installs it.
@@ -61,6 +67,7 @@ final class Filter: NSObject {
                 status = "Off"
             }
         } catch {
+            errorLog.error("system", "Cannot load the filter configuration", error)
             status = "Error: \(error.localizedDescription)"
         }
     }
@@ -85,7 +92,7 @@ final class Filter: NSObject {
     /// Reads all the stats from the extension. The config needs no read: the app is its only writer.
     func refresh() async {
         if let data = await send({ $0.stats(reply: $1) }),
-            let stats = try? JSONDecoder().decode(Stats.self, from: data)
+            let stats = decode(Stats.self, data)
         {
             self.stats = stats
             measure(stats.bytes)
@@ -95,7 +102,7 @@ final class Filter: NSObject {
     // Reads only the bytes and blocked counts.
     private func readUsage() async {
         if let data = await send({ $0.usage(reply: $1) }),
-            let usage = try? JSONDecoder().decode(Stats.self, from: data)
+            let usage = decode(Stats.self, data)
         {
             stats.bytes = usage.bytes
             stats.blocked = usage.blocked
@@ -144,7 +151,7 @@ final class Filter: NSObject {
         guard let data = try? JSONEncoder().encode(config) else { return nil }
         return Task {
             if let saved = await send({ $0.setConfig(data, reply: $1) }),
-                let config = try? JSONDecoder().decode(Config.self, from: saved), edit == edits
+                let config = decode(Config.self, saved), edit == edits
             {
                 self.config = config
             }
@@ -182,11 +189,13 @@ final class Filter: NSObject {
             }
             // A reply with no hosts, such as an error page, would replace a good copy.
             guard try await hand(list, file) else {
+                errorLog.warning("lists", "List \(list.id) has no hosts. Kept the old copy")
                 message = ("\(list.name) has no hosts. Kept the old copy.", true)
                 return
             }
             message = ("Loaded \(list.name)", false)
         } catch {
+            errorLog.warning("lists", "Cannot load list \(list.id)", error)
             message = ("Cannot load \(list.name): \(error.localizedDescription)", true)
         }
     }
@@ -204,6 +213,7 @@ final class Filter: NSObject {
             update { $0.lists.append(list) }
             message = ("Loaded \(list.name)", false)
         } catch {
+            errorLog.warning("lists", "Cannot read a picked list file", error)
             message = ("Cannot load \(list.name): \(error.localizedDescription)", true)
         }
     }
@@ -220,17 +230,44 @@ final class Filter: NSObject {
         return true
     }
 
+    /// Reads both error logs into `logs`.
+    func readErrorLogs() async {
+        var logs = ["app": LogFile(data: errorLog.contents(), now: .now)]
+        if let data = await send({ $0.readErrorLog(reply: $1) }) { logs["extension"] = LogFile(data: data, now: .now) }
+        self.logs = logs
+    }
+
+    /// Clears both error logs, then reads them again. The extension's stays if it cannot be reached.
+    func resetErrorLogs() async {
+        errorLog.reset()
+        _ = await send { $0.resetErrorLog(reply: $1) }
+        await readErrorLogs()
+    }
+
     // Sends one message. Nil if the extension cannot be reached.
     private func send(_ message: (FilterXPC, @escaping @Sendable (Data) -> Void) -> Void) async -> Data? {
-        await withCheckedContinuation { continuation in
+        let result: Result<Data, any Error> = await withCheckedContinuation { continuation in
             // XPC calls either the reply or the error handler, never both.
             // `@Sendable` keeps the handler off the main actor. XPC calls it on its own queue.
             let proxy =
-                xpc().remoteObjectProxyWithErrorHandler { @Sendable _ in
-                    continuation.resume(returning: nil)
+                xpc().remoteObjectProxyWithErrorHandler { @Sendable error in
+                    continuation.resume(returning: .failure(error))
                 } as? FilterXPC
-            guard let proxy else { return continuation.resume(returning: nil) }
-            message(proxy) { continuation.resume(returning: $0) }
+            guard let proxy else { return continuation.resume(returning: .failure(CocoaError(.featureUnsupported))) }
+            message(proxy) { continuation.resume(returning: .success($0)) }
+        }
+        // Before On, no link is expected.
+        if case .failure(let error) = result, status == "On" { errorLog.warning("xpc", "Cannot reach the filter", error) }
+        return try? result.get()
+    }
+
+    // Nil if the extension's reply does not decode.
+    private func decode<T: Decodable>(_ type: T.Type, _ data: Data) -> T? {
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            errorLog.warning("xpc", "A \(T.self) reply does not decode", error)
+            return nil
         }
     }
 
@@ -268,6 +305,7 @@ final class Filter: NSObject {
             enabled = true
             await reconnect()
         } catch {
+            errorLog.error("system", "Cannot save the filter configuration", error)
             status = "Error: \(error.localizedDescription)"
         }
     }
@@ -284,6 +322,7 @@ final class Filter: NSObject {
                     if tries == 0 { checkExtension() }
                     // launchd can refuse the extension's Mach service name while an old build still holds it.
                     if tries >= 10, status == "Activating" {
+                        errorLog.error("system", "The filter does not respond")
                         status = "Error: The filter does not respond. Restart your Mac."
                     }
                     tries += 1
@@ -300,7 +339,7 @@ final class Filter: NSObject {
     private func readConfig() async -> Bool {
         let start = edits
         guard let data = await send({ $0.config(reply: $1) }),
-            let config = try? JSONDecoder().decode(Config.self, from: data)
+            let config = decode(Config.self, data)
         else { return false }
         if edits == start { self.config = config }
         return true
@@ -380,6 +419,7 @@ extension Filter: @preconcurrency OSSystemExtensionRequestDelegate {
     }
 
     func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
+        errorLog.error("system", "The system extension request failed", error)
         status = "Error: \(error.localizedDescription)"
     }
 }

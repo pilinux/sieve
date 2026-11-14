@@ -31,6 +31,7 @@ struct ContentView: View {
                             case .lists: ListsView(filter: filter)
                             case .rules: RulesView(filter: filter)
                             case .profiles: ProfilesView(filter: filter)
+                            case .diagnostics: DiagnosticsView(filter: filter)
                             }
                         }
                         // A soft scroll edge under the title. A mask costs less than a blur.
@@ -65,19 +66,11 @@ struct ContentView: View {
             GlassEffectContainer {
                 HStack(spacing: 16) {
                     if screen == .profiles {
-                        Button {
+                        ToolButton(title: "Add profile", icon: "plus") {
                             filter.update { $0.profiles.append(Profile(name: "New profile")) }
-                        } label: {
-                            Label("Add profile", systemImage: "plus")
-                                .labelStyle(.titleAndIcon)
-                                .font(.aileron(12, .semibold))
-                                .padding(.horizontal, 14)
-                                .frame(height: 34)
-                                .contentShape(.capsule)
                         }
-                        .buttonStyle(.plain)
-                        .glassEffect(.regular.interactive(), in: .capsule)
                     }
+                    if screen == .diagnostics { DiagnosticsTools(filter: filter) }
                     HStack(spacing: 10) {
                         RateLine(values: filter.trend(nil)).frame(width: 72, height: 22)
                         Text(rate(filter.rates.values.reduce(0, +)))
@@ -100,7 +93,7 @@ struct ContentView: View {
 }
 
 enum Screen: String, CaseIterable {
-    case apps = "Apps", lists = "Lists", rules = "Rules", profiles = "Profiles"
+    case apps = "Apps", lists = "Lists", rules = "Rules", profiles = "Profiles", diagnostics = "Diagnostics"
 
     var icon: String {
         switch self {
@@ -108,6 +101,7 @@ enum Screen: String, CaseIterable {
         case .lists: "list.bullet"
         case .rules: "checklist"
         case .profiles: "wifi"
+        case .diagnostics: "waveform.path.ecg"
         }
     }
 }

@@ -35,6 +35,7 @@ ad, tracker, and malware domains. Everything stays on your Mac.
 | Rule insights | Hits and last hit per rule, and flags on dead rules. |
 | Data limits | Cap an app's data per day or per month. |
 | Profiles | Rule sets that switch by network or by time. |
+| Diagnostics | Sieve's own errors and warnings, to save and share. |
 
 Sieve has no account, no server, no analytics, and no third-party code.
 It collects no data. See the [privacy policy](PRIVACY.md).
@@ -253,6 +254,20 @@ network, or during any of its time blocks.
 Click the Sieve icon in the menu bar for the live rate, the five busiest
 apps with a switch each, and blocked connections for the last seven
 days.
+
+### Diagnostics
+
+Sieve logs its own errors and warnings, such as a file it cannot write
+or a list it cannot download. The page shows how many there are since
+a date, and the newest 50.
+
+- **Save a copy** writes both logs, the app's and the filter's, to one
+  file: JSON Lines, one entry per line. Attach it to a bug report.
+- **Reset** deletes every entry.
+
+The log holds no personal data: no hosts, IP addresses, URLs, list or
+profile names, or your user name. Each file keeps its newest 2,000
+entries.
 
 ### Recipes
 
