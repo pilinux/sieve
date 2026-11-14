@@ -121,26 +121,6 @@ struct ListsView: View {
             }
             .padding(EdgeInsets(top: 20, leading: 24, bottom: 28, trailing: 24))
         }
-        .overlay(alignment: .bottom) {
-            if let message = filter.message {
-                HStack(spacing: 10) {
-                    Image(systemName: message.failed ? "exclamationmark.triangle.fill" : "checkmark")
-                        .foregroundStyle(message.failed ? .serious : .good)
-                    Text(message.text)
-                }
-                .font(.aileron(13, .semibold))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .glassEffect(.regular, in: .capsule)
-                .padding(.bottom, 20)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.easeOut(duration: 0.2), value: filter.message?.text)
-        .task(id: filter.message?.text) {
-            try? await Task.sleep(for: .seconds(4))
-            if !Task.isCancelled { filter.message = nil }
-        }
     }
 
     private func shieldCard(_ shield: DomainList) -> some View {

@@ -28,15 +28,16 @@ struct DomainList: Codable, Equatable, Identifiable {
     }
 
     /// Reads one host per line, or hosts-file lines such as `0.0.0.0 example.com`, each as `normalize(_:)` gives it.
-    /// Skips `#` comments, names without a dot, such as `localhost`, and words no host name can be,
-    /// such as the adblock line `||example.com^`.
+    /// Skips `#` comments, names without a dot, such as `localhost`, words no host name can be,
+    /// such as the adblock line `||example.com^`, and IP addresses, since lists match host names.
     static func parse(_ text: String) -> Set<String> {
         var hosts = Set<String>()
         for line in text.split(whereSeparator: \.isNewline) {
             let words = line.prefix { $0 != "#" }.split(whereSeparator: \.isWhitespace)
             for word in words.dropFirst(words.count == 1 ? 0 : 1) {
                 guard let host = normalize(String(word)), host.contains("."),
-                    host.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "-_.".contains($0)) })
+                    host.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "-_.".contains($0)) }),
+                    Address.normalize(host) == nil
                 else { continue }
                 hosts.insert(host)
             }

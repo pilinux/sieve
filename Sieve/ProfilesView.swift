@@ -184,7 +184,8 @@ struct ProfilesView: View {
             HStack(spacing: 8) {
                 TimeField(minutes: minutes(id, block, \.start), range: 0...schedule.end - 1)
                 Text("to").foregroundStyle(.ink3)
-                TimeField(minutes: minutes(id, block, \.end), range: schedule.start + 1...1439)
+                // 24:00 is the end of the day: the end minute is not covered, so 23:59 would leave a gap.
+                TimeField(minutes: minutes(id, block, \.end), range: schedule.start + 1...1440)
             }
         }
         .padding(10)

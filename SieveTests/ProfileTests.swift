@@ -29,6 +29,12 @@ struct ProfileTests {
         #expect(config.activeProfile(networks: [], weekday: 3, minute: 0) == nil)
     }
 
+    @Test func blockEndingAt24CoversTheLastMinute() {
+        let night = Schedule(weekdays: [2], start: 22 * 60, end: 24 * 60)
+        #expect(night.covers(weekday: 2, minute: 23 * 60 + 59))
+        #expect(!night.covers(weekday: 3, minute: 0))
+    }
+
     @Test func anyBlockActivatesProfile() {
         // Weekdays 9:00 to 17:00, and Saturday 10:00 to 14:00.
         var work = work

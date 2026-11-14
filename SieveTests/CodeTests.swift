@@ -82,4 +82,12 @@ struct CodeTests {
         let data = Data(#"{"mode":"ask","rules":[],"lists":[],"limits":[],"profiles":[]}"#.utf8)
         #expect(try JSONDecoder().decode(Config.self, from: data).codes == nil)
     }
+
+    @Test func unknownRunningCodeKeepsTheAllowedHash() {
+        var config = Config(rules: [Rule(app: tool, action: .allow)], codes: [tool: allowed])
+        let old = config
+        config.setAction(.allow, for: tool, host: "example.com")
+        config.approveCode(since: old, running: [:])
+        #expect(config.codes == [tool: allowed])
+    }
 }

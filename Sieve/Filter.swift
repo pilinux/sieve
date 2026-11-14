@@ -19,7 +19,7 @@ final class Filter: NSObject {
     private(set) var rates: [String: Double] = [:]
     /// Up to 60 samples of `rates`, oldest first.
     private(set) var history: [[String: Double]] = []
-    /// The result of the last list load. The view clears it.
+    /// A short result for the user, such as a list load or a failed save. The window clears it.
     var message: (text: String, failed: Bool)?
     /// Both error logs, by source, as last read. No `extension` key if the extension could not be reached.
     private(set) var logs: [String: LogFile] = [:]
@@ -150,10 +150,12 @@ final class Filter: NSObject {
         let edit = edits
         guard let data = try? JSONEncoder().encode(config) else { return nil }
         return Task {
-            if let saved = await send({ $0.setConfig(data, reply: $1) }),
-                let config = decode(Config.self, saved), edit == edits
-            {
-                self.config = config
+            if let saved = await send({ $0.setConfig(data, reply: $1) }) {
+                if let config = decode(Config.self, saved), edit == edits { self.config = config }
+            } else if edit == edits {
+                // The filter does not have the edit. Show what it has, and say so.
+                self.config = old
+                message = ("Cannot save the change. The filter does not respond.", true)
             }
             // Rule flags and pruned stats follow the new config. The prompt's reply need not wait for them.
             Task { await refresh() }

@@ -196,7 +196,8 @@ tracker.example.net
 127.0.0.1 metrics.example.org stats.example.org
 ```
 
-- Text after `#` is a comment. Words without a dot are skipped.
+- Text after `#` is a comment. Words without a dot, and IP addresses,
+  are skipped.
 - An entry covers its host and every subdomain. `example.com` covers
   `www.example.com`, but not `notexample.com`. No wildcards are needed.
 - JSON, CSV, and Adblock syntax such as `||example.com^` do not work.
@@ -243,7 +244,7 @@ network, or during any of its time blocks.
   it by its router's IP and MAC address. No Location permission is
   needed.
 - **Add time** adds a block of weekdays with a start and an end. A block
-  ends before midnight. For a night, use two blocks.
+  ends by 24:00. For a night, use two blocks.
 - One profile is active at a time: the first in the list that matches.
   Order matters.
 

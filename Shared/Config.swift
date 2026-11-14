@@ -63,14 +63,18 @@ struct Config: Codable, Equatable {
         if gone.contains(rule.app) { return .appGone }
         guard let host = rule.host else { return nil }
         if isAppBlocked(rule.app, profile: rule.profile) { return .appBlocked }
-        if rule.action == .block, isListed(host, .block, domains) { return .blockList }
-        // The nearest parent domain rule decides the host when this rule is gone.
-        if let dot = host.firstIndex(of: "."),
-            hostRule(for: rule.app, host: String(host[host.index(after: dot)...]))?.action == rule.action
-        {
-            return .parentRule
-        }
-        return nil
+        // An allow list beats a block list, so a Block rule for a host on both still decides it.
+        if rule.action == .block, isListed(host, .block, domains), !isListed(host, .allow, domains) { return .blockList }
+        // Where the rule counts: its own profile, or with no profile, wherever no profile has its own rule for the host.
+        let counts: [UUID?] =
+            if let profile = rule.profile { [profile] } else {
+                [nil] + profiles.map(\.id).filter { self.rule(for: rule.app, host: host, profile: $0)?.profile == nil }
+            }
+        // The nearest parent domain rule decides the host when this rule is gone, wherever this rule counts.
+        var without = self
+        without.rules.removeAll { $0.id == rule.id }
+        let parents = counts.map { without.hostRule(for: rule.app, host: host, profile: $0) }
+        return parents.allSatisfy { $0?.action == rule.action && $0?.host != host } ? .parentRule : nil
     }
 
     // Whether the app is blocked wherever a rule of `profile` counts: in that profile,
@@ -105,13 +109,13 @@ struct Config: Codable, Equatable {
     }
 
     /// Allows the code each app runs now, for each Allow rule that `old` does not have.
-    /// Drops the hash of an app with no rule left.
+    /// Keeps the allowed hash while the running code is not known. Drops the hash of an app with no rule left.
     /// - Parameter running: the code directory hash of each path key, as in `Stats.codes`.
     mutating func approveCode(since old: Config, running: [String: String]) {
         let allowed = Set(old.rules.filter { $0.action == .allow }.map(\.id))
         var codes = self.codes ?? [:]
         for rule in rules where rule.action == .allow && !allowed.contains(rule.id) {
-            codes[rule.app] = running[rule.app]
+            if let code = running[rule.app] { codes[rule.app] = code }
         }
         self.codes = codes.filter { app, _ in rules.contains { $0.app == app } }
     }
@@ -152,6 +156,7 @@ struct Config: Codable, Equatable {
     /// Replaces the app's rule for this host. Leaves rules of profiles alone.
     mutating func setAction(_ action: Action, for app: String, host: String? = nil) {
         guard app != Self.unknownApp else { return }
+        // A new rule even for the same action: a new Allow rule is what allows a path key's changed code.
         rules.removeAll { $0.app == app && $0.host == host && $0.profile == nil }
         rules.append(Rule(app: app, host: host, action: action))
     }

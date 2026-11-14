@@ -268,6 +268,11 @@ private struct XRay: View {
                 if let limit, used >= limit.bytes {
                     Chip(text: "Over limit", icon: "exclamationmark.triangle.fill", iconColor: .serious, fill: .crit.opacity(0.2))
                 }
+                // Quiet mode never prompts, so this is the only place a code change shows.
+                if let allowed = config.codes?[app], let running = stats.codes?[app], running != allowed {
+                    Chip(text: "Code changed", icon: "exclamationmark.triangle.fill", iconColor: .warn)
+                        .help("Its Allow rules do not count until you allow it again")
+                }
                 IconButton(icon: "clock.arrow.circlepath", help: "Clear history", ring: true) { clearing = true }
                     .confirmationDialog("Clear the history of \(stats.name(app))?", isPresented: $clearing) {
                         Button("Clear History", role: .destructive) { Task { await filter.forget(app) } }

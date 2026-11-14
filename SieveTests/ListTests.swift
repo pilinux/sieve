@@ -30,6 +30,10 @@ struct ListTests {
         #expect(DomainList.parse(text) == ["trailing.example.com", "under_score.example.com"])
     }
 
+    @Test func skipsIPAddresses() {
+        #expect(DomainList.parse("1.2.3.4\n0.0.0.0 5.6.7.8 ads.example.com\n") == ["ads.example.com"])
+    }
+
     @Test(arguments: [("Ads.Example.COM", "ads.example.com"), ("ads.example.com.", "ads.example.com"), (".", nil)])
     func normalizesHost(host: String, normalized: String?) {
         #expect(DomainList.normalize(host) == normalized)

@@ -67,4 +67,32 @@ struct FlagTests {
         let config = Config(rules: [Rule(app: app, action: .allow), rule])
         #expect(config.decide(app: app, host: "www.example.com", isApple: false, domains: [:]).rule == rule)
     }
+
+    @Test func parentRuleMustDecideInEveryProfile() {
+        let profile = UUID()
+        let rule = Rule(app: app, host: "api.example.com", action: .allow)
+        let config = Config(
+            rules: [
+                Rule(app: app, host: "example.com", action: .allow),
+                Rule(app: app, host: "example.com", action: .block, profile: profile), rule,
+            ],
+            profiles: [Profile(id: profile, name: "Work")])
+        #expect(config.flag(rule, gone: [], domains: [:]) == nil)
+    }
+
+    @Test func profileParentRuleFlags() {
+        let profile = UUID()
+        let rule = Rule(app: app, host: "api.example.com", action: .block, profile: profile)
+        let config = Config(
+            rules: [Rule(app: app, host: "example.com", action: .block, profile: profile), rule],
+            profiles: [Profile(id: profile, name: "Work")])
+        #expect(config.flag(rule, gone: [], domains: [:]) == .parentRule)
+    }
+
+    @Test func blockRuleOnAllowListIsNotFlagged() {
+        let rule = Rule(app: app, host: "ads.example.com", action: .block)
+        let allowList = DomainList(id: "a", name: "A", url: "https://a.example", action: .allow)
+        let config = Config(rules: [rule], lists: [blockList, allowList])
+        #expect(config.flag(rule, gone: [], domains: ["b": ["ads.example.com"], "a": ["example.com"]]) == nil)
+    }
 }
