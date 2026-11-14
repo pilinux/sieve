@@ -16,7 +16,7 @@ ad, tracker, and malware domains. Everything stays on your Mac.
 | --- | --- |
 | [1. Get started](#1-get-started) | Features, needs, install, setup |
 | [2. Use Sieve](#2-use-sieve) | Each screen, with pictures and recipes |
-| [3. Under the hood](#3-under-the-hood) | Design, limits, developer answers |
+| [3. Under the hood](#3-under-the-hood) | Design, limits, developer answers, contributing |
 
 ## 1. Get started
 
@@ -528,6 +528,13 @@ limits, and decoding of saved files.
 | `Shared/` | Models, verdict logic, list parser, XPC protocol |
 | `SieveTests/` | Swift Testing tests for `Shared/` |
 | `docs/images/` | The pictures in this README |
+
+### Contributing
+
+Thanks for your interest in contributing. Bug reports, ideas,
+documentation, and code are all welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md). Before your first pull request is
+merged, you sign the [Contributor License Agreement](CLA.md).
 
 ### Credits and licence
 
