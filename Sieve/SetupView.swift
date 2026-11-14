@@ -6,8 +6,8 @@ struct SetupView: View {
 
     var body: some View {
         let status = filter.status
-        let failed = status.hasPrefix("Error")
-        let current = status == "Allow Sieve in System Settings" ? 1 : 0
+        let failed = if case .failed = status { true } else { false }
+        let current = status == .needsApproval ? 1 : 0
         VStack(spacing: 28) {
             Image("Mark")
                 .resizable()
@@ -15,14 +15,14 @@ struct SetupView: View {
                 .frame(width: 96, height: 96)
                 .background(.s1, in: .rect(cornerRadius: 28))
                 .overlay(RoundedRectangle(cornerRadius: 28).strokeBorder(.line2))
-            Text(failed ? "Error" : status).font(.aileron(26, .light))
+            Text(failed ? "Error" : status.text).font(.aileron(26, .light))
             HStack(alignment: .top, spacing: 0) {
                 ForEach(Array(["Turn on", "Allow", "Filter"].enumerated()), id: \.offset) { index, label in
                     if index > 0 {
                         Rectangle().fill(index <= current ? .allow : .s3).frame(height: 2).padding(.top, 15)
                     }
                     VStack(spacing: 10) {
-                        node(index, current: current, failed: failed, busy: status == "Activating")
+                        node(index, current: current, failed: failed, busy: status == .activating)
                         Text(label).font(.aileron(13, .semibold)).foregroundStyle(index == current ? .ink : .ink3)
                     }
                     .frame(width: 80)
@@ -31,12 +31,12 @@ struct SetupView: View {
             .frame(width: 480)
             VStack(spacing: 14) {
                 switch status {
-                case "Off":
+                case .off:
                     Button("Turn on", systemImage: "power") { filter.turnOn() }
                         .buttonStyle(.borderedProminent).tint(.allow).controlSize(.extraLarge)
-                case "Activating":
+                case .activating:
                     Text("Installing the system extension").foregroundStyle(.ink3)
-                case "Allow Sieve in System Settings":
+                case .needsApproval:
                     settingsHint
                     // Login Items & Extensions, which lists Network Extensions.
                     if let url = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension") {
@@ -45,7 +45,7 @@ struct SetupView: View {
                 default:
                     HStack(spacing: 10) {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.serious)
-                        Text(status)
+                        Text(status.text)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)

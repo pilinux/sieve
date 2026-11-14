@@ -13,7 +13,7 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if filter.status == "On" {
+            if filter.status == .on {
                 // The toolbar makes the title bar tall, which sets the window buttons inside the sidebar pane.
                 HStack(spacing: 0) {
                     Sidebar(filter: filter, screen: $screen)

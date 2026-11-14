@@ -86,10 +86,9 @@ struct ProfilesView: View {
         let rules = Text("\(count) \(count == 1 ? "rule" : "rules")").foregroundStyle(.ink3).monospacedDigit()
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                ColorPicker("Colour", selection: colour(profile.id, index), supportsOpacity: false)
-                    .labelsHidden()
-                    .help("Colour")
-                TextField("Name", text: name(id)).textFieldStyle(.roundedBorder).font(.aileron(14, .semibold))
+                // Cards go by position: a deleted profile must not leave its edit to the next one.
+                ColourWell(filter: filter, id: id, index: index).id(id)
+                NameField(filter: filter, id: id, name: profile.name).id(id)
                 if filter.stats.profile == id {
                     HStack(spacing: 6) {
                         Circle().fill(.good).frame(width: 7, height: 7)
@@ -202,27 +201,6 @@ struct ProfilesView: View {
         return signature?.split(separator: ";").first { $0.hasPrefix(prefix) }.map { String($0.dropFirst(prefix.count)) }
     }
 
-    // `Color` is not `Codable`: store it in sRGB as `#rrggbb`.
-    private func colour(_ id: UUID, _ index: Int) -> Binding<Color> {
-        Binding(
-            get: { .profile(index, filter.config.profiles[id]?.color) },
-            set: { color in
-                guard let rgb = NSColor(color).usingColorSpace(.sRGB) else { return }
-                let hex = String(
-                    format: "#%02x%02x%02x", Int(rgb.redComponent * 255), Int(rgb.greenComponent * 255),
-                    Int(rgb.blueComponent * 255))
-                filter.update { $0.profiles[id]?.color = hex }
-            }
-        )
-    }
-
-    private func name(_ id: UUID) -> Binding<String> {
-        Binding(
-            get: { filter.config.profiles[id]?.name ?? "" },
-            set: { name in filter.update { $0.profiles[id]?.name = name } }
-        )
-    }
-
     // A block without weekdays stays until removed, so a click too many loses no times.
     private func weekday(_ id: UUID, _ block: Int, _ day: Int) -> Binding<Bool> {
         Binding(
@@ -255,6 +233,65 @@ struct ProfilesView: View {
     // A block may be gone by the time a binding reads it.
     private func schedule(_ id: UUID, _ block: Int) -> Schedule? {
         filter.config.profiles[id]?.schedules.dropFirst(block).first
+    }
+}
+
+// A profile's colour. Each save sends and writes the whole config, so it waits until a drag in the panel rests.
+private struct ColourWell: View {
+    let filter: Filter
+    let id: UUID
+    let index: Int
+    // `Color` is not `Codable`: kept in sRGB as `#rrggbb`. Nil until the user picks.
+    @State private var hex: String?
+
+    var body: some View {
+        ColorPicker(
+            "Colour",
+            selection: Binding(
+                get: { .profile(index, hex ?? filter.config.profiles[id]?.color) },
+                set: { color in
+                    guard let rgb = NSColor(color).usingColorSpace(.sRGB) else { return }
+                    hex = String(
+                        format: "#%02x%02x%02x", Int(rgb.redComponent * 255), Int(rgb.greenComponent * 255),
+                        Int(rgb.blueComponent * 255))
+                }),
+            supportsOpacity: false
+        )
+        .labelsHidden()
+        .help("Colour")
+        .task(id: hex) {
+            guard (try? await Task.sleep(for: .milliseconds(300))) != nil else { return }
+            save()
+        }
+        .onDisappear(perform: save)
+    }
+
+    private func save() {
+        guard let hex, let old = filter.config.profiles[id], old.color != hex else { return }
+        filter.update { $0.profiles[id]?.color = hex }
+    }
+}
+
+// A profile's name. Each save sends and writes the whole config, so it saves on Return or when the field loses focus.
+private struct NameField: View {
+    let filter: Filter
+    let id: UUID
+    @State var name: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField("Name", text: $name)
+            .textFieldStyle(.roundedBorder)
+            .font(.aileron(14, .semibold))
+            .focused($focused)
+            .onSubmit(save)
+            .onChange(of: focused) { if !focused { save() } }
+            .onDisappear(perform: save)
+    }
+
+    private func save() {
+        guard let old = filter.config.profiles[id]?.name, old != name else { return }
+        filter.update { $0.profiles[id]?.name = name }
     }
 }
 

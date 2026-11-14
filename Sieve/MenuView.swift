@@ -12,10 +12,10 @@ struct MenuView: View {
                 Text("Sieve").font(.aileron(15, .bold))
                 Spacer()
                 // A mode means nothing while the system filter is off.
-                if filter.status == "On" {
+                if filter.status == .on {
                     ModePicker(filter: filter)
                 } else {
-                    Text(filter.status).foregroundStyle(.ink3).lineLimit(1)
+                    Text(filter.status.text).foregroundStyle(.ink3).lineLimit(1)
                 }
             }
             if filter.stats.brokenConfig { BrokenConfigNotice(filter: filter, compact: true) }

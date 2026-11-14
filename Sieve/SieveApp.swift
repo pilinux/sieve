@@ -32,7 +32,7 @@ struct SieveApp: App {
         MenuBarExtra {
             MenuView(filter: filter)
         } label: {
-            Image(filter.status == "On" ? "MenuMark" : "MenuMarkOff").accessibilityLabel("Sieve")
+            Image(filter.status == .on ? "MenuMark" : "MenuMarkOff").accessibilityLabel("Sieve")
         }
         .menuBarExtraStyle(.window)
     }

@@ -12,7 +12,7 @@ let errorLog = ErrorLog(
 @Observable
 final class Filter: NSObject {
     /// Activating until `resume()` knows whether the filter was turned on before. On only once the config is read.
-    private(set) var status = "Activating"
+    private(set) var status = Status.activating
     private(set) var config = Config()
     private(set) var stats = Stats()
     /// Bytes per second, by app key.
@@ -49,9 +49,9 @@ final class Filter: NSObject {
     private func followSystemSettings() async {
         for await _ in NotificationCenter.default.notifications(named: .NEFilterConfigurationDidChange) {
             let manager = NEFilterManager.shared()
-            guard status == "On", (try? await manager.loadFromPreferences()) != nil, !manager.isEnabled else { continue }
+            guard status == .on, (try? await manager.loadFromPreferences()) != nil, !manager.isEnabled else { continue }
             enabled = false
-            status = "Off"
+            status = .off
         }
     }
 
@@ -64,17 +64,17 @@ final class Filter: NSObject {
             if manager.providerConfiguration != nil, manager.isEnabled {
                 turnOn()
             } else {
-                status = "Off"
+                status = .off
             }
         } catch {
             errorLog.error("system", "Cannot load the filter configuration", error)
-            status = "Error: \(error.localizedDescription)"
+            status = .failed(error.localizedDescription)
         }
     }
 
     /// Reads the extension's state, then activates it.
     func turnOn() {
-        status = "Activating"
+        status = .activating
         activating = true
         checkExtension()
     }
@@ -142,7 +142,7 @@ final class Filter: NSObject {
     /// Does nothing until the config is read: an edit of the defaults would replace every stored rule.
     @discardableResult
     func update(_ change: (inout Config) -> Void) -> Task<Void, Never>? {
-        guard status == "On" else { return nil }
+        guard status == .on else { return nil }
         let old = config
         change(&config)
         config.approveCode(since: old, running: stats.codes ?? [:])
@@ -257,7 +257,7 @@ final class Filter: NSObject {
             message(proxy) { continuation.resume(returning: .success($0)) }
         }
         // Before On, no link is expected.
-        if case .failure(let error) = result, status == "On" { errorLog.warning("xpc", "Cannot reach the filter", error) }
+        if case .failure(let error) = result, status == .on { errorLog.warning("xpc", "Cannot reach the filter", error) }
         return try? result.get()
     }
 
@@ -306,7 +306,7 @@ final class Filter: NSObject {
             await reconnect()
         } catch {
             errorLog.error("system", "Cannot save the filter configuration", error)
-            status = "Error: \(error.localizedDescription)"
+            status = .failed(error.localizedDescription)
         }
     }
 
@@ -321,14 +321,14 @@ final class Filter: NSObject {
                     // The user may have switched the extension off. macOS does not always post a change for it.
                     if tries == 0 { checkExtension() }
                     // launchd can refuse the extension's Mach service name while an old build still holds it.
-                    if tries >= 10, status == "Activating" {
+                    if tries >= 10, status == .activating {
                         errorLog.error("system", "The filter does not respond")
-                        status = "Error: The filter does not respond. Restart your Mac."
+                        status = .failed("The filter does not respond. Restart your Mac.")
                     }
                     tries += 1
                     try? await Task.sleep(for: .seconds(1))
                 }
-                if enabled { status = "On" }
+                if enabled { status = .on }
                 link = nil
             }
         }
@@ -343,6 +343,24 @@ final class Filter: NSObject {
         else { return false }
         if edits == start { self.config = config }
         return true
+    }
+}
+
+/// Where the filter is, from Turn on to On.
+enum Status: Equatable {
+    case off, activating, needsApproval, on
+    /// What went wrong, for the user.
+    case failed(String)
+
+    /// The text the window and the menu show.
+    var text: String {
+        switch self {
+        case .off: "Off"
+        case .activating: "Activating"
+        case .needsApproval: "Allow Sieve in System Settings"
+        case .on: "On"
+        case .failed(let message): "Error: \(message)"
+        }
     }
 }
 
@@ -397,7 +415,7 @@ extension Filter: @preconcurrency OSSystemExtensionRequestDelegate {
     }
 
     func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
-        status = "Allow Sieve in System Settings"
+        status = .needsApproval
     }
 
     // Switched off under Network Extensions, the extension still counts as active, and only the user can switch it
@@ -407,7 +425,7 @@ extension Filter: @preconcurrency OSSystemExtensionRequestDelegate {
         let version = Self.extensionBundle?.object(forInfoDictionaryKey: "CFBundleVersion") as? String
         // Only while the link is down: a late answer must not hide a link that is back.
         if activating || link != nil, properties.contains(where: { $0.bundleVersion == version && !$0.isEnabled }) {
-            status = "Allow Sieve in System Settings"
+            status = .needsApproval
         }
         guard activating else { return }
         activating = false
@@ -420,6 +438,6 @@ extension Filter: @preconcurrency OSSystemExtensionRequestDelegate {
 
     func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
         errorLog.error("system", "The system extension request failed", error)
-        status = "Error: \(error.localizedDescription)"
+        status = .failed(error.localizedDescription)
     }
 }
