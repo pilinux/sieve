@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-// Files as the build of 2026-11-12 saved them. A new field that breaks them must be optional instead.
+// Files as the 2026-11-12 build saved them. If a new field breaks these tests, make it optional.
 struct FileTests {
     @Test func configOfAnEarlierBuildLoads() throws {
         let data = Data(
@@ -40,7 +40,7 @@ struct FileTests {
         #expect(stats.addresses == nil)
     }
 
-    // As the build with IP addresses saves them.
+    // Files as saved by the build that added IP addresses.
     @Test func statsWithAddressesLoad() throws {
         let data = Data(
             #"""
@@ -59,7 +59,7 @@ struct FileTests {
         )
     }
 
-    // As the build with the blocked split and tracker flows saves them.
+    // Files as saved by the build that added the blocked split and tracker flows.
     @Test func statsWithBlockedSplitAndTrackerFlowsLoad() throws {
         let data = Data(
             #"""

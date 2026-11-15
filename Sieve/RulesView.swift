@@ -44,7 +44,7 @@ struct RulesView: View {
             }
             ScrollView {
                 VStack(spacing: 12) {
-                    // The decision order needs room for its labels: below the counts in a narrow window.
+                    // The decision order needs room for its labels, so in a narrow window it goes below the counts.
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: 12) {
                             total.frame(width: 168).frame(maxHeight: .infinity, alignment: .top).card().fixedSize(
@@ -107,7 +107,7 @@ struct RulesView: View {
     private func table(_ rules: [Rule]) -> some View {
         let stats = filter.stats
         let profiles = filter.config.profiles
-        // Case and accents do not count.
+        // Ignore case and accents.
         let rows = Self.rows(rules).filter { row in
             query.isEmpty || stats.name(row.app).localizedStandardContains(query) || row.app.localizedStandardContains(query)
                 || (row.host ?? "").localizedStandardContains(query)
@@ -189,11 +189,11 @@ struct RulesView: View {
                         }
                     }
                 }
-                // As wide as the columns, so no gap is left. A scroll view would take all spare width.
+                // Make it as wide as the columns, so no gap is left. A scroll view would otherwise take all the spare width.
                 ViewThatFits(in: .horizontal) {
                     columns
                     ScrollView(.horizontal) { columns }
-                        // Soft edges: columns hide under the fixed parts.
+                        // Fade the edges where columns slide under the fixed parts.
                         .overlay(alignment: .leading) { edge(.trailing) }
                         .overlay(alignment: .trailing) { edge(.leading) }
                 }
@@ -287,7 +287,7 @@ struct RulesView: View {
     private func flag(_ row: Row) -> Flag? { row.rules.lazy.compactMap { filter.stats.flags[$0.id] }.first }
 }
 
-// One table row: a fixed height, so the fixed and scrolling parts line up, and a line on top.
+// One table row, with a line on top. The fixed height keeps the fixed and scrolling parts lined up.
 private struct RowFrame: ViewModifier {
     let height: CGFloat
 
@@ -301,7 +301,7 @@ private struct RowFrame: ViewModifier {
 // Allow and Block for one column. Picking the chosen one again clears it.
 private struct Pick: View {
     let value: Action?
-    // What an empty profile cell inherits from Always: a faint outline.
+    // A faint outline shows what an empty profile cell inherits from Always.
     let follows: Action?
     let tip: String
     let choose: (Action) -> Void

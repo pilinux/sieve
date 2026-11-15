@@ -6,7 +6,7 @@ let errorLog = ErrorLog(
     folder: URL.applicationSupportDirectory.appending(path: "me.pilinux.Sieve"), source: "extension",
     subsystem: "me.pilinux.Sieve.SieveExtension")
 
-/// Config and stats, shared by the filter and XPC, saved as JSON files.
+/// Holds the config and stats for the filter and XPC, and saves them as JSON files.
 final class Store: Sendable {
     private struct State {
         var config = Config()
@@ -79,7 +79,7 @@ final class Store: Sendable {
         let stats = read(Stats.self, "stats.json")
         var domains: [String: Set<String>] = [:]
         for list in (config ?? Config()).lists {
-            // Tracker Shield works before its first refresh.
+            // The bundled copy lets Tracker Shield work before its first refresh.
             let bundled =
                 list.id == DomainList.trackerShield.id
                 ? Bundle.main.url(forResource: "trackers", withExtension: "txt") : nil
@@ -98,7 +98,7 @@ final class Store: Sendable {
         if config == nil { write(Config(), "config.json") }
     }
 
-    /// Clears the app's history and saves it at once. Keeps its config.
+    /// Clears the app's history and saves right away. The app's config stays.
     func forget(_ app: String) {
         state.withLock {
             $0.stats.forget(app, rules: $0.config.rules.filter { $0.app == app }.map(\.id))
@@ -107,7 +107,7 @@ final class Store: Sendable {
         saveStats()
     }
 
-    /// Empties the stats and saves them at once. Keeps the config.
+    /// Empties the stats and saves right away. The config stays.
     func clearHistory() {
         state.withLock {
             $0.stats = Stats()
@@ -121,7 +121,7 @@ final class Store: Sendable {
         try? FileManager.default.removeItem(at: brokenConfigFile)
     }
 
-    /// Saves a downloaded list and uses it at once.
+    /// Saves a downloaded list and starts using it right away.
     func setList(_ id: String, text: String) {
         guard let file = listFile(id) else { return }
         let hosts = DomainList.parse(text)
@@ -134,7 +134,7 @@ final class Store: Sendable {
         }
     }
 
-    // The ID names a file. Keep it inside the lists folder.
+    // The ID becomes a file name, so make sure it stays inside the lists folder.
     private func listFile(_ id: String) -> URL? {
         id.contains("/") ? nil : folder.appending(path: "lists/\(id).txt")
     }
@@ -159,13 +159,13 @@ final class Store: Sendable {
         state.statsChanged = true
     }
 
-    /// Decides one flow and records the app, host, and address. Nil means: ask the user.
+    /// Decides one flow and records the app, host, and address. Returns nil when Sieve should ask the user.
     func verdict(app: App, host: String?, address: String?) -> Action? {
         let today = Stats.day(.now)
         return state.withLock {
             if $0.pruned != today { Self.prune(&$0) }
             if $0.stats.see(app.key, host: host, address: address, day: today) { $0.statsChanged = true }
-            // A user tool may have counted as Apple in an earlier build.
+            // An earlier build may have marked a user tool as Apple.
             if app.isApple ? $0.stats.apple.insert(app.key).inserted : $0.stats.apple.remove(app.key) != nil {
                 $0.statsChanged = true
             }
@@ -191,7 +191,7 @@ final class Store: Sendable {
                 $0.statsChanged = true
             }
             if action == .block {
-                // With no rule and no limit, only a block list drops a listed host.
+                // With no rule and no limit, a listed host can only have been dropped by a block list.
                 let byList = if rule == nil, !overLimit, let host { $0.config.isListBlocked(host, domains: $0.domains) } else { false }
                 $0.stats.countBlocked(day: today, byList: byList)
                 $0.statsChanged = true
@@ -214,7 +214,7 @@ final class Store: Sendable {
         state.withLock {
             let new = max(total - ($0.flowBytes[flow] ?? 0), 0)
             $0.flowBytes[flow] = closed ? nil : total
-            // A flow may outlive the day of its app's last new flow.
+            // A flow can stay open into a day on which its app opened no new flow.
             _ = $0.stats.see(app, host: nil, day: today)
             $0.stats.bytes[app, default: 0] += new
             $0.stats.daily[today, default: [:]][app, default: 0] += new

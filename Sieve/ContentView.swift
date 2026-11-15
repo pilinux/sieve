@@ -14,7 +14,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             if filter.status == .on {
-                // The toolbar makes the title bar tall, which sets the window buttons inside the sidebar pane.
+                // The toolbar makes the title bar taller, which puts the window buttons inside the sidebar pane.
                 HStack(spacing: 0) {
                     Sidebar(filter: filter, screen: $screen)
                     VStack(spacing: 0) {
@@ -82,7 +82,7 @@ struct ContentView: View {
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarSpacer(.flexible)
         ToolbarItem {
-            // One container renders the capsules together, which is cheaper than one by one.
+            // One container draws all the capsules at once, which is cheaper than drawing each one alone.
             GlassEffectContainer {
                 HStack(spacing: 16) {
                     if screen == .profiles {
@@ -104,9 +104,9 @@ struct ContentView: View {
                     ModePicker(filter: filter, glass: true)
                 }
             }
-            // The design's 24 pt margin: the toolbar itself leaves 6.
+            // Matches the design's 24 pt margin. The toolbar already adds 6.
             .padding(.trailing, 18)
-            // Level with the title, which sits lower than the window buttons.
+            // Line up with the title, which sits lower than the window buttons.
             .offset(y: 4)
         }
         .sharedBackgroundVisibility(.hidden)
@@ -139,7 +139,7 @@ private struct Sidebar: View {
                 Image("Mark").resizable().frame(width: 26, height: 26)
                 Text("Sieve").font(.aileron(17, .bold))
             }
-            // Room for the window buttons.
+            // Leave room for the window buttons.
             .padding(.top, 52)
             .padding(.horizontal, 8)
             .padding(.bottom, 22)
@@ -173,7 +173,7 @@ private struct Sidebar: View {
                 }
                 .buttonStyle(.plain)
             }
-            // Status stays near the top: a window moved off screen can hide the bottom of the sidebar.
+            // Keep the status near the top. If the window is partly off screen, the bottom of the sidebar can be hidden.
             VStack(spacing: 10) {
                 HStack(spacing: 8) {
                     let on = filter.config.mode != .off
@@ -210,7 +210,7 @@ private struct Sidebar: View {
         .padding(.bottom, 14)
         .frame(width: 208)
         .frame(maxHeight: .infinity)
-        // Concentric with the window corner.
+        // Keep the corner concentric with the window corner.
         .glassEffect(.regular, in: .rect(cornerRadius: 19))
         .padding(EdgeInsets(top: 7, leading: 7, bottom: 7, trailing: 8))
     }

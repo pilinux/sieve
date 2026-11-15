@@ -11,7 +11,7 @@ let errorLog = ErrorLog(
 /// Installs the system extension, turns on the content filter, and talks to it over XPC.
 @Observable
 final class Filter: NSObject {
-    /// Activating until `resume()` knows whether the filter was turned on before. On only once the config is read.
+    /// Activating until `resume()` knows whether the filter was turned on before. It becomes On only after the config is read.
     private(set) var status = Status.activating
     private(set) var config = Config()
     private(set) var stats = Stats()
@@ -19,9 +19,9 @@ final class Filter: NSObject {
     private(set) var rates: [String: Double] = [:]
     /// Up to 60 samples of `rates`, oldest first.
     private(set) var history: [[String: Double]] = []
-    /// A short result for the user, such as a list load or a failed save. The window clears it.
+    /// A short message for the user, such as a loaded list or a failed save. The window clears it.
     var message: (text: String, failed: Bool)?
-    /// Both error logs, by source, as last read. No `extension` key if the extension could not be reached.
+    /// Both error logs, by source, as last read. There is no `extension` key if the extension could not be reached.
     private(set) var logs: [String: LogFile] = [:]
 
     private static let extensionID = "me.pilinux.Sieve.SieveExtension"
@@ -30,22 +30,22 @@ final class Filter: NSObject {
         url: Bundle.main.bundleURL.appending(path: "Contents/Library/SystemExtensions/\(extensionID).systemextension"))
     @ObservationIgnored private var connection: NSXPCConnection?
     @ObservationIgnored private var sample = (bytes: [String: Int](), time: Date.now)
-    // Counts local edits. A config read that started before the latest edit would undo it, so it is dropped.
+    // Counts local edits. A config read that started before the latest edit would undo that edit, so the read is ignored.
     @ObservationIgnored private var edits = 0
-    // True once the filter is turned on: from then on the link to the extension must stay up.
+    // True once the filter is turned on. From then on, the link to the extension must stay up.
     @ObservationIgnored private var enabled = false
     @ObservationIgnored private var link: Task<Void, Never>?
     // True from Turn on until its activation request is sent.
     @ObservationIgnored private var activating = false
 
-    // At launch, not from a window: Ask mode needs the app as its client even with every window closed.
+    // Start at launch, not from a window, because Ask mode needs the app as its client even when every window is closed.
     override init() {
         super.init()
         Task { await resume() }
         Task { await followSystemSettings() }
     }
 
-    // The user can turn the filter off in System Settings at any time. Then nothing filters, so show Off.
+    // The user can turn the filter off in System Settings at any time. Then nothing is filtered, so show Off.
     private func followSystemSettings() async {
         for await _ in NotificationCenter.default.notifications(named: .NEFilterConfigurationDidChange) {
             let manager = NEFilterManager.shared()
@@ -89,7 +89,7 @@ final class Filter: NSObject {
         OSSystemExtensionManager.shared.submitRequest(request)
     }
 
-    /// Reads all the stats from the extension. The config needs no read: the app is its only writer.
+    /// Reads all the stats from the extension. The config needs no read, because the app is the only one that writes it.
     func refresh() async {
         if let data = await send({ $0.stats(reply: $1) }),
             let stats = decode(Stats.self, data)
@@ -117,7 +117,7 @@ final class Filter: NSObject {
         guard elapsed >= 0.5 else { return }
         rates = Dictionary(
             uniqueKeysWithValues: bytes.map { app, bytes in
-                // Never below zero: clearing an app's history resets its bytes.
+                // Never go below zero. Clearing history resets an app's bytes.
                 (app, max(Double(bytes - (sample.bytes[app] ?? bytes)) / elapsed, 0))
             })
         sample = (bytes, .now)
@@ -129,7 +129,7 @@ final class Filter: NSObject {
         history.map { sample in app.map { sample[$0] ?? 0 } ?? sample.values.reduce(0, +) }
     }
 
-    /// Reads all the stats at once and every 10 seconds, the bytes every second in between, until cancelled.
+    /// Reads all the stats now and every 10 seconds, and the bytes every second in between, until cancelled.
     func poll() async {
         var tick = 0
         while !Task.isCancelled {
@@ -139,8 +139,8 @@ final class Filter: NSObject {
         }
     }
 
-    /// Changes the config here at once, then in the extension. The task ends when the extension has it.
-    /// Does nothing until the config is read: an edit of the defaults would replace every stored rule.
+    /// Changes the config here right away, then in the extension. The task ends when the extension has the change.
+    /// Does nothing until the config is read, because editing the defaults would replace every stored rule.
     @discardableResult
     func update(_ change: (inout Config) -> Void) -> Task<Void, Never>? {
         guard status == .on else { return nil }
@@ -154,11 +154,11 @@ final class Filter: NSObject {
             if let saved = await send({ $0.setConfig(data, reply: $1) }) {
                 if let config = decode(Config.self, saved), edit == edits { self.config = config }
             } else if edit == edits {
-                // The filter does not have the edit. Show what it has, and say so.
+                // The filter did not get the edit. Show the config it has, and tell the user.
                 self.config = old
                 message = ("Cannot save the change. The filter does not respond.", true)
             }
-            // Rule flags and pruned stats follow the new config. The prompt's reply need not wait for them.
+            // Rule flags and pruned stats depend on the new config. The prompt's reply does not need to wait for them.
             Task { await refresh() }
         }
     }
@@ -194,7 +194,7 @@ final class Filter: NSObject {
             if let response = response as? HTTPURLResponse, response.statusCode != 200 {
                 throw URLError(.badServerResponse)
             }
-            // Stops at the cap, so a server that never stops sending fills neither memory nor disk.
+            // Stop at the size limit, so a server that never stops sending cannot fill memory or disk.
             var data = Data()
             for try await byte in bytes {
                 data.append(byte)
@@ -236,7 +236,7 @@ final class Filter: NSObject {
         }
     }
 
-    // Hands a list to the extension. False if it holds no hosts.
+    // Hands a list to the extension. Returns false if the list holds no hosts.
     private func hand(_ list: DomainList, _ data: Data) async throws -> Bool {
         guard !DomainList.parse(String(decoding: data, as: UTF8.self)).isEmpty else { return false }
         if await send({ $0.setList(list.id, domains: data, reply: $1) }) == nil {
@@ -252,14 +252,14 @@ final class Filter: NSObject {
         self.logs = logs
     }
 
-    /// Clears both error logs, then reads them again. The extension's stays if it cannot be reached.
+    /// Clears both error logs, then reads them again. The extension's log stays if the extension cannot be reached.
     func resetErrorLogs() async {
         errorLog.reset()
         _ = await send { $0.resetErrorLog(reply: $1) }
         await readErrorLogs()
     }
 
-    // Sends one message. Nil if the extension cannot be reached.
+    // Sends one message. Returns nil if the extension cannot be reached.
     private func send(_ message: (FilterXPC, @escaping @Sendable (Data) -> Void) -> Void) async -> Data? {
         let result: Result<Data, any Error> = await withCheckedContinuation { continuation in
             // XPC calls either the reply or the error handler, never both.
@@ -271,12 +271,12 @@ final class Filter: NSObject {
             guard let proxy else { return continuation.resume(returning: .failure(CocoaError(.featureUnsupported))) }
             message(proxy) { continuation.resume(returning: .success($0)) }
         }
-        // Before On, no link is expected.
+        // Before the filter is On, a missing link is expected.
         if case .failure(let error) = result, status == .on { errorLog.warning("xpc", "Cannot reach the filter", error) }
         return try? result.get()
     }
 
-    // Nil if the extension's reply does not decode.
+    // Returns nil if the extension's reply does not decode.
     private func decode<T: Decodable>(_ type: T.Type, _ data: Data) -> T? {
         do {
             return try JSONDecoder().decode(type, from: data)
@@ -329,7 +329,7 @@ final class Filter: NSObject {
         }
     }
 
-    // Returns once the extension has sent its config. Then the filter is On.
+    // Returns once the extension has sent its config. At that point the filter is On.
     // The extension takes the sender of a message as its Ask mode client, and forgets it when the link drops.
     // A failed send drops the link again, so only one loop runs.
     private func reconnect() async {
@@ -354,7 +354,7 @@ final class Filter: NSObject {
         await link?.value
     }
 
-    // False if the extension cannot be reached.
+    // Returns false if the extension cannot be reached.
     private func readConfig() async -> Bool {
         let start = edits
         guard let data = await send({ $0.config(reply: $1) }),
@@ -365,10 +365,10 @@ final class Filter: NSObject {
     }
 }
 
-/// Where the filter is, from Turn on to On.
+/// The filter's status, from Turn on to On.
 enum Status: Equatable {
     case off, activating, needsApproval, on
-    /// What went wrong, for the user.
+    /// What went wrong, in words for the user.
     case failed(String)
 
     /// The text the window and the menu show.
@@ -389,10 +389,10 @@ extension Filter: PromptXPC {
         reply: @escaping @Sendable (Bool, Bool) -> Void
     ) {
         Task { @MainActor in
-            // With no window open, no poll runs. The tracker mark needs fresh stats.
+            // With no window open, nothing polls, but the tracker mark needs fresh stats.
             await refresh()
             var answer = (action: Action.allow, hostOnly: false)
-            // No close button: only Allow or Block end the prompt.
+            // No close button, so only Allow or Block can end the prompt.
             let panel = NSPanel(
                 contentRect: .zero, styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false
             )
@@ -400,7 +400,7 @@ extension Filter: PromptXPC {
             panel.titleVisibility = .hidden
             panel.isMovableByWindowBackground = true
             panel.appearance = NSAppearance(named: .darkAqua)
-            // Clear, so the prompt's glass is its background.
+            // Make the window clear, so the prompt's glass is its background.
             panel.isOpaque = false
             panel.backgroundColor = .clear
             let view = NSHostingView(
@@ -415,8 +415,8 @@ extension Filter: PromptXPC {
             NSApp.activate()
             NSApp.runModal(for: panel)
             panel.close()
-            // The app is the only writer of the config: the rule is saved before the extension resumes the flows.
-            // The reply carries the answer too, so a failed save cannot turn Block into Allow.
+            // The app is the only one that writes the config, so the rule is saved before the extension resumes the flows.
+            // The reply carries the answer as well, so a failed save cannot turn Block into Allow.
             await update { $0.setAction(answer.action, for: app, host: answer.hostOnly ? host : nil) }?.value
             reply(answer.action == .allow, answer.hostOnly)
         }
@@ -437,12 +437,12 @@ extension Filter: @preconcurrency OSSystemExtensionRequestDelegate {
         status = .needsApproval
     }
 
-    // Switched off under Network Extensions, the extension still counts as active, and only the user can switch it
-    // on again. Activation then waits in `enable()` until they do.
-    // Old builds stay listed until a reboot, some as enabled, so only the copy of this build counts.
+    // When it is switched off under Network Extensions, the extension still counts as active, and only the user can
+    // switch it back on. Activation then waits in `enable()` until they do.
+    // Old builds stay listed until a reboot, some still marked enabled, so only the copy from this build counts.
     func request(_ request: OSSystemExtensionRequest, foundProperties properties: [OSSystemExtensionProperties]) {
         let version = Self.extensionBundle?.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-        // Only while the link is down: a late answer must not hide a link that is back.
+        // Only while the link is down. A late answer must not hide a link that has come back.
         if activating || link != nil, properties.contains(where: { $0.bundleVersion == version && !$0.isEnabled }) {
             status = .needsApproval
         }

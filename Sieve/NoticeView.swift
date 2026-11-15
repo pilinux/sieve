@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Shows while the extension holds a config file it could not read. `compact` stacks it for the menu.
+/// Shown while the extension has a config file it could not read. `compact` stacks the layout for the menu.
 struct BrokenConfigNotice: View {
     let filter: Filter
     var compact = false

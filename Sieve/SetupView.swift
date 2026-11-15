@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The window until the filter is on: three steps, and what to do now.
+/// The window shown until the filter is on: three steps, and what to do now.
 struct SetupView: View {
     let filter: Filter
 
@@ -38,7 +38,7 @@ struct SetupView: View {
                     Text("Installing the system extension").foregroundStyle(.ink3)
                 case .needsApproval:
                     settingsHint
-                    // Login Items & Extensions, which lists Network Extensions.
+                    // Opens Login Items & Extensions, which lists Network Extensions.
                     if let url = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension") {
                         Link("Open System Settings", destination: url)
                     }

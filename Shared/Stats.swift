@@ -1,7 +1,7 @@
 import Foundation
 import Network
 
-/// What the filter has seen. Stored as `stats.json` by the extension.
+/// What the filter has seen. The extension saves it as `stats.json`.
 struct Stats: Codable, Equatable {
     /// Hosts each app contacted, by app key, each with the `day(_:)` it was last seen.
     var apps: [String: [String: String]] = [:]
@@ -34,19 +34,19 @@ struct Stats: Codable, Equatable {
     /// Tracker hosts that the current rules and lists block, by app key. Filled in for the app only.
     var blockedTrackers: [String: Set<String>] = [:]
     /// The code directory hash of each path key's last flow. Filled in for the app only.
-    /// Optional, so a saved file without it still loads.
+    /// It is optional, so an older file without it still loads.
     var codes: [String: String]?
-    /// `Config.blockedDomainCount(_:)`. Filled in for the app only. Optional, so a saved file without it still loads.
+    /// `Config.blockedDomainCount(_:)`. Filled in for the app only. It is optional, so an older file without it still loads.
     var blockedDomains: Int?
-    /// IP addresses each app connected to, by app key, then by address. Optional, so a saved file without it still loads.
+    /// IP addresses each app connected to, by app key, then by address. It is optional, so an older file without it still loads.
     var addresses: [String: [String: Address]]?
-    /// The part of `blocked` a block list dropped, by `day(_:)`. A day with no entry predates the split.
-    /// Optional, so a saved file without it still loads.
+    /// How many of the `blocked` flows a block list dropped, by `day(_:)`. A day with no entry was counted before this split.
+    /// It is optional, so an older file without it still loads.
     var blockedByList: [String: Int]?
-    /// Flows to each tracker host, allowed or blocked, by app key, then host. Optional, so a saved file without it still loads.
+    /// Flows to each tracker host, allowed or blocked, by app key, then host. It is optional, so an older file without it still loads.
     var trackerFlows: [String: [String: Int]]?
 
-    /// The most hosts, and the most IP addresses, kept for one app.
+    /// The most hosts, and the most IP addresses, that Sieve keeps for one app.
     static let maxHosts = 1_000
 
     /// The hosts one app contacted.
@@ -59,7 +59,7 @@ struct Stats: Codable, Equatable {
         apps[app, default: [:]].keys.filter { trackers.contains($0) && blockedTrackers[app]?.contains($0) != true }.count
     }
 
-    /// A to F, from `openTrackers(_:)`. `–` when the app gave no host names, so its trackers are unknown.
+    /// A grade from A to F, based on `openTrackers(_:)`. `–` when the app sent no host names, so its trackers are unknown.
     func grade(_ app: String) -> String {
         apps[app, default: [:]].isEmpty ? "–" : Self.grade(trackers: openTrackers(app))
     }
@@ -73,13 +73,13 @@ struct Stats: Codable, Equatable {
         grades.first { $0.trackers.contains(trackers) }?.letter ?? "F"
     }
 
-    /// Non-Apple apps without an app rule in any column, sorted. Never `Config.unknownApp`, which takes no rule.
+    /// Non-Apple apps with no app rule in any column, sorted. Leaves out `Config.unknownApp`, which cannot have a rule.
     func undecided(_ config: Config) -> [String] {
         apps.keys.filter { $0 != Config.unknownApp && !apple.contains($0) && !config.hasAppRule($0) }.sorted()
     }
 
     /// Records that the app made a flow on `day`, to `host` and `address` if known. Returns whether anything changed.
-    /// Past `maxHosts`, a new host or address replaces the one seen longest ago.
+    /// Once the app has `maxHosts`, a new host or address replaces the one seen longest ago.
     /// An address keeps its last host name when a later flow to it has none.
     mutating func see(_ app: String, host: String?, address: String? = nil, day: String) -> Bool {
         var changed = seen.updateValue(day, forKey: app) != day
@@ -95,7 +95,7 @@ struct Stats: Codable, Equatable {
         if let address {
             let new = Address(day: day, host: host ?? addresses?[app]?[address]?.host)
             if addresses?[app]?[address] != new {
-                // Taken out, the map has one owner, so it changes in place.
+                // Take the map out first. With one owner, Swift changes it in place instead of copying it.
                 var all = addresses.take() ?? [:]
                 Self.makeRoom(for: address, in: &all[app, default: [:]]) { $0.day }
                 all[app, default: [:]][address] = new
@@ -109,7 +109,7 @@ struct Stats: Codable, Equatable {
     /// Counts one blocked flow on `day`.
     mutating func countBlocked(day: String, byList: Bool) {
         blocked[day, default: 0] += 1
-        // The entry starts with the day's first flow, so a day counted in part by an older build stays unsplit.
+        // Create the day's entry on its first blocked flow. A day that began on an older build has no entry, so it stays unsplit.
         if blocked[day] == 1 {
             var all = blockedByList.take() ?? [:]
             all[day] = 0
@@ -118,8 +118,8 @@ struct Stats: Codable, Equatable {
         if byList { blockedByList?[day]? += 1 }
     }
 
-    /// The day's blocked flows: those a block list dropped, and those the rules, limits, or Ask mode dropped.
-    /// Nil when the day predates the split.
+    /// The day's blocked flows, split into those a block list dropped and those dropped by rules, limits, or Ask mode.
+    /// Nil for a day counted before the split.
     func blockedSplit(_ day: String) -> (lists: Int, rules: Int)? {
         guard let lists = blockedByList?[day] else { return nil }
         return (lists, blocked[day, default: 0] - lists)
@@ -127,7 +127,7 @@ struct Stats: Codable, Equatable {
 
     /// Counts one flow from the app to a tracker host.
     mutating func countTrackerFlow(_ app: String, host: String) {
-        // Taken out, the map has one owner, so it changes in place.
+        // Take the map out first. With one owner, Swift changes it in place instead of copying it.
         var all = trackerFlows.take() ?? [:]
         all[app, default: [:]][host, default: 0] += 1
         trackerFlows = all
@@ -151,8 +151,8 @@ struct Stats: Codable, Equatable {
         map[oldest] = nil
     }
 
-    /// Drops what was last seen on or before `cutoff`: hosts, addresses, days, and apps with no rule and no data limit.
-    /// Also drops the hits of rules not in `config`, trackers no app still has, and tracker flows to hosts an app dropped.
+    /// Removes what was last seen on or before `cutoff`: hosts, addresses, days, and apps with no rule and no data limit.
+    /// Also removes the hits of rules not in `config`, trackers no app still has, and tracker flows to hosts an app dropped.
     mutating func prune(_ config: Config, cutoff: String) {
         let kept = Set(config.rules.map(\.app) + config.limits.map(\.app))
         for (app, day) in seen where day <= cutoff && !kept.contains(app) {
@@ -177,7 +177,7 @@ struct Stats: Codable, Equatable {
         trackers = trackers.filter { host in apps.values.contains { $0[host] != nil } }
     }
 
-    /// Clears what the app did: its hosts, addresses, tracker flows, bytes, and rule hits. Keeps the app in the list, with its path.
+    /// Clears the app's history: its hosts, addresses, tracker flows, bytes, and rule hits. The app stays in the list, with its path.
     /// - Parameter rules: the IDs of the app's rules.
     mutating func forget(_ app: String, rules: [UUID]) {
         apps[app] = [:]
@@ -186,7 +186,7 @@ struct Stats: Codable, Equatable {
         bytes[app] = nil
         for day in daily.keys { daily[day]?[app] = nil }
         for rule in rules { hits[rule] = nil }
-        // A tracker that no other app reached was this app's history too.
+        // Also remove trackers that no other app reached, since they were part of this app's history.
         trackers = trackers.filter { host in apps.values.contains { $0[host] != nil } }
     }
 
@@ -201,20 +201,20 @@ struct Stats: Codable, Equatable {
     }
 }
 
-/// One IP address an app connected to. A struct, so later facts can join as optional fields.
+/// One IP address an app connected to. It is a struct so that new facts can be added later as optional fields.
 struct Address: Codable, Equatable {
     /// The `Stats.day(_:)` it was last seen.
     var day: String
-    /// The last host name seen with it. Nil: no flow to it had one.
+    /// The last host name seen with it, or nil if no flow to it had one.
     var host: String?
 
-    /// The address as rules and stats name it, or nil if `text` is not an IP address.
-    /// IPv6 drops its `%` zone. An IPv4-mapped IPv6 address becomes IPv4.
+    /// The address in the form rules and stats use, or nil if `text` is not an IP address.
+    /// Drops the `%` zone from IPv6, and turns an IPv4-mapped IPv6 address into IPv4.
     static func normalize(_ text: String) -> String? {
         if let ipv4 = IPv4Address(text) { return "\(ipv4)" }
         guard let ipv6 = IPv6Address(text) else { return nil }
         if ipv6.isIPv4Mapped, let ipv4 = ipv6.asIPv4 { return "\(ipv4)" }
-        // Built again from its bytes, the address has no interface, so no zone.
+        // Rebuilding the address from its bytes leaves out the interface, so the zone goes too.
         return IPv6Address(ipv6.rawValue).map { "\($0)" }
     }
 }

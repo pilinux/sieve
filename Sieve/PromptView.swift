@@ -11,7 +11,7 @@ struct PromptView: View {
     let signer: String
     /// Empty when the flow has no host name.
     let host: String
-    /// The remote IP address. Empty when not known.
+    /// The remote IP address, or empty if it is not known.
     let address: String
     let answer: (Action, Bool) -> Void
     @State private var hostOnly = false
@@ -30,7 +30,7 @@ struct PromptView: View {
                 }
                 Text(signer.isEmpty ? "Signer not verified" : signer == "Apple" ? "Signed by Apple" : "Team ID \(signer)")
                     .foregroundStyle(signer.isEmpty ? .block : .ink2)
-                // Other code at an allowed path, such as after an update, or a swap by another app.
+                // Different code at an allowed path, for example after an update, or because another app replaced the file.
                 if let allowed = filter.config.codes?[app], allowed != filter.stats.codes?[app] {
                     Text("Code changed since you allowed it").foregroundStyle(.block)
                 }

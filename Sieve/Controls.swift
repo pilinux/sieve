@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// A small spaced caps label above a value or a chart.
+/// A small all-caps label, with wide letter spacing, above a value or a chart.
 struct Caption: View {
     let text: String
     init(_ text: String) { self.text = text }
@@ -29,13 +29,13 @@ struct Kpi<Footer: View>: View {
             .lineLimit(1)
             footer.font(.aileron(12)).foregroundStyle(.ink3)
         }
-        // Equal shares of the row, equal heights in a fixed-height row.
+        // Take an equal share of the row's width, and the full height of a fixed-height row.
         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .card()
     }
 }
 
-/// A day's blocked flows: block lists, then rules and limits. One grey part for a day saved before the split.
+/// A day's blocked flows as bar parts: block lists first, then rules and limits. A day counted before the split gets one grey part.
 func blockedParts(_ stats: Stats, day: String) -> [SegmentBar.Part] {
     guard let split = stats.blockedSplit(day) else {
         return [.init(name: "Not split", value: stats.blocked[day] ?? 0, color: .unsplit)]
@@ -46,7 +46,7 @@ func blockedParts(_ stats: Stats, day: String) -> [SegmentBar.Part] {
     ]
 }
 
-/// Today's blocked flows, with a bar that splits them. A day saved before the split gets no bar.
+/// Today's blocked flows, with a bar that splits them. If today was counted before the split, there is no bar.
 struct BlockedToday: View {
     let stats: Stats
 
@@ -90,7 +90,7 @@ extension Chip {
     static let tracker = Chip(text: "Tracker", icon: "exclamationmark.triangle.fill", iconColor: .warn, fill: .warn.opacity(0.14))
 }
 
-/// A privacy grade, A to F, on its colour.
+/// A privacy grade, A to F, on its own colour.
 struct GradeBadge: View {
     let grade: String
     var size: CGFloat = 22
@@ -208,7 +208,7 @@ struct IconButton: View {
     }
 }
 
-/// Off, Ask, or Quiet.
+/// Picks the mode: Off, Ask, or Quiet.
 struct ModePicker: View {
     let filter: Filter
     var glass = false
@@ -221,7 +221,7 @@ struct ModePicker: View {
     }
 }
 
-/// An app's allow switch, with its grade, total, and live rate.
+/// One app row: its allow switch, grade, total, and live rate.
 struct AppRow: View {
     let filter: Filter
     let app: String
@@ -253,7 +253,7 @@ struct AppRow: View {
                 }
                 .animation(.easeOut(duration: 0.6), value: current)
             }
-            // No rule covers `unknown`: many processes share it.
+            // `unknown` cannot have a rule, because many processes share it.
             if app != Config.unknownApp {
                 Toggle(
                     "Allow",
@@ -277,7 +277,7 @@ struct AppRow: View {
     }
 }
 
-/// A search field: an icon, the text, and a clear button once it holds text. Escape clears it.
+/// A search field with an icon, and a clear button once it holds text. Escape also clears it.
 struct SearchField: View {
     @Binding var text: String
     let prompt: String
@@ -323,7 +323,7 @@ struct ToolButton: View {
     }
 }
 
-/// An empty screen: an icon, a title, and what fills it.
+/// An empty screen: an icon, a title, and a line on what will fill it.
 struct EmptyState: View {
     let icon: String
     let title: String

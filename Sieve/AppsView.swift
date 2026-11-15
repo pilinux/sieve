@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AppsView: View {
     let filter: Filter
-    // Nil: all apps.
+    // Nil means All apps.
     @State private var selected: String?
     @State private var query = ""
 
@@ -31,14 +31,14 @@ struct AppsView: View {
     private var list: some View {
         let stats = filter.stats
         let byName = { (a: String, b: String) in stats.name(a).localizedStandardCompare(stats.name(b)) == .orderedAscending }
-        // Case and accents do not count.
+        // Ignore case and accents.
         let match = { (app: String) in
             query.isEmpty || stats.name(app).localizedStandardContains(query) || app.localizedStandardContains(query)
         }
         let all = Set(stats.undecided(filter.config))
         let undecided = all.filter(match).sorted(by: byName)
         let decided = stats.apps.keys.filter { !all.contains($0) && match($0) }.sorted(by: byName)
-        // All apps and the search field stay. Each group head pins until the next one pushes it out.
+        // All apps and the search field stay in place. Each group header sticks to the top until the next one pushes it out.
         return VStack(spacing: 0) {
             allApps.padding(EdgeInsets(top: 12, leading: 10, bottom: 0, trailing: 10))
             SearchField(text: $query, prompt: "Search apps").padding(EdgeInsets(top: 10, leading: 10, bottom: 0, trailing: 10))
@@ -148,7 +148,7 @@ private func trackerCounts(_ range: ClosedRange<Int>) -> String {
 }
 
 private extension DayBars.Bar {
-    // `lines` lead the date in the tooltip.
+    // `lines` come before the date in the tooltip.
     init(day: Date, value: Double, tick: String? = nil, color: Color? = nil, parts: [SegmentBar.Part]? = nil, lines: [String] = []) {
         let date = day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
         self.init(
@@ -157,7 +157,7 @@ private extension DayBars.Bar {
         )
     }
 
-    // Every `step` days, clear of the right edge. A narrow chart takes a longer step.
+    // A date label every `step` days, kept away from the right edge. A narrow chart uses a longer step.
     static func weekly(_ index: Int, of count: Int, _ day: Date, step: Int = 7) -> String? {
         (count - 1 - index) % step == 2 ? day.formatted(.dateTime.day().month(.abbreviated)) : nil
     }
@@ -182,7 +182,7 @@ private struct Overview: View {
                 tick: DayBars.Bar.weekly(index, of: days.count, day, step: 14), parts: parts, lines: lines
             )
         }
-        // Only the kinds the chart draws.
+        // The legend lists only the kinds the chart draws.
         let kinds = blocked.flatMap { $0.parts ?? [] }.filter { $0.value > 0 }
         let legend = [
             (name: "Block lists", color: Color.block), (name: "Rules and limits", color: .ruleBlock), (name: "Not split", color: .unsplit),
@@ -285,7 +285,7 @@ private struct XRay: View {
                     } message: {
                         Text("Its traffic, hosts, IP addresses, and rule hits go. Its rules and data limit stay.")
                     }
-                // No rule covers `unknown`: many processes share it.
+                // `unknown` cannot have a rule, because many processes share it.
                 if app != Config.unknownApp {
                     Segments(verdict: config.action(for: app)) { action in filter.update { $0.setAction(action, for: app) } }
                 }
@@ -313,7 +313,7 @@ private struct XRay: View {
             hostList(hosts.sorted { (trackers.contains($0) ? 0 : 1, $0) < (trackers.contains($1) ? 0 : 1, $1) }, trackers: trackers)
             addressList(stats.addresses?[app] ?? [:])
         }
-        // macOS keeps a field focused on a click outside it.
+        // macOS keeps a field focused when the user clicks outside it.
         .contentShape(.rect)
         .onTapGesture { editing = false }
     }
@@ -388,7 +388,7 @@ private struct XRay: View {
                     .onSubmit { editing = false }
                     .onExitCommand { editing = false }
                 Text("MB").foregroundStyle(.ink3)
-                // A period needs a limit first.
+                // The period menu needs a limit first.
                 if let limit {
                     Segments(
                         options: [.init(value: Period.day, label: "Day"), .init(value: .month, label: "Month")],
@@ -424,7 +424,7 @@ private struct XRay: View {
         let rows = hosts.map { (host: $0, rule: filter.config.hostRule(for: app, host: $0)) }
         return VStack(alignment: .leading, spacing: 0) {
             listHead("Hosts", actions: rows.map { $0.rule?.action })
-            // Up to 1,000 hosts: build only the rows on screen.
+            // There can be up to 1,000 hosts, so build only the rows on screen.
             LazyVStack(spacing: 0) {
                 ForEach(rows, id: \.host) { host, rule in
                     let tracker = trackers.contains(host)
@@ -453,7 +453,7 @@ private struct XRay: View {
         .card()
     }
 
-    // Rows with no host name come first: only an IP rule can catch those flows.
+    // Rows with no host name come first, because only an IP rule can catch those flows.
     private func addressList(_ addresses: [String: Address]) -> some View {
         let rows = addresses.map { (address: $0.key, host: $0.value.host, action: filter.config.action(for: app, host: $0.key)) }
             .sorted { ($0.host == nil ? 0 : 1, $0.host ?? "", $0.address) < ($1.host == nil ? 0 : 1, $1.host ?? "", $1.address) }
@@ -501,12 +501,12 @@ private struct XRay: View {
         SegmentBar(parts: parts).padding(.top, 14).padding(.bottom, 12)
     }
 
-    // In MB. Empty: no limit.
+    // In MB. Empty means no limit.
     private var megabytes: Binding<Int?> {
         Binding(
             get: { filter.config.limits.first { $0.app == app }.map { $0.bytes / 1_000_000 } },
             set: { megabytes in
-                // Up to 1 PB. A larger number overflows `Int` in bytes, and zero or less would block the app at once.
+                // Allow up to 1 PB. A larger number overflows `Int` in bytes, and zero or less would block the app right away.
                 guard megabytes.map({ (1...1_000_000_000).contains($0) }) ?? true else { return }
                 filter.update { config in
                     let period = config.limits.first { $0.app == app }?.period ?? .day
@@ -517,7 +517,7 @@ private struct XRay: View {
     }
 }
 
-/// Clears every app's history, for the toolbar. Asks first.
+/// A toolbar button that clears every app's history. It asks first.
 struct ClearAllHistory: View {
     let filter: Filter
     @State private var clearing = false

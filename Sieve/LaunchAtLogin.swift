@@ -1,7 +1,7 @@
 import ServiceManagement
 import SwiftUI
 
-/// The "Launch at login" switch. Shows the real state: if (un)registering fails, the switch stays put.
+/// The "Launch at login" switch. It shows the real state, so if registering or unregistering fails, the switch does not move.
 struct LaunchAtLogin: View {
     @State private var on = SMAppService.mainApp.status == .enabled
 

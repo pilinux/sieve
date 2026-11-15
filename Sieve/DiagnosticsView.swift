@@ -28,7 +28,7 @@ struct DiagnosticsView: View {
                         Label(split(warnings, unread: unread), systemImage: "exclamationmark.triangle")
                     }
                     Kpi(title: "Since", value: since?.formatted(.dateTime.day().month()) ?? "") {
-                        // Relative times go stale. Redraw them each minute.
+                        // Relative times go out of date, so redraw them every minute.
                         TimelineView(.everyMinute) { _ in
                             Label(
                                 [
@@ -113,7 +113,7 @@ struct DiagnosticsView: View {
     }
 }
 
-/// Save a copy and Reset, for the toolbar.
+/// The Save a copy and Reset buttons, for the toolbar.
 struct DiagnosticsTools: View {
     let filter: Filter
     @State private var resetting = false

@@ -3,21 +3,21 @@ import Network
 import Synchronization
 import os
 
-/// One line of an error log after its header. Strings, not enums, so a newer build's values still load.
+/// One line of an error log, after the header. The fields are strings, not enums, so values from a newer build still load.
 nonisolated struct LogEntry: Codable, Equatable, Sendable {
     var time: Date
-    /// `error`: Sieve could not do what was asked. Anything else counts as a warning: it recovered or fell back.
+    /// `error` means Sieve could not do what was asked. Anything else is a warning: Sieve recovered or used a fallback.
     var level: String
     /// `app` or `extension`.
     var source: String
     var area: String
-    /// Fixed text from the code. Never user data.
+    /// Fixed text from the code. It never holds user data.
     var message: String
     var detail: String?
     var build: String?
-    /// How many equal entries were held back before this one.
+    /// How many identical entries were skipped before this one.
     var repeats: Int?
-    /// Where the code logged it: a file name from `#fileID`, never `#filePath`, which holds the builder's home folder.
+    /// The file that logged it, from `#fileID`. Not `#filePath`, because that includes the builder's home folder.
     var file: String?
     var line: Int?
     var function: String?
@@ -26,8 +26,8 @@ nonisolated struct LogEntry: Codable, Equatable, Sendable {
 }
 
 nonisolated extension LogEntry {
-    /// An entry with personal data scrubbed from its text.
-    /// The detail never uses `String(describing:)`: that prints `userInfo`, which holds URLs and paths.
+    /// Creates an entry and scrubs personal data from its text.
+    /// The detail never uses `String(describing:)`, because that prints `userInfo`, which can hold URLs and paths.
     init(
         level: String, source: String, area: String, message: String, error: (any Error)?, build: String?, time: Date = .now,
         file: String = #fileID, line: Int = #line, function: String = #function
@@ -36,7 +36,7 @@ nonisolated extension LogEntry {
             let error = error as NSError
             return Self.scrub("\(error.domain) \(error.code): \(error.localizedDescription)")
         }
-        // `#fileID` is "Module/File.swift". `source` already names the process.
+        // `#fileID` looks like "Module/File.swift". Keep only the file name, since `source` already names the process.
         self.init(
             time: time, level: level, source: source, area: area, message: Self.scrub(message), detail: detail, build: build,
             file: file.split(separator: "/").last.map(String.init), line: line, function: function)
@@ -51,12 +51,12 @@ nonisolated extension LogEntry {
         text.replace(#/[0-9A-Za-z:.%]*[:.][0-9A-Za-z:.%]*/#) { match in
             let token = String(match.output)
             let core = token.trimmingCharacters(in: CharacterSet(charactersIn: ".:"))
-            // Strict: `IPv4Address` also takes "640" or "1.2.3", which are error codes and versions here.
+            // Use a strict check. `IPv4Address` also accepts "640" or "1.2.3", which are error codes and versions here.
             let ipv4 =
                 core.wholeMatch(of: #/(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/#).map { parts in
                     [parts.1, parts.2, parts.3, parts.4].allSatisfy { (Int($0) ?? 256) <= 255 }
                 } ?? false
-            // Two colons at least, so a time such as 10:32 stays.
+            // Require at least two colons, so a time such as 10:32 is kept.
             let ipv6 = core.count { $0 == ":" } >= 2 && IPv6Address(core) != nil
             return ipv4 || ipv6 ? token.replacingOccurrences(of: core, with: "<address>") : token
         }
@@ -67,7 +67,7 @@ nonisolated extension LogEntry {
 /// The first line of an error log.
 nonisolated struct LogHeader: Codable, Equatable, Sendable {
     var format = 1
-    /// When the log was reset, or the time of the oldest kept entry after a trim.
+    /// When the log was last reset. After a trim, the time of the oldest entry kept.
     var since: Date
 }
 
@@ -81,7 +81,7 @@ nonisolated struct LogExport: Codable {
     var since: [String: Date]
 }
 
-/// An error log: a header line, then one entry per line, oldest first. JSON Lines, so a write appends.
+/// An error log in JSON Lines: a header line, then one entry per line, oldest first. New entries are appended.
 nonisolated struct LogFile: Equatable, Sendable {
     static let keep = 2_000
     static let trimTo = 1_500
@@ -93,7 +93,7 @@ nonisolated struct LogFile: Equatable, Sendable {
         header = LogHeader(since: since)
     }
 
-    /// Skips lines that do not decode, such as one a crash cut short.
+    /// Skips lines that do not decode, such as a line cut short by a crash.
     init(data: Data, now: Date) {
         let lines = data.split(separator: UInt8(ascii: "\n")).map { Data($0) }
         entries = lines.compactMap { try? Self.decoder.decode(LogEntry.self, from: $0) }
@@ -104,14 +104,14 @@ nonisolated struct LogFile: Equatable, Sendable {
     var errors: Int { entries.count(where: \.isError) }
     var warnings: Int { entries.count - errors }
 
-    /// Past `keep` entries, keeps the newest `trimTo` and moves `since` to the oldest of them.
+    /// With more than `keep` entries, keeps the newest `trimTo` and sets `since` to the oldest of those.
     mutating func trim() {
         guard entries.count > Self.keep else { return }
         entries.removeFirst(entries.count - Self.trimTo)
         header.since = entries[0].time
     }
 
-    /// An export header, then the entries of every log, oldest first.
+    /// A saved copy: an export header, then the entries of every log, oldest first.
     static func export(_ logs: [String: LogFile], macOS: String, build: String, now: Date) -> Data {
         let header = LogExport(exported: now, macOS: macOS, build: build, since: logs.mapValues(\.header.since))
         let entries = logs.values.flatMap(\.entries).sorted { $0.time < $1.time }
@@ -145,11 +145,11 @@ nonisolated struct LogFile: Equatable, Sendable {
     }
 }
 
-/// Holds back an entry equal to one written in the last 10 minutes, and counts it.
+/// Skips an entry identical to one written in the last 10 minutes, and counts how many it skipped.
 nonisolated struct LogThrottle: Sendable {
     private var last: [String: (time: Date, held: Int)] = [:]
 
-    /// The entry to write, with the count held back before it. Nil to hold it back.
+    /// Returns the entry to write, with the number skipped before it, or nil to skip it.
     mutating func admit(_ entry: LogEntry) -> LogEntry? {
         let key = [entry.level, entry.area, entry.message, entry.detail ?? "", entry.file ?? "", "\(entry.line ?? 0)"]
             .joined(separator: "\u{1F}")
@@ -164,11 +164,11 @@ nonisolated struct LogThrottle: Sendable {
     }
 }
 
-/// Appends this process's errors and warnings to `errors.jsonl`, off the caller's thread. Each also goes to `Logger`.
+/// Appends this process's errors and warnings to `errors.jsonl` on a background queue. Each one also goes to `Logger`.
 nonisolated final class ErrorLog: Sendable {
     private struct State {
         var throttle = LogThrottle()
-        // Entries in the file. Nil until the first write reads it.
+        // The number of entries in the file. Nil until the first write reads the file.
         var count: Int?
     }
 
@@ -186,7 +186,7 @@ nonisolated final class ErrorLog: Sendable {
         file = folder.appending(path: "errors.jsonl")
         self.source = source
         self.subsystem = subsystem
-        // The first launch starts the log, so Since has a date.
+        // Create the log on first launch, so "Since" has a date.
         queue.async { [self] in
             if !FileManager.default.fileExists(atPath: file.path) { save(LogFile(since: .now)) }
         }
@@ -212,7 +212,7 @@ nonisolated final class ErrorLog: Sendable {
                 function: function))
     }
 
-    /// The file as stored, after the writes already queued.
+    /// The file as stored, once the queued writes are done.
     func contents() -> Data {
         queue.sync { (try? Data(contentsOf: file)) ?? Data() }
     }
@@ -226,7 +226,7 @@ nonisolated final class ErrorLog: Sendable {
     }
 
     private func add(_ entry: LogEntry) {
-        // Scrubbed, so public.
+        // The text is already scrubbed, so it can be public.
         Logger(subsystem: subsystem, category: entry.area).log(
             level: entry.isError ? .error : .default, "\(entry.message, privacy: .public) \(entry.detail ?? "", privacy: .public)")
         queue.async { [self] in
@@ -235,7 +235,7 @@ nonisolated final class ErrorLog: Sendable {
         }
     }
 
-    // On `queue` only.
+    // Call only on `queue`.
     private func append(_ entry: LogEntry) {
         do {
             if !FileManager.default.fileExists(atPath: file.path) { save(LogFile(since: entry.time)) }
@@ -252,7 +252,7 @@ nonisolated final class ErrorLog: Sendable {
             }
             state.withLock { $0.count = count }
         } catch {
-            // The log never logs itself.
+            // Report a failed write to `Logger` only, so the log never logs itself.
             Logger(subsystem: subsystem, category: "errors").error("Cannot write errors.jsonl: \(error)")
         }
     }

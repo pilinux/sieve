@@ -1,10 +1,10 @@
 import Foundation
 
-// Display names by path. Launch Services takes about a millisecond per lookup, and lists sort by name each second.
+// Display names, cached by path. Each Launch Services lookup takes about a millisecond, and lists sort by name every second.
 @MainActor private var displayNames: [String: String] = [:]
 
 extension Stats {
-    /// The app's name from its file on disk, else its key.
+    /// The app's name from its file on disk, or its key if there is no file.
     @MainActor func name(_ app: String) -> String {
         guard let path = paths[app] else { return app }
         if let name = displayNames[path] { return name }
@@ -14,7 +14,7 @@ extension Stats {
     }
 }
 
-/// Decimal units, as Finder shows them.
+/// Formats a byte count in decimal units, as Finder does.
 func bytes(_ count: Int) -> String {
     count == 0 ? "0 B" : Int64(count).formatted(.byteCount(style: .file))
 }

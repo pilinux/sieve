@@ -11,12 +11,12 @@ extension ShapeStyle where Self == Color {
     static var ink: Color { Color(hex: 0xF2F1EE) }
     static var ink2: Color { Color(hex: 0xB7B6AF) }
     static var ink3: Color { Color(hex: 0x8A8983) }
-    /// Traffic and allow.
+    /// For traffic and allowed flows.
     static var allow: Color { Color(hex: 0x3987E5) }
     static var block: Color { Color(hex: 0xD95926) }
-    /// A block by the user's rules, limits, or Ask mode: a choice, not a bad request.
+    /// For flows blocked by the user's rules, limits, or Ask mode. These are choices, not bad requests.
     static var ruleBlock: Color { Color(hex: 0xA46FC2) }
-    /// Blocked flows of a day saved before the split.
+    /// For blocked flows on a day counted before the split.
     static var unsplit: Color { Color(hex: 0x5F636A) }
     static var good: Color { Color(hex: 0x0CA30C) }
     static var warn: Color { Color(hex: 0xFAB219) }
@@ -33,7 +33,7 @@ extension Color {
         )
     }
 
-    /// A to F, from green to red.
+    /// Grade colours, A to F, from green to red.
     static func grade(_ letter: String) -> Color {
         switch letter {
         case "A": .good
@@ -45,7 +45,7 @@ extension Color {
         }
     }
 
-    /// The user's colour, else four defaults by position, else gray.
+    /// The colour the user picked. Otherwise one of four defaults by position, then gray.
     static func profile(_ index: Int, _ hex: String?) -> Color {
         if let hex, hex.hasPrefix("#"), let value = UInt32(hex.dropFirst(), radix: 16) { return Color(hex: value) }
         return [Color(hex: 0x199E70), Color(hex: 0xC98500), Color(hex: 0xD55181), Color(hex: 0x9085E9)]

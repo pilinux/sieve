@@ -1,7 +1,7 @@
 import Charts
 import SwiftUI
 
-// The value leads, the label follows.
+// The value comes first, then the label.
 private struct Tooltip: View {
     let value: String
     let label: String
@@ -83,22 +83,22 @@ struct RateLine: View {
 }
 
 /// One bar per day from one baseline, with an optional limit line.
-/// A cumulative chart floats each bar on the sum before it: a waterfall.
+/// A cumulative chart starts each bar where the previous one ended, like a waterfall.
 struct DayBars: View {
     struct Bar: Identifiable {
         let id: String
-        /// The day in the tooltip.
+        /// The tooltip text after the value: the date, and any lines before it.
         let label: String
         let value: Double
-        /// The day under the axis, on some bars only.
+        /// The date under the axis. Only some bars have one.
         var tick: String?
         var color: Color?
-        /// Parts stacked bottom up, in place of one bar.
+        /// Parts stacked from the bottom up, instead of one bar.
         var parts: [SegmentBar.Part]?
     }
 
     let bars: [Bar]
-    /// Every day on the axis, when it runs past the last bar.
+    /// Every day on the axis, when the axis runs past the last bar.
     var domain: [String]?
     var color: Color = .allow
     var limit: Double?
@@ -112,7 +112,7 @@ struct DayBars: View {
         let top = niceMax(max(cumulative ? total : bars.map(\.value).max() ?? 0, (limit ?? 0) * 1.08))
         Chart {
             ForEach(segments(starts)) { segment in
-                // Only the top of a column is round.
+                // Round only the top of a column.
                 let top: CGFloat = cumulative ? 2 : segment.top ? 4 : 0
                 BarMark(
                     x: .value("Day", segment.bar),
@@ -161,7 +161,7 @@ struct DayBars: View {
             }
         }
         .chartYAxis {
-            // With no data, only the baseline: halves of an empty scale read as nonsense.
+            // With no data, show only the baseline. Half and full marks on an empty scale would mean nothing.
             AxisMarks(position: .leading, values: bars.contains { $0.value > 0 } || limit != nil ? [0, top / 2, top] : [0]) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 1))
                     .foregroundStyle(.white.opacity(value.index == 0 ? 0.16 : 0.06))
@@ -205,7 +205,7 @@ struct DayBars: View {
 
 /// One row of `RankedBars`.
 struct RankedItem: Identifiable {
-    // Two apps can share a name, never a key.
+    // Two apps can have the same name, but never the same key.
     var id: String { key.isEmpty ? name : key }
     /// The app key, when the item is an app.
     var key = ""
@@ -218,7 +218,7 @@ struct RankedItem: Identifiable {
 struct RankedBars<Leading: View>: View {
     let items: [RankedItem]
     var color: Color = .allow
-    /// The bar sits under the name, for narrow cards.
+    /// Puts the bar under the name, for narrow cards.
     var stacked = false
     var nameWidth: CGFloat = 120
     var valueWidth: CGFloat = 68
@@ -258,14 +258,14 @@ struct RankedBars<Leading: View>: View {
     }
 }
 
-/// One whole split into parts. A tall bar prints each part's value inside it.
+/// A bar that splits a whole into parts. A tall bar shows each part's value inside it.
 struct SegmentBar: View {
     struct Part: Identifiable {
         var id: String { name }
         let name: String
         let value: Int
         let color: Color
-        /// Dark text on a light fill.
+        /// Use dark text, because the fill is light.
         var dark = false
     }
 
@@ -310,7 +310,7 @@ struct Legend: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            // By position: two profiles can share a name.
+            // Identify parts by position, since two profiles can have the same name.
             ForEach(parts.indices, id: \.self) { index in
                 let part = parts[index]
                 HStack(spacing: 6) {
@@ -325,7 +325,7 @@ struct Legend: View {
     }
 }
 
-/// Use against a limit. Warns from 80 %, turns critical at 100 %.
+/// Usage against a limit. It turns to warning at 80 % and critical at 100 %.
 struct Meter: View {
     let used: Int
     let limit: Int

@@ -3,16 +3,17 @@ import Security
 
 /// The app behind a flow.
 final class App: Sendable {
-    /// Third-party code: `TEAMID.identifier`. Apple code: the signing identifier. Anything else: the path.
+    /// For third-party code, `TEAMID.identifier`. For Apple code, the signing identifier. For anything else, the path.
     let key: String
     /// The app bundle or executable on disk.
     let path: String
     /// A Team ID backed by a certificate, `Apple`, or empty.
     let signer: String
-    /// Apple code allowed with no rule. Not a user tool such as `curl` or WebKit's networking service, which any app can use.
+    /// Apple code that is allowed without a rule. User tools such as `curl` and WebKit's networking service
+    /// do not count, since any app can use them.
     let isApple: Bool
-    /// For a path key: the code directory hash of the running code, in hex.
-    /// Nil if the code has no signature, or its file on disk is not the code that runs.
+    /// For a path key, the code directory hash of the running code, in hex.
+    /// Nil if the code has no signature, or if the file on disk is not the code that is running.
     let code: String?
 
     init(_ key: String, path: String = "", signer: String = "", code: String? = nil) {
@@ -20,7 +21,7 @@ final class App: Sendable {
         self.path = path
         self.signer = signer
         self.code = code
-        // Daemons in `/usr/libexec`, `/usr/sbin`, and `/System` stay allowed, or each would prompt.
+        // Keep daemons in `/usr/libexec`, `/usr/sbin`, and `/System` allowed. Otherwise each one would prompt.
         // An `.xpc` service runs for whichever app called it, and no public API names that app.
         isApple =
             signer == "Apple" && !(path + "/").contains(".xpc/")
@@ -37,7 +38,7 @@ struct AppKeys {
         if let cached = cache.object(forKey: auditToken as NSData) {
             return cached
         }
-        // The token names one process, so a reused PID cannot stand in for it.
+        // The audit token names one process, so a reused PID cannot be mistaken for it.
         guard let code = Self.guest([kSecGuestAttributeAudit: auditToken]), let app = Self.lookUp(code)
         else { return nil }
         cache.setObject(app, forKey: auditToken as NSData)
@@ -63,8 +64,8 @@ struct AppKeys {
         return own
     }
 
-    // The app a signature names, with who vouches for it.
-    // With `running`, the check covers the code in memory, not only the file on disk.
+    // Returns the app a signature names, and who vouches for it.
+    // With `running`, the check covers the code in memory as well as the file on disk.
     private static func identify(_ code: SecStaticCode, running: SecCode?) -> App? {
         var url: CFURL?
         guard SecCodeCopyPath(code, [], &url) == errSecSuccess, let path = (url as URL?)?.path else { return nil }
@@ -94,8 +95,8 @@ struct AppKeys {
         }
 
         if let team = info[kSecCodeInfoTeamIdentifier as String] as? String {
-            // The Team ID is a claim until a certificate backs it. Apple re-signs Mac App Store apps with its own.
-            // A Team ID is letters and digits; anything else could rewrite the requirement.
+            // A Team ID proves nothing until a certificate backs it. Apple re-signs Mac App Store apps with its own certificate.
+            // A Team ID is only letters and digits. Any other character could change the meaning of the requirement.
             guard team.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }),
                 satisfies(
                     "anchor apple generic and (certificate leaf[subject.OU] = \"\(team)\""

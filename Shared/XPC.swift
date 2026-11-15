@@ -1,33 +1,33 @@
 import Foundation
 
-/// What the app asks the extension. Values travel as JSON.
+/// Calls from the app to the extension. Values are sent as JSON. Each call replies once its work is done.
 @objc protocol FilterXPC {
     func config(reply: @escaping @Sendable (Data) -> Void)
     func setConfig(_ config: Data, reply: @escaping @Sendable (Data) -> Void)
     func stats(reply: @escaping @Sendable (Data) -> Void)
-    /// A `Stats` with only `bytes` and `blocked`. Cheap enough to poll each second.
+    /// A `Stats` with only the bytes and blocked counts. It is cheap enough to call every second.
     func usage(reply: @escaping @Sendable (Data) -> Void)
-    /// Stores a downloaded list, as UTF-8 text. Replies when done.
+    /// Saves a downloaded list, sent as UTF-8 text.
     func setList(_ id: String, domains: Data, reply: @escaping @Sendable (Data) -> Void)
-    /// Clears an app's history, not its config. Replies when done.
+    /// Clears one app's history but keeps its config.
     func forget(_ app: String, reply: @escaping @Sendable (Data) -> Void)
-    /// Clears every app's history, not the config. Replies when done.
+    /// Clears the history of every app but keeps the config.
     func clearHistory(reply: @escaping @Sendable (Data) -> Void)
-    /// The config file that could not be read. Empty if there is none.
+    /// Returns the config file that could not be read, or empty data if there is none.
     func brokenConfig(reply: @escaping @Sendable (Data) -> Void)
-    /// Deletes that file. Replies when done.
+    /// Deletes that file.
     func discardBrokenConfig(reply: @escaping @Sendable (Data) -> Void)
-    /// The extension's `errors.jsonl`, as stored.
+    /// Returns the extension's `errors.jsonl` as it is stored.
     func readErrorLog(reply: @escaping @Sendable (Data) -> Void)
-    /// Clears that log. Replies when done.
+    /// Clears that log.
     func resetErrorLog(reply: @escaping @Sendable (Data) -> Void)
 }
 
-/// What the extension asks the app, in Ask mode.
+/// Calls from the extension to the app, for Ask mode.
 @objc protocol PromptXPC {
-    /// Replies with the answer once the app has tried to save it as a rule: Allow or Block, and whether it
-    /// covers only `host`. `signer` is a Team ID, `Apple`, or empty if not verified.
-    /// `address` is the remote IP address, or empty if not known yet.
+    /// Asks the user about a flow. Replies with Allow or Block, and whether the answer covers only `host`.
+    /// The app tries to save the answer as a rule before it replies. `signer` is a Team ID, `Apple`, or empty if not verified.
+    /// `address` is the remote IP address, or empty if it is not known yet.
     func prompt(
         app: String, path: String, signer: String, host: String, address: String,
         reply: @escaping @Sendable (_ allow: Bool, _ hostOnly: Bool) -> Void)

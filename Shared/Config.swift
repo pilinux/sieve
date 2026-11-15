@@ -1,19 +1,19 @@
 import Foundation
 
-/// Everything the user sets. Stored as `config.json` by the extension.
+/// Everything the user sets. The extension saves it as `config.json`.
 struct Config: Codable, Equatable {
     var mode = Mode.quiet
     var rules: [Rule] = []
     var lists: [DomainList] = [.trackerShield]
     var limits: [Limit] = []
     var profiles: [Profile] = []
-    /// The code directory hash the user allowed, by path key. Optional, so a config without it still loads.
+    /// The code directory hash the user allowed, by path key. It is optional, so an older file without it still loads.
     var codes: [String: String]?
 
-    /// The key of a process that exited before its lookup. Many processes share it, so no rule covers it.
+    /// The key for a process that exited before Sieve could look it up. Many processes share it, so it cannot have a rule.
     static let unknownApp = "unknown"
 
-    /// Decides one flow. Nil means: ask the user.
+    /// Decides one flow. Returns nil when Sieve should ask the user.
     /// - Parameters:
     ///   - address: the remote IP address, as `Address.normalize(_:)` gives it.
     ///   - domains: the hosts of each list, by list ID.
@@ -29,8 +29,8 @@ struct Config: Codable, Equatable {
 
     /// The verdict, and the rule that gave it.
     /// - Parameters:
-    ///   - profile: the active profile. Rules of other profiles do not count.
-    ///   - trusted: false drops the app's Allow rules. Its Block rules still count.
+    ///   - profile: the active profile. Rules of other profiles do not apply.
+    ///   - trusted: false ignores the app's Allow rules. Its Block rules still apply.
     func decide(
         app: String, host: String?, address: String? = nil, isApple: Bool, domains: [String: Set<String>],
         overLimit: Bool = false, profile: UUID? = nil, trusted: Bool = true
@@ -42,7 +42,7 @@ struct Config: Codable, Equatable {
         if let host, let rule = hostRule(for: app, host: host, profile: profile, trusted: trusted) {
             return (rule.action, rule)
         }
-        // An IP rule names one address: no parent to check.
+        // An IP rule names one address, so there is no parent domain to check.
         if let address, let rule = rule(for: app, host: address, profile: profile, trusted: trusted) {
             return (rule.action, rule)
         }
@@ -57,7 +57,7 @@ struct Config: Codable, Equatable {
         return (mode == .ask ? nil : .allow, nil)
     }
 
-    /// Why a rule is not needed, or nil.
+    /// Why a rule is not needed, or nil if it is needed.
     /// - Parameter gone: keys of apps no longer on disk.
     func flag(_ rule: Rule, gone: Set<String>, domains: [String: Set<String>]) -> Flag? {
         if gone.contains(rule.app) { return .appGone }
@@ -65,20 +65,20 @@ struct Config: Codable, Equatable {
         if isAppBlocked(rule.app, profile: rule.profile) { return .appBlocked }
         // An allow list beats a block list, so a Block rule for a host on both still decides it.
         if rule.action == .block, isListBlocked(host, domains: domains) { return .blockList }
-        // Where the rule counts: its own profile, or with no profile, wherever no profile has its own rule for the host.
+        // A rule applies in its own profile. A rule with no profile applies everywhere except profiles with their own rule for the host.
         let counts: [UUID?] =
             if let profile = rule.profile { [profile] } else {
                 [nil] + profiles.map(\.id).filter { self.rule(for: rule.app, host: host, profile: $0)?.profile == nil }
             }
-        // The nearest parent domain rule decides the host when this rule is gone, wherever this rule counts.
+        // Without this rule, the nearest parent domain rule decides the host. Check that everywhere this rule applies.
         var without = self
         without.rules.removeAll { $0.id == rule.id }
         let parents = counts.map { without.hostRule(for: rule.app, host: host, profile: $0) }
         return parents.allSatisfy { $0?.action == rule.action && $0?.host != host } ? .parentRule : nil
     }
 
-    // Whether the app is blocked wherever a rule of `profile` counts: in that profile,
-    // or with no profile, in every profile, since a profile without its own app rule falls back to Always.
+    // Whether the app is blocked everywhere a rule of `profile` applies. For a profile, that is the profile itself.
+    // For no profile, it is every profile, because a profile without its own app rule falls back to Always.
     private func isAppBlocked(_ app: String, profile: UUID?) -> Bool {
         if let profile { return rule(for: app, profile: profile)?.action == .block }
         return rule(for: app)?.action == .block && !rules.contains { $0.app == app && $0.host == nil && $0.action == .allow }
@@ -101,15 +101,15 @@ struct Config: Codable, Equatable {
         return matches.first { profile != nil && $0.profile == profile } ?? matches.first { $0.profile == nil }
     }
 
-    /// Whether the app's Allow rules count. A verified signer names the app wherever it is.
-    /// A path key names a file that other code can replace, so only the code the user allowed counts.
+    /// Whether the app's Allow rules apply. A verified signer identifies the app wherever it is on disk.
+    /// A path key names a file that other code can replace, so the rules apply only to the code the user allowed.
     /// - Parameter code: the code directory hash of the running code, if it has one.
     func trusts(_ app: String, signer: String, code: String?) -> Bool {
         !signer.isEmpty || (code != nil && codes?[app] == code)
     }
 
-    /// Allows the code each app runs now, for each Allow rule that `old` does not have.
-    /// Keeps the allowed hash while the running code is not known. Drops the hash of an app with no rule left.
+    /// For each new Allow rule, one that `old` does not have, allows the code the app runs now.
+    /// Keeps the allowed hash while the running code is unknown, and drops the hash of an app with no rules left.
     /// - Parameter running: the code directory hash of each path key, as in `Stats.codes`.
     mutating func approveCode(since old: Config, running: [String: String]) {
         let allowed = Set(old.rules.filter { $0.action == .allow }.map(\.id))
@@ -120,7 +120,7 @@ struct Config: Codable, Equatable {
         self.codes = codes.filter { app, _ in rules.contains { $0.app == app } }
     }
 
-    /// The first profile whose network or any time block matches.
+    /// The first profile that matches by its network or by one of its time blocks.
     /// - Parameters:
     ///   - networks: the `NetworkSignature` of each network the Mac is on.
     ///   - weekday: 1 is Sunday, as in `Calendar`.
@@ -147,16 +147,16 @@ struct Config: Codable, Equatable {
         return days.reduce(0) { $0 + (daily[$1]?[app] ?? 0) }
     }
 
-    /// Replaces the app's limit. Nil bytes removes it.
+    /// Replaces the app's limit. Passing nil for `bytes` removes it.
     mutating func setLimit(_ bytes: Int?, period: Period, for app: String) {
         limits.removeAll { $0.app == app }
         if let bytes { limits.append(Limit(app: app, bytes: bytes, period: period)) }
     }
 
-    /// Replaces the app's rule for this host. Leaves rules of profiles alone.
+    /// Replaces the app's rule for this host. Profile rules are not changed.
     mutating func setAction(_ action: Action, for app: String, host: String? = nil) {
         guard app != Self.unknownApp else { return }
-        // A new rule even for the same action: a new Allow rule is what allows a path key's changed code.
+        // Always make a new rule, even for the same action, because a new Allow rule is what allows a path key's changed code.
         rules.removeAll { $0.app == app && $0.host == host && $0.profile == nil }
         rules.append(Rule(app: app, host: host, action: action))
     }
@@ -203,7 +203,7 @@ struct Config: Codable, Equatable {
         lists.contains { $0.enabled && $0.action == action && Self.covers(domains[$0.id] ?? [], host) }
     }
 
-    // An entry covers its own host and every subdomain: check the host, then each parent domain.
+    // An entry covers its own host and every subdomain, so check the host and then each parent domain.
     private static func covers(_ entries: Set<String>, _ host: String) -> Bool {
         var domain = Substring(host)
         while true {
@@ -222,7 +222,7 @@ enum Action: String, Codable {
     case allow, block
 }
 
-/// Bytes in and out an app may use per period. Over it, new flows are dropped.
+/// How many bytes in and out an app may use per period. Past the limit, new flows are dropped.
 struct Limit: Codable, Equatable {
     var app: String
     var bytes: Int
@@ -244,14 +244,14 @@ enum Flag: String, Codable {
 struct Rule: Codable, Equatable, Identifiable {
     var id = UUID()
     var app: String
-    /// Nil: the rule covers the whole app. Else this domain and its subdomains, or this one IP address.
+    /// Nil means the rule covers the whole app. Otherwise it covers this domain and its subdomains, or this one IP address.
     var host: String?
     var action: Action
-    /// Nil: the rule always counts. Else only while this profile is active.
+    /// Nil means the rule always applies. Otherwise it applies only while this profile is active.
     var profile: UUID?
 }
 
-/// A set of rules that counts only on a network or during one of its time blocks.
+/// A set of rules that applies only on one network or during one of its time blocks.
 struct Profile: Codable, Equatable, Identifiable {
     var id = UUID()
     var name: String
@@ -259,7 +259,7 @@ struct Profile: Codable, Equatable, Identifiable {
     var network: String?
     /// Time blocks, each with its own weekdays and times.
     var schedules: [Schedule] = []
-    /// The user's colour, such as `#4fb3c9`. Nil: a default by position.
+    /// The colour the user picked, such as `#4fb3c9`. Nil means a default colour based on position.
     var color: String?
 }
 

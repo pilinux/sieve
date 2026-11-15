@@ -25,11 +25,11 @@ struct FlagTests {
         let profile = UUID()
         let always = Rule(app: app, host: "example.com", action: .allow)
         let inProfile = Rule(app: app, host: "example.com", action: .allow, profile: profile)
-        // Blocked in the profile only: the Always host rule still fires elsewhere.
+        // Blocked only in the profile, so the Always host rule still applies elsewhere.
         var config = Config(rules: [Rule(app: app, action: .block, profile: profile), always, inProfile])
         #expect(config.flag(always, gone: [], domains: [:]) == nil)
         #expect(config.flag(inProfile, gone: [], domains: [:]) == .appBlocked)
-        // Blocked always but allowed in a profile: the Always host rule fires there.
+        // Blocked always but allowed in a profile, so the Always host rule applies in that profile.
         config.rules = [Rule(app: app, action: .block), Rule(app: app, action: .allow, profile: profile), always]
         #expect(config.flag(always, gone: [], domains: [:]) == nil)
     }

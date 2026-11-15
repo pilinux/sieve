@@ -12,7 +12,7 @@ import os
 // Shared state lives in `Store` and behind `ask`'s lock. `listener` and `saving` change only in start and stop.
 final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
     private struct Ask {
-        // The Sieve app, while it runs. Ask mode needs it.
+        // The connection to the Sieve app while it runs. Ask mode needs it.
         var client: NSXPCConnection?
         // Flows waiting for the user's answer, by app key.
         var waiting: [String: [NEFilterFlow]] = [:]
@@ -28,7 +28,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
 
     override func startFilter() async throws {
         store.load()
-        // `stopFilter` keeps both. A restart in the same process must not add a second set.
+        // `stopFilter` keeps both, so a restart in the same process must not create them again.
         if listener == nil { startListener() }
         if networks == nil { networks = Networks { [store] in store.setNetworks($0) } }
         saving = Task { [store] in
@@ -38,7 +38,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
             }
         }
 
-        // No endpoints: match every outgoing flow except loopback.
+        // With no endpoints, the rule matches every outgoing flow except loopback.
         let outbound = NENetworkRule(
             remoteNetworkEndpoint: nil, remotePrefix: 0,
             localNetworkEndpoint: nil, localPrefix: 0,
@@ -60,7 +60,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         let app = app(of: flow)
         let host = flow.hostname
         let action = store.verdict(app: app, host: host, address: flow.address)
-        // App and host stay private: the log ends up in sysdiagnose reports.
+        // Keep the app and host private, because this log ends up in sysdiagnose reports.
         logger.log("\(action?.rawValue ?? "ask", privacy: .public) \(app.key, privacy: .private) to \(host ?? "?", privacy: .private)")
         switch action {
         case .allow: return counted(.allow())
@@ -72,8 +72,8 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         }
     }
 
-    // Queues a paused flow for the user's answer. False if the Sieve app is not running:
-    // killing the app must not open the filter.
+    // Queues a paused flow until the user answers. Returns false if the Sieve app is not running,
+    // so that quitting the app does not open the filter.
     private func waitForAnswer(app: App, host: String?, flow: NEFilterFlow) -> Bool {
         let key = app.key
         let host = host ?? ""
@@ -99,14 +99,14 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         return true
     }
 
-    // Resumes the app's waiting flows as new flows. The Sieve app saved the answer as a rule before it replied,
-    // so lists, limits, and profiles still beat it. The answer itself covers a flow whose rule could not be saved.
-    // A flow to a host the answer does not cover waits for a new prompt. With no answer, it is dropped.
+    // Resumes the app's waiting flows as new flows. The Sieve app saves the answer as a rule before it replies,
+    // so lists, limits, and profiles still take priority. The answer itself covers a flow whose rule could not be saved.
+    // A flow to a host the answer does not cover waits for a new prompt. With no answer, the flow is dropped.
     private func resumeFlows(of app: App, host: String, answer: (action: Action, hostOnly: Bool)?) {
-        // `NEFilterFlow` is not `Sendable`. Once out of `waiting`, only the block below uses these.
+        // `NEFilterFlow` is not `Sendable`. Once these flows leave `waiting`, only the block below uses them.
         nonisolated(unsafe) let flows = ask.withLockUnchecked { $0.waiting.removeValue(forKey: app.key) ?? [] }
-        // Only a paused flow resumes. A flow joins `waiting` before `handleNewFlow` returns `.pause()`,
-        // and a failed send can land here before that, even on the same stack.
+        // Resume only paused flows. A flow joins `waiting` before `handleNewFlow` returns `.pause()`,
+        // and a failed send can get here before that happens, even on the same stack.
         DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(100)) { [self] in
             for flow in flows {
                 let flowHost = flow.hostname
@@ -174,7 +174,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
 private extension NEFilterFlow {
     var hostname: String? { (url?.host ?? (self as? NEFilterSocketFlow)?.remoteHostname).flatMap(DomainList.normalize) }
 
-    // The endpoint can still be unset when the flow is new, or be a name.
+    // When the flow is new, the endpoint may still be unset, or it may be a host name.
     var address: String? {
         guard case .some(.hostPort(let host, _)) = (self as? NEFilterSocketFlow)?.remoteFlowEndpoint else { return nil }
         return Address.normalize("\(host)")
@@ -218,7 +218,7 @@ extension FilterDataProvider: FilterXPC {
     }
 
     func setList(_ id: String, domains: Data, reply: @escaping @Sendable (Data) -> Void) {
-        // The app caps lists too. Check again: this process runs as root.
+        // The app limits the list size too, but check again here, because this process runs as root.
         if domains.count <= DomainList.maxBytes {
             store.setList(id, text: String(decoding: domains, as: UTF8.self))
         }

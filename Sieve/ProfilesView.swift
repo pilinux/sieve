@@ -86,7 +86,7 @@ struct ProfilesView: View {
         let rules = Text("\(count) \(count == 1 ? "rule" : "rules")").foregroundStyle(.ink3).monospacedDigit()
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                // Cards go by position: a deleted profile must not leave its edit to the next one.
+                // Cards are laid out by position. The ID makes a fresh field, so a deleted profile's edit does not pass to the next card.
                 ColourWell(filter: filter, id: id, index: index).id(id)
                 NameField(filter: filter, id: id, name: profile.name).id(id)
                 if filter.stats.profile == id {
@@ -101,7 +101,7 @@ struct ProfilesView: View {
                 }
                 rules.font(.aileron(12)).fixedSize()
                 IconButton(icon: "trash", help: "Delete") {
-                    // Rules of a deleted profile could never count again.
+                    // A deleted profile's rules could never apply again, so remove them too.
                     filter.update { config in
                         config.profiles.removeAll { $0.id == id }
                         config.rules.removeAll { $0.profile == id }
@@ -184,7 +184,7 @@ struct ProfilesView: View {
             HStack(spacing: 8) {
                 TimeField(minutes: minutes(id, block, \.start), range: 0...schedule.end - 1)
                 Text("to").foregroundStyle(.ink3)
-                // 24:00 is the end of the day: the end minute is not covered, so 23:59 would leave a gap.
+                // 24:00 is the end of the day. The end minute is not covered, so ending at 23:59 would leave a gap.
                 TimeField(minutes: minutes(id, block, \.end), range: schedule.start + 1...1440)
             }
         }
@@ -202,7 +202,7 @@ struct ProfilesView: View {
         return signature?.split(separator: ";").first { $0.hasPrefix(prefix) }.map { String($0.dropFirst(prefix.count)) }
     }
 
-    // A block without weekdays stays until removed, so a click too many loses no times.
+    // A block with no weekdays stays until the user removes it, so an extra click does not lose its times.
     private func weekday(_ id: UUID, _ block: Int, _ day: Int) -> Binding<Bool> {
         Binding(
             get: { schedule(id, block)?.weekdays.contains(day) == true },
@@ -237,12 +237,12 @@ struct ProfilesView: View {
     }
 }
 
-// A profile's colour. Each save sends and writes the whole config, so it waits until a drag in the panel rests.
+// A profile's colour. Each save sends and writes the whole config, so it waits until a drag in the colour panel stops.
 private struct ColourWell: View {
     let filter: Filter
     let id: UUID
     let index: Int
-    // `Color` is not `Codable`: kept in sRGB as `#rrggbb`. Nil until the user picks.
+    // `Color` is not `Codable`, so the colour is kept in sRGB as `#rrggbb`. Nil until the user picks one.
     @State private var hex: String?
 
     var body: some View {
@@ -296,14 +296,14 @@ private struct NameField: View {
     }
 }
 
-// The hour and the minute, each a menu. Only times in `range` show, so a block always ends after its start.
+// Two menus, one for the hour and one for the minute. Only times in `range` show, so a block always ends after it starts.
 private struct TimeField: View {
     @Binding var minutes: Int
     let range: ClosedRange<Int>
 
     var body: some View {
         HStack(spacing: 2) {
-            // A new hour keeps the minute where the range allows it.
+            // When the hour changes, keep the minute if the range allows it.
             let hour = Binding(
                 get: { minutes / 60 },
                 set: { minutes = min(max($0 * 60 + minutes % 60, range.lowerBound), range.upperBound) }
