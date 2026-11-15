@@ -93,6 +93,8 @@ struct DayBars: View {
         /// The day under the axis, on some bars only.
         var tick: String?
         var color: Color?
+        /// Parts stacked bottom up, in place of one bar.
+        var parts: [SegmentBar.Part]?
     }
 
     let bars: [Bar]
@@ -109,22 +111,24 @@ struct DayBars: View {
         let total = bars.reduce(0) { $0 + $1.value }
         let top = niceMax(max(cumulative ? total : bars.map(\.value).max() ?? 0, (limit ?? 0) * 1.08))
         Chart {
-            ForEach(Array(bars.enumerated()), id: \.element.id) { index, bar in
+            ForEach(segments(starts)) { segment in
+                // Only the top of a column is round.
+                let top: CGFloat = cumulative ? 2 : segment.top ? 4 : 0
                 BarMark(
-                    x: .value("Day", bar.id),
-                    yStart: .value("From", starts[index]),
-                    yEnd: .value("To", starts[index] + bar.value),
+                    x: .value("Day", segment.bar),
+                    yStart: .value("From", segment.from),
+                    yEnd: .value("To", segment.to),
                     width: .ratio(0.8)
                 )
-                .foregroundStyle(bar.color ?? color)
-                .opacity(hovered == nil || hovered == bar.id ? 1 : 0.7)
+                .foregroundStyle(segment.color)
+                .opacity(hovered == nil || hovered == segment.bar ? 1 : 0.7)
                 .clipShape(
                     UnevenRoundedRectangle(
-                        topLeadingRadius: cumulative ? 2 : 4, bottomLeadingRadius: cumulative ? 2 : 0,
-                        bottomTrailingRadius: cumulative ? 2 : 0, topTrailingRadius: cumulative ? 2 : 4)
+                        topLeadingRadius: top, bottomLeadingRadius: cumulative ? 2 : 0,
+                        bottomTrailingRadius: cumulative ? 2 : 0, topTrailingRadius: top)
                 )
                 .annotation(position: .trailing, alignment: .center) {
-                    if cumulative, index == bars.count - 1 {
+                    if cumulative, segment.bar == bars.last?.id {
                         Text(format(total)).font(.aileron(11, .semibold)).foregroundStyle(.ink).fixedSize()
                     }
                 }
@@ -170,6 +174,33 @@ struct DayBars: View {
         }
         .hoverX($hovered)
     }
+
+    // One piece of a column: the whole bar, or one of its parts.
+    private struct Segment: Identifiable {
+        let id: String
+        let bar: String
+        let from: Double
+        let to: Double
+        let color: Color
+        let top: Bool
+    }
+
+    private func segments(_ starts: [Double]) -> [Segment] {
+        bars.enumerated().flatMap { index, bar in
+            let parts = bar.parts?.filter { $0.value > 0 } ?? []
+            var from = starts[index]
+            guard !parts.isEmpty else {
+                return [Segment(id: bar.id, bar: bar.id, from: from, to: from + bar.value, color: bar.color ?? color, top: true)]
+            }
+            return parts.enumerated().map { part, piece in
+                let segment = Segment(
+                    id: "\(bar.id) \(part)", bar: bar.id, from: from, to: from + Double(piece.value), color: piece.color,
+                    top: part == parts.count - 1)
+                from = segment.to
+                return segment
+            }
+        }
+    }
 }
 
 /// One row of `RankedBars`.
@@ -190,6 +221,7 @@ struct RankedBars<Leading: View>: View {
     /// The bar sits under the name, for narrow cards.
     var stacked = false
     var nameWidth: CGFloat = 120
+    var valueWidth: CGFloat = 68
     @ViewBuilder let leading: (RankedItem) -> Leading
 
     var body: some View {
@@ -218,7 +250,7 @@ struct RankedBars<Leading: View>: View {
                         Text(item.name).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
                             .frame(width: nameWidth, alignment: .leading)
                         bar
-                        Text(item.text).foregroundStyle(.ink2).monospacedDigit().frame(width: 68, alignment: .trailing)
+                        Text(item.text).foregroundStyle(.ink2).monospacedDigit().frame(width: valueWidth, alignment: .trailing)
                     }
                 }
             }

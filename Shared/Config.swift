@@ -64,7 +64,7 @@ struct Config: Codable, Equatable {
         guard let host = rule.host else { return nil }
         if isAppBlocked(rule.app, profile: rule.profile) { return .appBlocked }
         // An allow list beats a block list, so a Block rule for a host on both still decides it.
-        if rule.action == .block, isListed(host, .block, domains), !isListed(host, .allow, domains) { return .blockList }
+        if rule.action == .block, isListBlocked(host, domains: domains) { return .blockList }
         // Where the rule counts: its own profile, or with no profile, wherever no profile has its own rule for the host.
         let counts: [UUID?] =
             if let profile = rule.profile { [profile] } else {
@@ -192,6 +192,11 @@ struct Config: Codable, Equatable {
     /// Whether any block list covers the host, enabled or not.
     func isTracker(_ host: String, domains: [String: Set<String>]) -> Bool {
         lists.contains { $0.action == .block && Self.covers(domains[$0.id] ?? [], host) }
+    }
+
+    /// Whether an enabled block list covers the host and no enabled allow list does.
+    func isListBlocked(_ host: String, domains: [String: Set<String>]) -> Bool {
+        isListed(host, .block, domains) && !isListed(host, .allow, domains)
     }
 
     private func isListed(_ host: String, _ action: Action, _ domains: [String: Set<String>]) -> Bool {

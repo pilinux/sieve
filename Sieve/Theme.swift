@@ -14,6 +14,10 @@ extension ShapeStyle where Self == Color {
     /// Traffic and allow.
     static var allow: Color { Color(hex: 0x3987E5) }
     static var block: Color { Color(hex: 0xD95926) }
+    /// A block by the user's rules, limits, or Ask mode: a choice, not a bad request.
+    static var ruleBlock: Color { Color(hex: 0xA46FC2) }
+    /// Blocked flows of a day saved before the split.
+    static var unsplit: Color { Color(hex: 0x5F636A) }
     static var good: Color { Color(hex: 0x0CA30C) }
     static var warn: Color { Color(hex: 0xFAB219) }
     static var serious: Color { Color(hex: 0xEC835A) }

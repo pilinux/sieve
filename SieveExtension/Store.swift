@@ -29,7 +29,9 @@ final class Store: Sendable {
 
     var config: Config { state.withLock { $0.config } }
     /// Only the bytes and blocked counts, for the app's live view.
-    var usage: Stats { state.withLock { Stats(bytes: $0.stats.bytes, blocked: $0.stats.blocked) } }
+    var usage: Stats {
+        state.withLock { Stats(bytes: $0.stats.bytes, blocked: $0.stats.blocked, blockedByList: $0.stats.blockedByList) }
+    }
     /// The config file that could not be read, or nil.
     var brokenConfig: Data? { try? Data(contentsOf: brokenConfigFile) }
     // Where `read` moves a config it cannot decode.
@@ -105,6 +107,16 @@ final class Store: Sendable {
         saveStats()
     }
 
+    /// Empties the stats and saves them at once. Keeps the config.
+    func clearHistory() {
+        state.withLock {
+            $0.stats = Stats()
+            $0.codes = [:]
+            $0.statsChanged = true
+        }
+        saveStats()
+    }
+
     func discardBrokenConfig() {
         try? FileManager.default.removeItem(at: brokenConfigFile)
     }
@@ -157,7 +169,9 @@ final class Store: Sendable {
             if app.isApple ? $0.stats.apple.insert(app.key).inserted : $0.stats.apple.remove(app.key) != nil {
                 $0.statsChanged = true
             }
-            if let host, $0.config.isTracker(host, domains: $0.domains), $0.stats.trackers.insert(host).inserted {
+            if let host, $0.config.isTracker(host, domains: $0.domains) {
+                $0.stats.trackers.insert(host)
+                $0.stats.countTrackerFlow(app.key, host: host)
                 $0.statsChanged = true
             }
             if !app.path.isEmpty, $0.stats.paths.updateValue(app.path, forKey: app.key) != app.path {
@@ -177,7 +191,9 @@ final class Store: Sendable {
                 $0.statsChanged = true
             }
             if action == .block {
-                $0.stats.blocked[today, default: 0] += 1
+                // With no rule and no limit, only a block list drops a listed host.
+                let byList = if rule == nil, !overLimit, let host { $0.config.isListBlocked(host, domains: $0.domains) } else { false }
+                $0.stats.countBlocked(day: today, byList: byList)
                 $0.statsChanged = true
             }
             return action
@@ -187,7 +203,7 @@ final class Store: Sendable {
     /// Counts a flow dropped outside `verdict(app:host:address:)`, such as when the Sieve app cannot be asked.
     func countBlocked() {
         state.withLock {
-            $0.stats.blocked[Stats.day(.now), default: 0] += 1
+            $0.stats.countBlocked(day: Stats.day(.now), byList: false)
             $0.statsChanged = true
         }
     }

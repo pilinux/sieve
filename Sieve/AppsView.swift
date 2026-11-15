@@ -148,10 +148,12 @@ private func trackerCounts(_ range: ClosedRange<Int>) -> String {
 }
 
 private extension DayBars.Bar {
-    init(day: Date, value: Double, tick: String? = nil, color: Color? = nil) {
+    // `lines` lead the date in the tooltip.
+    init(day: Date, value: Double, tick: String? = nil, color: Color? = nil, parts: [SegmentBar.Part]? = nil, lines: [String] = []) {
+        let date = day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
         self.init(
-            id: Stats.day(day), label: day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)),
-            value: value, tick: tick, color: color
+            id: Stats.day(day), label: (lines + [date]).joined(separator: "\n"),
+            value: value, tick: tick, color: color, parts: parts
         )
     }
 
@@ -173,11 +175,19 @@ private struct Overview: View {
             DayBars.Bar(day: day, value: Double(total(Stats.day(day))), tick: DayBars.Bar.weekly(index, of: days.count, day))
         }
         let blocked = days.enumerated().map { index, day in
-            DayBars.Bar(
+            let parts = blockedParts(stats, day: Stats.day(day))
+            let lines = parts.count > 1 ? parts.map { "\($0.name): \($0.value.formatted())" } : parts.map(\.name)
+            return DayBars.Bar(
                 day: day, value: Double(stats.blocked[Stats.day(day)] ?? 0),
-                tick: DayBars.Bar.weekly(index, of: days.count, day, step: 14)
+                tick: DayBars.Bar.weekly(index, of: days.count, day, step: 14), parts: parts, lines: lines
             )
         }
+        // Only the kinds the chart draws.
+        let kinds = blocked.flatMap { $0.parts ?? [] }.filter { $0.value > 0 }
+        let legend = [
+            (name: "Block lists", color: Color.block), (name: "Rules and limits", color: .ruleBlock), (name: "Not split", color: .unsplit),
+        ]
+        .filter { kind in kinds.contains { $0.name == kind.name } }
         let top = stats.bytes.sorted { $0.value > $1.value }.prefix(5)
         let todayBytes = split(bytes(total(today)))
         let withTrackers = stats.apps.values.filter { $0.keys.contains(where: stats.trackers.contains) }.count
@@ -196,12 +206,7 @@ private struct Overview: View {
                 Kpi(title: "Today", value: todayBytes.value, unit: todayBytes.unit) {
                     Text("\(bytes(Int(data.reduce(0) { $0 + $1.value }))) in 31 days")
                 }
-                Kpi(title: "Blocked today", value: "\(stats.blocked[today] ?? 0)") {
-                    HStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: 3).fill(.block).frame(width: 10, height: 10)
-                        Text("flows dropped")
-                    }
-                }
+                BlockedToday(stats: stats)
                 Kpi(title: "Trackers seen", value: "\(stats.trackers.count)") {
                     Label("in \(withTrackers) apps", systemImage: "exclamationmark.triangle")
                 }
@@ -223,7 +228,8 @@ private struct Overview: View {
                 .card()
                 VStack(alignment: .leading, spacing: 14) {
                     Caption("Blocked flows · 31 days")
-                    DayBars(bars: blocked, color: .block, format: { Int($0).formatted() }).frame(height: 196)
+                    DayBars(bars: blocked, format: { Int($0).formatted() }).frame(height: 172)
+                    Legend(parts: legend)
                 }
                 .card()
             }
@@ -508,5 +514,23 @@ private struct XRay: View {
                 }
             }
         )
+    }
+}
+
+/// Clears every app's history, for the toolbar. Asks first.
+struct ClearAllHistory: View {
+    let filter: Filter
+    @State private var clearing = false
+
+    var body: some View {
+        ToolButton(title: "Clear all history…", icon: "clock.arrow.circlepath") { clearing = true }
+            .confirmationDialog("Clear all history?", isPresented: $clearing) {
+                Button("Clear All History", role: .destructive) { Task { await filter.clearHistory() } }
+            } message: {
+                Text(
+                    "Every app, host, data count, blocked count, tracker, and rule hit goes. "
+                        + "Rules, lists, data limits, and profiles stay."
+                )
+            }
     }
 }

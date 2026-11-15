@@ -58,4 +58,20 @@ struct FileTests {
             ]
         )
     }
+
+    // As the build with the blocked split and tracker flows saves them.
+    @Test func statsWithBlockedSplitAndTrackerFlowsLoad() throws {
+        let data = Data(
+            #"""
+            {"apple":[],"apps":{"EQHXZ8M8AV.com.google.Chrome":{"ads.example.com":"2026-11-15"}},
+            "blocked":{"2026-11-14":9,"2026-11-15":5},"blockedByList":{"2026-11-15":3},
+            "blockedTrackers":{},"brokenConfig":false,"bytes":{},"daily":{},"flags":[],"hits":[],
+            "listSizes":{},"networks":[],"paths":{},"seen":{"EQHXZ8M8AV.com.google.Chrome":"2026-11-15"},
+            "trackerFlows":{"EQHXZ8M8AV.com.google.Chrome":{"ads.example.com":12}},"trackers":["ads.example.com"]}
+            """#.utf8)
+        let stats = try JSONDecoder().decode(Stats.self, from: data)
+        #expect(stats.blockedSplit("2026-11-15")! == (3, 2))
+        #expect(stats.blockedSplit("2026-11-14") == nil)
+        #expect(stats.trackerCalls("EQHXZ8M8AV.com.google.Chrome") == 12)
+    }
 }

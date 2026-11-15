@@ -230,6 +230,11 @@ extension FilterDataProvider: FilterXPC {
         reply(Data())
     }
 
+    func clearHistory(reply: @escaping @Sendable (Data) -> Void) {
+        store.clearHistory()
+        reply(Data())
+    }
+
     func brokenConfig(reply: @escaping @Sendable (Data) -> Void) {
         reply(store.brokenConfig ?? Data())
     }

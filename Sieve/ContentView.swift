@@ -90,6 +90,7 @@ struct ContentView: View {
                             filter.update { $0.profiles.append(Profile(name: "New profile")) }
                         }
                     }
+                    if screen == .apps { ClearAllHistory(filter: filter) }
                     if screen == .diagnostics { DiagnosticsTools(filter: filter) }
                     HStack(spacing: 10) {
                         RateLine(values: filter.trend(nil)).frame(width: 72, height: 22)

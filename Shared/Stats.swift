@@ -40,6 +40,11 @@ struct Stats: Codable, Equatable {
     var blockedDomains: Int?
     /// IP addresses each app connected to, by app key, then by address. Optional, so a saved file without it still loads.
     var addresses: [String: [String: Address]]?
+    /// The part of `blocked` a block list dropped, by `day(_:)`. A day with no entry predates the split.
+    /// Optional, so a saved file without it still loads.
+    var blockedByList: [String: Int]?
+    /// Flows to each tracker host, allowed or blocked, by app key, then host. Optional, so a saved file without it still loads.
+    var trackerFlows: [String: [String: Int]]?
 
     /// The most hosts, and the most IP addresses, kept for one app.
     static let maxHosts = 1_000
@@ -101,6 +106,43 @@ struct Stats: Codable, Equatable {
         return changed
     }
 
+    /// Counts one blocked flow on `day`.
+    mutating func countBlocked(day: String, byList: Bool) {
+        blocked[day, default: 0] += 1
+        // The entry starts with the day's first flow, so a day counted in part by an older build stays unsplit.
+        if blocked[day] == 1 {
+            var all = blockedByList.take() ?? [:]
+            all[day] = 0
+            blockedByList = all
+        }
+        if byList { blockedByList?[day]? += 1 }
+    }
+
+    /// The day's blocked flows: those a block list dropped, and those the rules, limits, or Ask mode dropped.
+    /// Nil when the day predates the split.
+    func blockedSplit(_ day: String) -> (lists: Int, rules: Int)? {
+        guard let lists = blockedByList?[day] else { return nil }
+        return (lists, blocked[day, default: 0] - lists)
+    }
+
+    /// Counts one flow from the app to a tracker host.
+    mutating func countTrackerFlow(_ app: String, host: String) {
+        // Taken out, the map has one owner, so it changes in place.
+        var all = trackerFlows.take() ?? [:]
+        all[app, default: [:]][host, default: 0] += 1
+        trackerFlows = all
+    }
+
+    /// Flows from the app to all its tracker hosts.
+    func trackerCalls(_ app: String) -> Int {
+        trackerFlows?[app]?.values.reduce(0, +) ?? 0
+    }
+
+    /// Flows from all apps to the tracker host.
+    func trackerCalls(host: String) -> Int {
+        trackerFlows?.values.reduce(0) { $0 + ($1[host] ?? 0) } ?? 0
+    }
+
     // Drops the entry seen longest ago when a new key would pass `maxHosts`.
     private static func makeRoom<Value>(for key: String, in map: inout [String: Value], day: (Value) -> String) {
         guard map[key] == nil, map.count >= maxHosts,
@@ -110,7 +152,7 @@ struct Stats: Codable, Equatable {
     }
 
     /// Drops what was last seen on or before `cutoff`: hosts, addresses, days, and apps with no rule and no data limit.
-    /// Also drops the hits of rules not in `config`, and trackers no app still has.
+    /// Also drops the hits of rules not in `config`, trackers no app still has, and tracker flows to hosts an app dropped.
     mutating func prune(_ config: Config, cutoff: String) {
         let kept = Set(config.rules.map(\.app) + config.limits.map(\.app))
         for (app, day) in seen where day <= cutoff && !kept.contains(app) {
@@ -124,17 +166,23 @@ struct Stats: Codable, Equatable {
         apps = apps.mapValues { $0.filter { $0.value > cutoff } }
         addresses = addresses?.mapValues { $0.filter { $0.value.day > cutoff } }
         blocked = blocked.filter { $0.key > cutoff }
+        blockedByList = blockedByList?.filter { $0.key > cutoff }
+        trackerFlows = trackerFlows?.reduce(into: [:]) { kept, entry in
+            let hosts = entry.value.filter { apps[entry.key]?[$0.key] != nil }
+            if !hosts.isEmpty { kept[entry.key] = hosts }
+        }
         daily = daily.filter { $0.key > cutoff }
         let rules = Set(config.rules.map(\.id))
         hits = hits.filter { rules.contains($0.key) }
         trackers = trackers.filter { host in apps.values.contains { $0[host] != nil } }
     }
 
-    /// Clears what the app did: its hosts, addresses, bytes, and rule hits. Keeps the app in the list, with its path.
+    /// Clears what the app did: its hosts, addresses, tracker flows, bytes, and rule hits. Keeps the app in the list, with its path.
     /// - Parameter rules: the IDs of the app's rules.
     mutating func forget(_ app: String, rules: [UUID]) {
         apps[app] = [:]
         addresses?[app] = nil
+        trackerFlows?[app] = nil
         bytes[app] = nil
         for day in daily.keys { daily[day]?[app] = nil }
         for rule in rules { hits[rule] = nil }

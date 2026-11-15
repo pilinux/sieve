@@ -35,6 +35,29 @@ struct Kpi<Footer: View>: View {
     }
 }
 
+/// A day's blocked flows: block lists, then rules and limits. One grey part for a day saved before the split.
+func blockedParts(_ stats: Stats, day: String) -> [SegmentBar.Part] {
+    guard let split = stats.blockedSplit(day) else {
+        return [.init(name: "Not split", value: stats.blocked[day] ?? 0, color: .unsplit)]
+    }
+    return [
+        .init(name: "Block lists", value: split.lists, color: .block),
+        .init(name: "Rules and limits", value: split.rules, color: .ruleBlock),
+    ]
+}
+
+/// Today's blocked flows, with a bar that splits them. A day saved before the split gets no bar.
+struct BlockedToday: View {
+    let stats: Stats
+
+    var body: some View {
+        let today = Stats.day(.now)
+        Kpi(title: "Blocked today", value: "\(stats.blocked[today] ?? 0)") {
+            if stats.blockedSplit(today) != nil { SegmentBar(parts: blockedParts(stats, day: today)) }
+        }
+    }
+}
+
 /// A short label in a capsule.
 struct Chip: View {
     let text: String

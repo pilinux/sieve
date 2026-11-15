@@ -11,6 +11,8 @@ import Foundation
     func setList(_ id: String, domains: Data, reply: @escaping @Sendable (Data) -> Void)
     /// Clears an app's history, not its config. Replies when done.
     func forget(_ app: String, reply: @escaping @Sendable (Data) -> Void)
+    /// Clears every app's history, not the config. Replies when done.
+    func clearHistory(reply: @escaping @Sendable (Data) -> Void)
     /// The config file that could not be read. Empty if there is none.
     func brokenConfig(reply: @escaping @Sendable (Data) -> Void)
     /// Deletes that file. Replies when done.

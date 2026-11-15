@@ -106,6 +106,7 @@ final class Filter: NSObject {
         {
             stats.bytes = usage.bytes
             stats.blocked = usage.blocked
+            stats.blockedByList = usage.blockedByList
             measure(usage.bytes)
         }
     }
@@ -165,6 +166,12 @@ final class Filter: NSObject {
     /// Clears the app's history in the extension, then reads the stats again.
     func forget(_ app: String) async {
         _ = await send { $0.forget(app, reply: $1) }
+        await refresh()
+    }
+
+    /// Clears every app's history in the extension, then reads the stats again.
+    func clearHistory() async {
+        _ = await send { $0.clearHistory(reply: $1) }
         await refresh()
     }
 

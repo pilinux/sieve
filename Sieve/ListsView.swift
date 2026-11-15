@@ -81,12 +81,7 @@ struct ListsView: View {
                         Kpi(title: "Trackers seen", value: "\(stats.trackers.count)") {
                             Label("hosts on a block list", systemImage: "exclamationmark.triangle")
                         }
-                        Kpi(title: "Blocked today", value: "\(stats.blocked[Stats.day(.now)] ?? 0)") {
-                            HStack(spacing: 6) {
-                                RoundedRectangle(cornerRadius: 3).fill(.block).frame(width: 10, height: 10)
-                                Text("flows dropped")
-                            }
-                        }
+                        BlockedToday(stats: stats)
                     }
                     .fixedSize(horizontal: false, vertical: true)
                     VStack(alignment: .leading, spacing: 14) {
@@ -97,9 +92,11 @@ struct ListsView: View {
                             .prefix(7)
                         RankedBars(
                             items: apps.map {
-                                .init(key: $0.key, name: stats.name($0.key), value: Double($0.count), text: "\($0.count) hosts")
+                                .init(
+                                    key: $0.key, name: stats.name($0.key), value: Double($0.count),
+                                    text: "\($0.count) hosts · \(stats.trackerCalls($0.key).formatted()) calls")
                             },
-                            color: .block, nameWidth: 190
+                            color: .block, nameWidth: 190, valueWidth: 150
                         ) { item in AppIcon(path: stats.paths[item.key], size: 22) }
                     }
                     .card()
@@ -109,8 +106,12 @@ struct ListsView: View {
                             .sorted { ($0.count, $1.host) > ($1.count, $0.host) }
                             .prefix(7)
                         RankedBars(
-                            items: hosts.map { .init(name: $0.host, value: Double($0.count), text: "\($0.count) apps") },
-                            color: .block, nameWidth: 190
+                            items: hosts.map {
+                                .init(
+                                    name: $0.host, value: Double($0.count),
+                                    text: "\($0.count) apps · \(stats.trackerCalls(host: $0.host).formatted()) calls")
+                            },
+                            color: .block, nameWidth: 190, valueWidth: 150
                         ) { _ in
                             Image(systemName: "exclamationmark.triangle").font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(.warn).frame(width: 22)
