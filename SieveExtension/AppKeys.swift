@@ -12,7 +12,7 @@ final class App: Sendable {
     /// Apple code that is allowed without a rule. User tools such as `curl` and WebKit's networking service
     /// do not count, since any app can use them.
     let isApple: Bool
-    /// For a path key, the code directory hash of the running code, in hex.
+    /// For a path key, the pin of the running code: its code directory hash in hex, or `file:INODE:CTIME` when the sandbox cannot read the file.
     /// Nil if the code has no signature, or if the file on disk is not the code that is running.
     let code: String?
 
@@ -39,10 +39,28 @@ struct AppKeys {
             return cached
         }
         // The audit token names one process, so a reused PID cannot be mistaken for it.
-        guard let code = Self.guest([kSecGuestAttributeAudit: auditToken]), let app = Self.lookUp(code)
+        guard let app = Self.guest([kSecGuestAttributeAudit: auditToken]).flatMap(Self.lookUp) ?? Self.byPath(auditToken)
         else { return nil }
         cache.setObject(app, forKey: auditToken as NSData)
         return app
+    }
+
+    // The sandbox lets the extension read only some executables, and a signature lookup must read the file.
+    // Without the signature, the path names the code, and the file's inode and status-change time pin it.
+    private static func byPath(_ auditToken: Data) -> App? {
+        guard auditToken.count == MemoryLayout<audit_token_t>.size else { return nil }
+        var token = auditToken.withUnsafeBytes { $0.load(as: audit_token_t.self) }
+        var buffer = [UInt8](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        let length = proc_pidpath_audittoken(&token, &buffer, UInt32(buffer.count))
+        // No path means the process is gone.
+        guard length > 0 else { return nil }
+        let path = String(decoding: buffer.prefix(Int(length)), as: UTF8.self)
+        if Config.isProtected(path) { return App(path, path: path, signer: "Apple") }
+        var info = stat()
+        guard stat(path, &info) == 0 else { return App(path, path: path) }
+        // Replacing or editing the file changes the pin, and no file call can set either value.
+        let ctime = info.st_ctimespec
+        return App(path, path: path, code: "file:\(info.st_ino):\(ctime.tv_sec).\(ctime.tv_nsec)")
     }
 
     private static func lookUp(_ code: SecCode) -> App? {

@@ -20,7 +20,7 @@ final class Store: Sendable {
         var flowBytes: [UUID: Int] = [:]
         // The `NetworkSignature` of each network the Mac is on.
         var networks: Set<String> = []
-        // The code directory hash of each path key's last flow.
+        // The code pin of each path key's last flow.
         var codes: [String: String] = [:]
     }
 

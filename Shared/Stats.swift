@@ -33,7 +33,7 @@ struct Stats: Codable, Equatable {
     var brokenConfig = false
     /// Tracker hosts that the current rules and lists block, by app key. Filled in for the app only.
     var blockedTrackers: [String: Set<String>] = [:]
-    /// The code directory hash of each path key's last flow. Filled in for the app only.
+    /// The code pin of each path key's last flow. Filled in for the app only.
     /// It is optional, so an older file without it still loads.
     var codes: [String: String]?
     /// `Config.blockedDomainCount(_:)`. Filled in for the app only. It is optional, so an older file without it still loads.

@@ -6,6 +6,18 @@ struct CodeTests {
     let allowed = "e9941fa71be198eed966d1bf219f1471f10c303a"
     let swapped = "21ec44b85d0f790e541f22426eeb4b6d7502099e"
 
+    @Test func onlySystemPathsAreProtected() {
+        #expect(Config.isProtected("/usr/libexec/trustd"))
+        #expect(Config.isProtected("/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder"))
+        #expect(Config.isProtected("/bin/ls"))
+        #expect(Config.isProtected("/sbin/ping"))
+        #expect(!Config.isProtected("/usr/local/bin/tool"))
+        #expect(!Config.isProtected("/System/Volumes/Data/opt/homebrew/bin/curl"))
+        #expect(!Config.isProtected("/opt/homebrew/bin/curl"))
+        #expect(!Config.isProtected("/Users/me/Applications/Tool.app/Contents/MacOS/Tool"))
+        #expect(!Config.isProtected("/usrx/tool"))
+    }
+
     @Test func signerTrustsAnyCode() {
         #expect(Config().trusts("EQHXZ8M8AV.com.google.Chrome", signer: "EQHXZ8M8AV", code: nil))
     }

@@ -7,7 +7,7 @@ struct Config: Codable, Equatable {
     var lists: [DomainList] = [.trackerShield]
     var limits: [Limit] = []
     var profiles: [Profile] = []
-    /// The code directory hash the user allowed, by path key. It is optional, so an older file without it still loads.
+    /// The code pin the user allowed, by path key: a code directory hash, or `file:INODE:CTIME`. It is optional, so an older file without it still loads.
     var codes: [String: String]?
 
     /// The key for a process that exited before Sieve could look it up. Many processes share it, so it cannot have a rule.
@@ -103,14 +103,21 @@ struct Config: Codable, Equatable {
 
     /// Whether the app's Allow rules apply. A verified signer identifies the app wherever it is on disk.
     /// A path key names a file that other code can replace, so the rules apply only to the code the user allowed.
-    /// - Parameter code: the code directory hash of the running code, if it has one.
+    /// - Parameter code: the pin of the running code, if it has one.
     func trusts(_ app: String, signer: String, code: String?) -> Bool {
         !signer.isEmpty || (code != nil && codes?[app] == code)
     }
 
+    /// Whether System Integrity Protection guards `path`, so that only Apple code can be there.
+    static func isProtected(_ path: String) -> Bool {
+        // `/System/Volumes/` reaches the writable data volume, and `/usr/local/` belongs to the user.
+        ["/System/", "/usr/", "/bin/", "/sbin/"].contains { path.hasPrefix($0) }
+            && !["/System/Volumes/", "/usr/local/"].contains { path.hasPrefix($0) }
+    }
+
     /// For each new Allow rule, one that `old` does not have, allows the code the app runs now.
     /// Keeps the allowed hash while the running code is unknown, and drops the hash of an app with no rules left.
-    /// - Parameter running: the code directory hash of each path key, as in `Stats.codes`.
+    /// - Parameter running: the code pin of each path key, as in `Stats.codes`.
     mutating func approveCode(since old: Config, running: [String: String]) {
         let allowed = Set(old.rules.filter { $0.action == .allow }.map(\.id))
         var codes = self.codes ?? [:]

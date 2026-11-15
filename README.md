@@ -371,6 +371,12 @@ code signature of that process and gives the app a key:
   signer signed both.
 - A path key also holds the hash of the running code. An Allow rule for
   it counts only for that code, so a changed binary asks again.
+- The filter's sandbox cannot read every program, for example in
+  `/opt/homebrew` or `~/Applications`. Such a program gets a path key
+  with no verified signer. Its Allow rules count only while the file
+  keeps its inode and status-change time.
+- A program in a folder that System Integrity Protection guards, such
+  as `/usr/libexec`, counts as Apple code.
 - Apple's daemons are allowed with no rule. Apple's command-line tools,
   such as `curl`, `ssh`, and `osascript`, are not: any app can run them,
   so they prompt and take rules like any app.
@@ -429,7 +435,8 @@ copy** keeps the file for you. **Discard** deletes it.
   trusted one. Networks with IPv6 only cannot be a profile's network.
 - **Changing code asks again.** An update of a tool with no verified
   signer, such as a Homebrew binary, changes its code. Ask mode prompts
-  for it once more. Unsigned code prompts on every connection.
+  for it once more. Unsigned code prompts on every connection. For a
+  program the filter cannot read, `chmod` or a move also asks again.
 - **Some Apple tools pass.** Apple code outside `/bin/`, `/usr/bin/`,
   and `/Library/Developer/` counts as a daemon, allowed with no rule.
   A few tools live there too, such as `/usr/sbin/ab` and `tclsh`, so
