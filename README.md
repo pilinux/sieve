@@ -259,6 +259,8 @@ days.
 
 ### Diagnostics
 
+![The Diagnostics screen](docs/images/diagnostics.jpg)
+
 Sieve logs its own errors and warnings, such as a file it cannot write
 or a list it cannot download. The page shows how many there are since
 a date, and the newest 50.
