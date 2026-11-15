@@ -33,6 +33,13 @@ import Foundation
         reply: @escaping @Sendable (_ allow: Bool, _ hostOnly: Bool) -> Void)
 }
 
+/// The code signing requirement for the other side of the XPC link: code with `identifier`, signed by `team`.
+func peerRequirement(identifier: String, team: some StringProtocol) -> String {
+    // Apple re-signs App Store and TestFlight builds with a certificate that has no Team ID, so accept its marker fields too.
+    "anchor apple generic and identifier \"\(identifier)\" and (certificate leaf[subject.OU] = \"\(team)\""
+        + " or certificate leaf[field.1.2.840.113635.100.6.1.9] or certificate leaf[field.1.2.840.113635.100.6.1.25.1])"
+}
+
 extension Bundle {
     /// The extension's XPC service name, from its Info.plist.
     var machServiceName: String? {

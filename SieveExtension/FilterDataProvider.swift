@@ -157,8 +157,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         }
         // The service name starts with the team ID. Accept only the Sieve app, signed by that team.
         let team = name.prefix { $0 != "." }
-        var requirement =
-            "anchor apple generic and identifier \"me.pilinux.Sieve\" and certificate leaf[subject.OU] = \"\(team)\""
+        var requirement = peerRequirement(identifier: "me.pilinux.Sieve", team: team)
         #if !DEBUG
             // A debugger can inject code into an app with `get-task-allow`. Only Debug builds have it.
             requirement += " and !(entitlement[\"com.apple.security.get-task-allow\"] exists)"

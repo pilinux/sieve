@@ -291,9 +291,7 @@ final class Filter: NSObject {
         let name = Self.extensionBundle?.machServiceName ?? ""
         let connection = NSXPCConnection(machServiceName: name)
         // Another process can offer the same name. Talk only to the Sieve extension, signed by the team the name starts with.
-        connection.setCodeSigningRequirement(
-            "anchor apple generic and identifier \"\(Self.extensionID)\" and certificate leaf[subject.OU] = \"\(name.prefix { $0 != "." })\""
-        )
+        connection.setCodeSigningRequirement(peerRequirement(identifier: Self.extensionID, team: name.prefix { $0 != "." }))
         connection.remoteObjectInterface = NSXPCInterface(with: FilterXPC.self)
         connection.exportedInterface = NSXPCInterface(with: PromptXPC.self)
         connection.exportedObject = self
