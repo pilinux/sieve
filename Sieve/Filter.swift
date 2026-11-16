@@ -17,8 +17,11 @@ final class Filter: NSObject {
     private(set) var stats = Stats()
     /// Bytes per second, by app key.
     private(set) var rates: [String: Double] = [:]
-    /// Up to 60 samples of `rates`, oldest first.
-    private(set) var history: [[String: Double]] = []
+    /// Bytes per second of all apps together, leaving out VPN apps as `Stats.totalBytes` does.
+    private(set) var totalRate: Double = 0
+    // Up to 60 samples of `rates`, and of `totalRate`, oldest first.
+    private var history: [[String: Double]] = []
+    private var totalHistory: [Double] = []
     /// A short message for the user, such as a loaded list or a failed save. The window clears it.
     var message: (text: String, failed: Bool)?
     /// Both error logs, by source, as last read. There is no `extension` key if the extension could not be reached.
@@ -121,12 +124,15 @@ final class Filter: NSObject {
                 (app, max(Double(bytes - (sample.bytes[app] ?? bytes)) / elapsed, 0))
             })
         sample = (bytes, .now)
+        totalRate = rates.filter { stats.vpns?.contains($0.key) != true }.values.reduce(0, +)
         history = Array((history + [rates]).suffix(60))
+        totalHistory = Array((totalHistory + [totalRate]).suffix(60))
     }
 
-    /// The rate history of one app, or of all apps when nil.
+    /// The rate history of one app, or `totalRate`'s history when nil.
     func trend(_ app: String?) -> [Double] {
-        history.map { sample in app.map { sample[$0] ?? 0 } ?? sample.values.reduce(0, +) }
+        guard let app else { return totalHistory }
+        return history.map { $0[app] ?? 0 }
     }
 
     /// Reads all the stats now and every 10 seconds, and the bytes every second in between, until cancelled.

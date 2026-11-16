@@ -94,7 +94,7 @@ struct ContentView: View {
                     if screen == .diagnostics { DiagnosticsTools(filter: filter) }
                     HStack(spacing: 10) {
                         RateLine(values: filter.trend(nil)).frame(width: 72, height: 22)
-                        Text(rate(filter.rates.values.reduce(0, +)))
+                        Text(rate(filter.totalRate))
                             .font(.aileron(13, .semibold)).monospacedDigit()
                             .frame(minWidth: 76, alignment: .trailing)
                     }

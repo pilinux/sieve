@@ -21,7 +21,7 @@ struct MenuView: View {
             if filter.stats.brokenConfig { BrokenConfigNotice(filter: filter, compact: true) }
             VStack(alignment: .leading, spacing: 6) {
                 Caption("Now")
-                Text(rate(filter.rates.values.reduce(0, +))).font(.aileron(52, .light)).monospacedDigit()
+                Text(rate(filter.totalRate)).font(.aileron(52, .light)).monospacedDigit()
                 RateLine(values: filter.trend(nil), hover: true).frame(height: 64)
             }
             Rectangle().fill(.line).frame(height: 1)

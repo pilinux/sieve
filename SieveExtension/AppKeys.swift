@@ -15,12 +15,15 @@ final class App: Sendable {
     /// For a path key, the pin of the running code: its code directory hash in hex, or `file:INODE:CTIME` when the sandbox cannot read the file.
     /// Nil if the code has no signature, or if the file on disk is not the code that is running.
     let code: String?
+    /// A VPN or proxy provider. Its flows carry other apps' traffic again.
+    let isVPN: Bool
 
-    init(_ key: String, path: String = "", signer: String = "", code: String? = nil) {
+    init(_ key: String, path: String = "", signer: String = "", code: String? = nil, isVPN: Bool = false) {
         self.key = key
         self.path = path
         self.signer = signer
         self.code = code
+        self.isVPN = isVPN
         // Keep daemons in `/usr/libexec`, `/usr/sbin`, and `/System` allowed. Otherwise each one would prompt.
         // An `.xpc` service runs for whichever app called it, and no public API names that app.
         isApple =
@@ -65,9 +68,10 @@ struct AppKeys {
 
     private static func lookUp(_ code: SecCode) -> App? {
         var staticCode: SecStaticCode?
-        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
-            let own = identify(staticCode, running: code)
-        else { return nil }
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return nil }
+        // A provider inside an app bundle makes the whole app a VPN.
+        let isVPN = isVPN(staticCode)
+        guard let own = identify(staticCode, running: code, isVPN: isVPN) else { return nil }
 
         // Code inside an app bundle counts as the outermost app, but only if the same signer signed both.
         // Anyone can copy an app and put their own code inside the copy.
@@ -75,7 +79,7 @@ struct AppKeys {
         if !own.signer.isEmpty, let end = own.path.range(of: ".app/")?.lowerBound,
             SecStaticCodeCreateWithPath(
                 URL(fileURLWithPath: String(own.path[..<end]) + ".app") as CFURL, [], &outerCode) == errSecSuccess,
-            let outerCode, let outer = identify(outerCode, running: nil), outer.signer == own.signer
+            let outerCode, let outer = identify(outerCode, running: nil, isVPN: isVPN), outer.signer == own.signer
         {
             return outer
         }
@@ -84,7 +88,7 @@ struct AppKeys {
 
     // Returns the app a signature names, and who vouches for it.
     // With `running`, the check covers the code in memory as well as the file on disk.
-    private static func identify(_ code: SecStaticCode, running: SecCode?) -> App? {
+    private static func identify(_ code: SecStaticCode, running: SecCode?, isVPN: Bool) -> App? {
         var url: CFURL?
         guard SecCodeCopyPath(code, [], &url) == errSecSuccess, let path = (url as URL?)?.path else { return nil }
 
@@ -104,12 +108,12 @@ struct AppKeys {
         guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
             let info = info as? [String: Any],
             let identifier = info[kSecCodeInfoIdentifier as String] as? String
-        else { return App(path, path: path) }
+        else { return App(path, path: path, isVPN: isVPN) }
 
         // Anyone who can write to the path can put other code there. The hash names the code itself.
         func pathKey() -> App {
             let hash = (info[kSecCodeInfoUnique as String] as? Data)?.map { String(format: "%02x", $0) }.joined()
-            return App(path, path: path, code: hash.flatMap { satisfies("cdhash H\"\($0)\"") ? $0 : nil })
+            return App(path, path: path, code: hash.flatMap { satisfies("cdhash H\"\($0)\"") ? $0 : nil }, isVPN: isVPN)
         }
 
         if let team = info[kSecCodeInfoTeamIdentifier as String] as? String {
@@ -120,12 +124,23 @@ struct AppKeys {
                     "anchor apple generic and (certificate leaf[subject.OU] = \"\(team)\""
                         + " or certificate leaf[field.1.2.840.113635.100.6.1.9])")
             else { return pathKey() }
-            return App("\(team).\(identifier)", path: path, signer: team)
+            return App("\(team).\(identifier)", path: path, signer: team, isVPN: isVPN)
         }
         if satisfies("anchor apple") {
-            return App(identifier, path: path, signer: "Apple")
+            return App(identifier, path: path, signer: "Apple", isVPN: isVPN)
         }
         return pathKey()
+    }
+
+    // Whether the code is a packet tunnel or app proxy provider. Both send other apps' traffic again in their own flows.
+    private static func isVPN(_ code: SecStaticCode) -> Bool {
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(code, [], &info) == errSecSuccess,
+            let entitlements = (info as? [String: Any])?[kSecCodeInfoEntitlementsDict as String] as? [String: Any],
+            let types = entitlements["com.apple.developer.networking.networkextension"] as? [String]
+        else { return false }
+        // A system extension's type ends in `-systemextension`.
+        return types.contains { $0.hasPrefix("packet-tunnel-provider") || $0.hasPrefix("app-proxy-provider") }
     }
 
     private static func guest(_ attributes: [CFString: Any]) -> SecCode? {

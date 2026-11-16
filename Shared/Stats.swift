@@ -45,6 +45,8 @@ struct Stats: Codable, Equatable {
     var blockedByList: [String: Int]?
     /// Flows to each tracker host, allowed or blocked, by app key, then host. It is optional, so an older file without it still loads.
     var trackerFlows: [String: [String: Int]]?
+    /// Keys of VPN and proxy apps. Their flows carry other apps' traffic again. It is optional, so an older file without it still loads.
+    var vpns: Set<String>?
 
     /// The most hosts, and the most IP addresses, that Sieve keeps for one app.
     static let maxHosts = 1_000
@@ -125,6 +127,16 @@ struct Stats: Codable, Equatable {
         return (lists, blocked[day, default: 0] - lists)
     }
 
+    /// Bytes of all apps together. VPN apps are left out, so traffic through a VPN counts once.
+    var totalBytes: Int {
+        bytes.filter { vpns?.contains($0.key) != true }.values.reduce(0, +)
+    }
+
+    /// `totalBytes` for one day.
+    func totalBytes(day: String) -> Int {
+        (daily[day] ?? [:]).filter { vpns?.contains($0.key) != true }.values.reduce(0, +)
+    }
+
     /// Counts one flow from the app to a tracker host.
     mutating func countTrackerFlow(_ app: String, host: String) {
         // Take the map out first. With one owner, Swift changes it in place instead of copying it.
@@ -161,6 +173,7 @@ struct Stats: Codable, Equatable {
             bytes[app] = nil
             paths[app] = nil
             apple.remove(app)
+            vpns?.remove(app)
             addresses?[app] = nil
         }
         apps = apps.mapValues { $0.filter { $0.value > cutoff } }

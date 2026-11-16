@@ -174,6 +174,10 @@ final class Store: Sendable {
                 $0.stats.countTrackerFlow(app.key, host: host)
                 $0.statsChanged = true
             }
+            if app.isVPN, $0.stats.vpns?.contains(app.key) != true {
+                $0.stats.vpns = ($0.stats.vpns ?? []).union([app.key])
+                $0.statsChanged = true
+            }
             if !app.path.isEmpty, $0.stats.paths.updateValue(app.path, forKey: app.key) != app.path {
                 $0.statsChanged = true
             }

@@ -77,11 +77,11 @@ struct AppsView: View {
                 .background(.s3, in: .rect(cornerRadius: 7))
             VStack(alignment: .leading, spacing: 1) {
                 Text("All apps").font(.aileron(13, .semibold))
-                Text("\(bytes(filter.stats.bytes.values.reduce(0, +))) · \(filter.stats.apps.count) apps")
+                Text("\(bytes(filter.stats.totalBytes)) · \(filter.stats.apps.count) apps")
                     .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
             }
             Spacer()
-            Text(rate(filter.rates.values.reduce(0, +))).font(.aileron(12)).foregroundStyle(.ink2).monospacedDigit()
+            Text(rate(filter.totalRate)).font(.aileron(12)).foregroundStyle(.ink2).monospacedDigit()
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -170,7 +170,7 @@ private struct Overview: View {
         let stats = filter.stats
         let days = lastDays(31)
         let today = Stats.day(.now)
-        let total = { (day: String) in (stats.daily[day] ?? [:]).values.reduce(0, +) }
+        let total = stats.totalBytes(day:)
         let data = days.enumerated().map { index, day in
             DayBars.Bar(day: day, value: Double(total(Stats.day(day))), tick: DayBars.Bar.weekly(index, of: days.count, day))
         }
@@ -199,7 +199,7 @@ private struct Overview: View {
         }
         VStack(spacing: 12) {
             HStack(spacing: 12) {
-                let now = split(rate(filter.rates.values.reduce(0, +)))
+                let now = split(rate(filter.totalRate))
                 Kpi(title: "Now", value: now.value, unit: now.unit) {
                     RateLine(values: filter.trend(nil), hover: true).frame(height: 28)
                 }
