@@ -298,7 +298,7 @@ struct AddressRange {
     }
 }
 
-struct Hit: Codable, Equatable {
+nonisolated struct Hit: Codable, Equatable, Sendable {
     var count = 0
     var last = Date.now
 }

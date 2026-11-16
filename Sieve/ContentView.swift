@@ -28,6 +28,7 @@ struct ContentView: View {
                         Group {
                             switch screen {
                             case .apps: AppsView(filter: filter)
+                            case .addresses: AddressesView(filter: filter)
                             case .lists: ListsView(filter: filter)
                             case .rules: RulesView(filter: filter)
                             case .profiles: ProfilesView(filter: filter)
@@ -114,11 +115,12 @@ struct ContentView: View {
 }
 
 enum Screen: String, CaseIterable {
-    case apps = "Apps", lists = "Lists", rules = "Rules", profiles = "Profiles", diagnostics = "Diagnostics"
+    case apps = "Apps", addresses = "Addresses", lists = "Lists", rules = "Rules", profiles = "Profiles", diagnostics = "Diagnostics"
 
     var icon: String {
         switch self {
         case .apps: "square.grid.2x2"
+        case .addresses: "globe"
         case .lists: "list.bullet"
         case .rules: "checklist"
         case .profiles: "wifi"

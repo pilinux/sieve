@@ -91,8 +91,7 @@ extension Chip {
 
 }
 
-/// What a host or IP address is. The first that fits wins: public DNS, a DNS server a flow used, a local network,
-/// a CDN, then the country and network owner from the uploaded IP data. A host name can only be public DNS.
+/// The label of a host or IP address, as `AddressLabel` decides it.
 struct AddressFact: View {
     let value: String
     /// Whether a flow to the address used port 53 or 853.
@@ -102,39 +101,39 @@ struct AddressFact: View {
     var compact = false
 
     var body: some View {
-        if let entry = PublicDNS.bundled.entry(for: value) {
-            Chip(text: "Public DNS", icon: "server.rack").help("\(entry.provider) public DNS resolver")
-        } else if Address.normalize(value) != nil {
-            if dns {
-                let local = Address.isLocal(value)
-                Chip(text: local ? "Local DNS" : "DNS", icon: "server.rack")
-                    .help(local ? "A DNS server on a local network" : "A DNS server")
-            } else if Address.isLocal(value) {
-                Chip(text: "Local network", icon: "house").help("An address on a local network")
-            } else if let cdn = AddressTable.cdn.row(for: value) {
-                // One CDN address serves from many places, so a country would mislead.
-                Chip(text: "CDN · \(cdn[0])", icon: "globe").help("A CDN serves many sites from many places, so it shows no country")
-            } else if let row = ipInfo?.row(for: value), row[0].count == 2 {
-                country(row)
+        switch AddressLabel(value, dns: dns, ipInfo: ipInfo) {
+        case .publicDNS(let provider):
+            Chip(text: "Public DNS", icon: "server.rack").help("\(provider) public DNS resolver")
+        case .dns(let local):
+            Chip(text: local ? "Local DNS" : "DNS", icon: "server.rack")
+                .help(local ? "A DNS server on a local network" : "A DNS server")
+        case .local:
+            Chip(text: "Local network", icon: "house").help("An address on a local network")
+        case .cdn(let provider):
+            Chip(text: "CDN · \(provider)", icon: "globe").help("A CDN serves many sites from many places, so it shows no country")
+        case .country(let code, let asn, let owner, let domain):
+            HStack(spacing: 5) {
+                Text(flag(code))
+                Text(code).font(.aileron(11, .semibold)).foregroundStyle(.ink2)
+                if !compact, !owner.isEmpty {
+                    Text(owner).font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1).truncationMode(.tail)
+                }
             }
+            .help([countryName(code), asn, domain].filter { !$0.isEmpty }.joined(separator: " · "))
+        case nil:
+            EmptyView()
         }
     }
+}
 
-    // The row holds the country code, AS number, AS name, and AS domain.
-    private func country(_ row: [String]) -> some View {
-        let code = row[0]
-        // A flag is the country code in regional indicator letters.
-        let flag = String(String.UnicodeScalarView(code.unicodeScalars.compactMap { Unicode.Scalar(0x1F1A5 + $0.value) }))
-        return HStack(spacing: 5) {
-            Text(flag)
-            Text(code).font(.aileron(11, .semibold)).foregroundStyle(.ink2)
-            if !compact, !row[2].isEmpty {
-                Text(row[2]).font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1).truncationMode(.tail)
-            }
-        }
-        .help(
-            [Locale.current.localizedString(forRegionCode: code) ?? code, row[1], row[3]].filter { !$0.isEmpty }.joined(separator: " · "))
-    }
+/// The name of a country from its ISO 3166 alpha-2 code, in the user's language.
+nonisolated func countryName(_ code: String) -> String {
+    Locale.current.localizedString(forRegionCode: code) ?? code
+}
+
+/// A country's flag: its code in regional indicator letters, which the emoji font draws as one flag.
+func flag(_ code: String) -> String {
+    String(String.UnicodeScalarView(code.unicodeScalars.compactMap { Unicode.Scalar(0x1F1A5 + $0.value) }))
 }
 
 /// A privacy grade, A to F, on its own colour.
