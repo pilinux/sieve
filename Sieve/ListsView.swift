@@ -96,7 +96,13 @@ struct ListsView: View {
                                     key: $0.key, name: stats.name($0.key), value: Double($0.count),
                                     text: "\($0.count) hosts · \(stats.trackerCalls($0.key).formatted()) calls")
                             },
-                            color: .block, nameWidth: 190, valueWidth: 150
+                            color: .block, nameWidth: 190, valueWidth: 150,
+                            details: { item in
+                                stats.apps[item.key, default: [:]].keys.filter(stats.trackers.contains)
+                                    .map { (host: $0, calls: stats.trackerFlows?[item.key]?[$0] ?? 0) }
+                                    .sorted { ($0.calls, $1.host) > ($1.calls, $0.host) }
+                                    .map { (name: $0.host, text: "\($0.calls.formatted()) calls") }
+                            }
                         ) { item in AppIcon(path: stats.paths[item.key], size: 22) }
                     }
                     .card()
@@ -111,7 +117,13 @@ struct ListsView: View {
                                     name: $0.host, value: Double($0.count),
                                     text: "\($0.count) apps · \(stats.trackerCalls(host: $0.host).formatted()) calls")
                             },
-                            color: .block, nameWidth: 190, valueWidth: 150
+                            color: .block, nameWidth: 190, valueWidth: 150,
+                            details: { item in
+                                stats.apps.filter { $0.value[item.name] != nil }
+                                    .map { (name: stats.name($0.key), calls: stats.trackerFlows?[$0.key]?[item.name] ?? 0) }
+                                    .sorted { ($0.calls, $1.name) > ($1.calls, $0.name) }
+                                    .map { (name: $0.name, text: "\($0.calls.formatted()) calls") }
+                            }
                         ) { _ in
                             Image(systemName: "exclamationmark.triangle").font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(.warn).frame(width: 22)

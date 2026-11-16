@@ -228,37 +228,64 @@ struct RankedBars<Leading: View>: View {
     var stacked = false
     var nameWidth: CGFloat = 120
     var valueWidth: CGFloat = 68
+    /// Lines that a click on a row shows under it. Nil means the rows do not expand.
+    var details: ((RankedItem) -> [(name: String, text: String)])?
     @ViewBuilder let leading: (RankedItem) -> Leading
+    @State private var expanded: String?
 
     var body: some View {
         let top = max(items.map(\.value).max() ?? 0, 1)
         VStack(spacing: stacked ? 12 : 9) {
             ForEach(items) { item in
-                let bar = GeometryReader { geometry in
-                    UnevenRoundedRectangle(bottomTrailingRadius: 4, topTrailingRadius: 4)
-                        .fill(color)
-                        .frame(width: max(2, geometry.size.width * item.value / top))
-                }
-                .frame(height: 8)
-                if stacked {
-                    VStack(spacing: 6) {
-                        HStack(spacing: 10) {
-                            leading(item)
-                            Text(item.name).font(.aileron(13, .semibold)).lineLimit(1)
-                            Spacer()
-                            Text(item.text).foregroundStyle(.ink2).monospacedDigit()
+                VStack(spacing: 6) {
+                    row(item, top: top)
+                        .contentShape(.rect)
+                        .onTapGesture {
+                            guard details != nil else { return }
+                            expanded = expanded == item.id ? nil : item.id
                         }
-                        bar.padding(.leading, 32)
-                    }
-                } else {
-                    HStack(spacing: 10) {
-                        leading(item)
-                        Text(item.name).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
-                            .frame(width: nameWidth, alignment: .leading)
-                        bar
-                        Text(item.text).foregroundStyle(.ink2).monospacedDigit().frame(width: valueWidth, alignment: .trailing)
+                    if expanded == item.id, let details {
+                        let lines = details(item)
+                        // Two apps can have the same name, so the index is the identity.
+                        ForEach(lines.indices, id: \.self) { index in
+                            HStack {
+                                Text(lines[index].name).lineLimit(1).truncationMode(.middle)
+                                Spacer()
+                                Text(lines[index].text).monospacedDigit()
+                            }
+                            .font(.aileron(12)).foregroundStyle(.ink2)
+                            .padding(.leading, 32)
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    @ViewBuilder private func row(_ item: RankedItem, top: Double) -> some View {
+        let bar = GeometryReader { geometry in
+            UnevenRoundedRectangle(bottomTrailingRadius: 4, topTrailingRadius: 4)
+                .fill(color)
+                .frame(width: max(2, geometry.size.width * item.value / top))
+        }
+        .frame(height: 8)
+        if stacked {
+            VStack(spacing: 6) {
+                HStack(spacing: 10) {
+                    leading(item)
+                    Text(item.name).font(.aileron(13, .semibold)).lineLimit(1)
+                    Spacer()
+                    Text(item.text).foregroundStyle(.ink2).monospacedDigit()
+                }
+                bar.padding(.leading, 32)
+            }
+        } else {
+            HStack(spacing: 10) {
+                leading(item)
+                Text(item.name).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
+                    .frame(width: nameWidth, alignment: .leading)
+                bar
+                Text(item.text).foregroundStyle(.ink2).monospacedDigit().frame(width: valueWidth, alignment: .trailing)
             }
         }
     }
