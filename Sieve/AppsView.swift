@@ -462,6 +462,8 @@ private struct XRay: View {
                         Spacer()
                         if tracker { Chip.tracker }
                         if app != Config.unknownApp {
+                            // A parent domain's rule is not this host's to remove.
+                            if rule?.host == host { undecideButton(host) }
                             Segments(verdict: rule?.action, small: true) { action in
                                 filter.update { $0.setAction(action, for: app, host: host) }
                             }
@@ -494,6 +496,7 @@ private struct XRay: View {
                         }
                         Spacer()
                         if app != Config.unknownApp {
+                            if action != nil { undecideButton(address) }
                             Segments(verdict: action, small: true) { action in
                                 filter.update { $0.setAction(action, for: app, host: address) }
                             }
@@ -504,6 +507,13 @@ private struct XRay: View {
             }
         }
         .card()
+    }
+
+    // Removes the Always rule of a host or address, the one its Allow and Block show. Profile rules stay.
+    private func undecideButton(_ host: String) -> some View {
+        IconButton(icon: "arrow.uturn.backward", help: "Make undecided") {
+            filter.update { $0.rules.removeAll { $0.app == app && $0.host == host && $0.profile == nil } }
+        }
     }
 
     // A list card's title, count, legend, and the bar of allowed, blocked, and no rule.
