@@ -50,6 +50,7 @@ struct PromptView: View {
             .padding(.horizontal, 12)
             .background(.bg, in: .rect(cornerRadius: 10))
             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.line))
+            if !address.isEmpty { AddressFact(value: address, ipInfo: filter.ipInfo?.table) }
             if !host.isEmpty {
                 HStack(spacing: 10) {
                     Toggle("This host only", isOn: $hostOnly).toggleStyle(.switch).labelsHidden().controlSize(.small).tint(.allow)

@@ -463,7 +463,7 @@ private struct XRay: View {
                         }
                         Spacer()
                         if tracker { Chip.tracker }
-                        Chip.dns(host)
+                        AddressFact(value: host)
                         if app != Config.unknownApp {
                             // A parent domain's rule is not this host's to remove.
                             if rule?.host == host { undecideButton(host) }
@@ -500,7 +500,7 @@ private struct XRay: View {
                             Chip(text: "No host name")
                         }
                         Spacer()
-                        Chip.dns(address, used: used)
+                        AddressFact(value: address, dns: used, ipInfo: filter.ipInfo?.table)
                         if app != Config.unknownApp {
                             if action != nil { undecideButton(address) }
                             Segments(verdict: action, small: true) { action in
@@ -510,6 +510,17 @@ private struct XRay: View {
                     }
                     .frame(height: 38)
                 }
+            }
+            if !addresses.isEmpty {
+                Group {
+                    if filter.ipInfo == nil {
+                        Text("Upload an IPinfo Lite file on the Lists screen to see each address's country and network owner.")
+                    } else {
+                        Text("Country and network owner: IP data from [IPinfo](https://ipinfo.io)")
+                    }
+                }
+                .font(.aileron(11)).foregroundStyle(.ink3)
+                .padding(.top, 12)
             }
         }
         .card()

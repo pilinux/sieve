@@ -6,6 +6,7 @@ struct ListsView: View {
     @State private var url = ""
     @State private var action = Action.block
     @State private var picking = false
+    @State private var pickingIPInfo = false
     @State private var domain = ""
     @State private var checked: (host: String, entries: [String: String])?
 
@@ -80,6 +81,7 @@ struct ListsView: View {
                         }
                     }
                     .card()
+                    ipInfoCard
                 }
                 .frame(width: 440)
                 VStack(spacing: 12) {
@@ -188,6 +190,52 @@ struct ListsView: View {
                 .font(.aileron(12))
             }
             Text("Lists only. An app's own rules come first.").font(.aileron(11)).foregroundStyle(.ink3)
+        }
+    }
+
+    // The uploaded IPinfo Lite file. Sieve never downloads it, since the download needs the user's own IPinfo token.
+    private var ipInfoCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Caption("IP data")
+            if let progress = filter.ipInfoProgress {
+                ProgressView(value: progress) { Text("Reading the IPinfo file") }
+            } else if let ipInfo = filter.ipInfo {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("IPinfo Lite").font(.aileron(13, .semibold))
+                        Text(
+                            "\(counted(ipInfo.table.sourceCount, "range")) · uploaded \(ipInfo.date.formatted(date: .abbreviated, time: .omitted))"
+                        )
+                        .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
+                    }
+                    Spacer()
+                    IconButton(icon: "square.and.arrow.up", help: "Upload a newer copy") { pickingIPInfo = true }
+                    IconButton(icon: "trash", help: "Remove the IP data") { filter.removeIPInfo() }
+                }
+                Text(
+                    "X-Ray, Rules, and prompts show each address's country and network owner. CDN, public DNS, and local addresses show those labels in place of a country, with or without this file."
+                )
+                .font(.aileron(12)).foregroundStyle(.ink3)
+                Text("IP data from [IPinfo](https://ipinfo.io) · CC BY-SA 4.0").font(.aileron(11)).foregroundStyle(.ink3)
+            } else {
+                Text("Show each IP address's country and network owner.")
+                Text(
+                    "Download **ipinfo_lite.csv.gz** with a free account at [ipinfo.io/lite](https://ipinfo.io/lite), then upload it here. It stays on this Mac. Sieve sends no address anywhere."
+                )
+                .foregroundStyle(.ink3)
+                HStack {
+                    Spacer()
+                    Button("Upload", systemImage: "square.and.arrow.up") { pickingIPInfo = true }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .fileImporter(isPresented: $pickingIPInfo, allowedContentTypes: [.gzip, .commaSeparatedText]) { result in
+            switch result {
+            case .success(let file): Task { await filter.uploadIPInfo(from: file) }
+            case .failure(let error): filter.message = ("Cannot open the file: \(error.localizedDescription)", true)
+            }
         }
     }
 

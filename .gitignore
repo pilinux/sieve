@@ -12,3 +12,6 @@ DerivedData/
 *.p8
 *.cer
 *.provisionprofile
+
+# IPinfo Lite data
+ipinfo_lite*.csv*

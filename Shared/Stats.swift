@@ -263,7 +263,7 @@ struct Address: Codable, Equatable {
 
     /// The address in the form rules and stats use, or nil if `text` is not an IP address.
     /// Drops the `%` zone from IPv6, and turns an IPv4-mapped IPv6 address into IPv4.
-    static func normalize(_ text: String) -> String? {
+    nonisolated static func normalize(_ text: String) -> String? {
         if let ipv4 = IPv4Address(text) { return "\(ipv4)" }
         guard let ipv6 = IPv6Address(text) else { return nil }
         if ipv6.isIPv4Mapped, let ipv4 = ipv6.asIPv4 { return "\(ipv4)" }

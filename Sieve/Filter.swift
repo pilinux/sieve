@@ -24,6 +24,10 @@ final class Filter: NSObject {
     private var totalHistory: [Double] = []
     /// A short message for the user, such as a loaded list or a failed save. The window clears it.
     var message: (text: String, failed: Bool)?
+    /// The uploaded IPinfo Lite data, and when it was uploaded. Nil until the user uploads a file.
+    private(set) var ipInfo = Filter.readIPInfo()
+    /// The share of a picked IPinfo file read so far, from 0 to 1, while the upload runs.
+    private(set) var ipInfoProgress: Double?
     /// Both error logs, by source, as last read. There is no `extension` key if the extension could not be reached.
     private(set) var logs: [String: LogFile] = [:]
 
@@ -255,6 +259,51 @@ final class Filter: NSObject {
             throw URLError(.cannotConnectToHost)
         }
         return true
+    }
+
+    // The compact copy of the uploaded IPinfo file. Only the app reads it.
+    private static let ipInfoFile = URL.applicationSupportDirectory.appending(path: "me.pilinux.Sieve/ipinfo.bin")
+
+    // Maps the saved copy into memory, so a lookup reads only the pages it needs. Nil if there is none.
+    private static func readIPInfo() -> (table: AddressTable, date: Date)? {
+        guard let data = try? Data(contentsOf: ipInfoFile, options: .alwaysMapped), let table = AddressTable(data: data)
+        else { return nil }
+        let date = (try? ipInfoFile.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .now
+        return (table, date)
+    }
+
+    /// Reads a picked IPinfo Lite file, plain or gzip, and saves a compact copy. A file that fails to read keeps the old copy.
+    func uploadIPInfo(from file: URL) async {
+        let scoped = file.startAccessingSecurityScopedResource()
+        defer { if scoped { file.stopAccessingSecurityScopedResource() } }
+        ipInfoProgress = 0
+        defer { ipInfoProgress = nil }
+        let target = Self.ipInfoFile
+        do {
+            // Reading millions of lines takes seconds, so it runs off the main actor.
+            try await Task.detached {
+                let table = try IPInfoLite.table(from: file) { share in
+                    Task { @MainActor in if self.ipInfoProgress != nil { self.ipInfoProgress = share } }
+                }
+                try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try table.data.write(to: target, options: .atomic)
+            }.value
+            ipInfo = Self.readIPInfo()
+            message = ("Loaded \(file.lastPathComponent)", false)
+        } catch {
+            errorLog.warning("ipinfo", "Cannot read a picked IPinfo file", error)
+            message = ("Cannot read \(file.lastPathComponent): \(error.localizedDescription) Kept the old copy.", true)
+        }
+    }
+
+    /// Deletes the saved IPinfo copy.
+    func removeIPInfo() {
+        do {
+            try FileManager.default.removeItem(at: Self.ipInfoFile)
+        } catch {
+            errorLog.warning("ipinfo", "Cannot delete the IPinfo copy", error)
+        }
+        ipInfo = nil
     }
 
     /// Reads both error logs into `logs`.

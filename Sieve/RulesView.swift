@@ -244,7 +244,10 @@ struct RulesView: View {
                 Text(stats.name(row.app)).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
                 HStack(spacing: 6) {
                     Text(row.host ?? "All hosts").font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
-                    if let host = row.host { Chip.dns(host, used: stats.addresses?[row.app]?[host]?.dns == true) }
+                    if let host = row.host {
+                        AddressFact(
+                            value: host, dns: stats.addresses?[row.app]?[host]?.dns == true, ipInfo: filter.ipInfo?.table, compact: true)
+                    }
                 }
                 if let flag = flag(row) {
                     Label(flag.rawValue, systemImage: "exclamationmark.triangle.fill")
@@ -257,7 +260,7 @@ struct RulesView: View {
         .contentShape(.rect)
         .onTapGesture { traffic = row.id }
         .popover(isPresented: .init(get: { traffic == row.id }, set: { if !$0 { traffic = nil } })) {
-            Traffic(stats: stats, app: row.app)
+            Traffic(stats: stats, app: row.app, ipInfo: filter.ipInfo?.table)
         }
     }
 
@@ -301,6 +304,7 @@ struct RulesView: View {
 private struct Traffic: View {
     let stats: Stats
     let app: String
+    let ipInfo: AddressTable?
 
     var body: some View {
         let hosts = stats.apps[app, default: [:]].keys.map { (name: $0, hit: stats.hostHits?[app]?[$0], dns: false) }
@@ -331,7 +335,7 @@ private struct Traffic: View {
             ForEach(items.sorted { ($0.hit?.count ?? -1, $1.name) > ($1.hit?.count ?? -1, $0.name) }, id: \.name) { item in
                 HStack {
                     Copyable(text: item.name).lineLimit(1).truncationMode(.middle)
-                    Chip.dns(item.name, used: item.dns)
+                    AddressFact(value: item.name, dns: item.dns, ipInfo: ipInfo)
                     Spacer()
                     Text(item.hit.map { $0.count.formatted() } ?? "–").monospacedDigit()
                     Text(item.hit.map { $0.last.formatted(.relative(presentation: .named)) } ?? "–")
