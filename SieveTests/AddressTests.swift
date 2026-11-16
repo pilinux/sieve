@@ -82,4 +82,34 @@ struct AddressTests {
         stats.forget(app, rules: [])
         #expect(stats.addresses == [:])
     }
+
+    @Test func countFlowCountsHostsAndAddresses() {
+        var stats = Stats()
+        let first = Date(timeIntervalSince1970: 1_000)
+        let last = Date(timeIntervalSince1970: 2_000)
+        _ = stats.see(app, host: "example.com", address: "192.0.2.1", day: day)
+        stats.countFlow(app, host: "example.com", address: "192.0.2.1", time: first)
+        _ = stats.see(app, host: nil, address: "192.0.2.1", day: "2026-11-14")
+        stats.countFlow(app, host: nil, address: "192.0.2.1", time: last)
+        #expect(stats.hostHits?[app]?["example.com"] == Hit(count: 1, last: first))
+        // A new day for the address keeps its count.
+        #expect(stats.addresses?[app]?["192.0.2.1"] == Address(day: "2026-11-14", host: "example.com", hits: Hit(count: 2, last: last)))
+    }
+
+    @Test func hostHitsGoWithTheirHost() {
+        var stats = Stats()
+        for index in 0..<Stats.maxHosts {
+            let host = "h\(index).example"
+            _ = stats.see(app, host: host, day: index == 7 ? "2026-11-12" : day)
+            stats.countFlow(app, host: host, address: nil, time: .now)
+        }
+        _ = stats.see(app, host: "next.example", day: day)
+        #expect(stats.hostHits?[app]?["h7.example"] == nil)
+        #expect(stats.hostHits?[app]?.count == Stats.maxHosts - 1)
+        stats.apps[app]?["h8.example"] = "2026-10-01"
+        stats.prune(Config(), cutoff: "2026-10-12")
+        #expect(stats.hostHits?[app]?["h8.example"] == nil)
+        stats.forget(app, rules: [])
+        #expect(stats.hostHits?[app] == nil)
+    }
 }

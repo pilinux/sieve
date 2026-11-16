@@ -165,6 +165,10 @@ final class Store: Sendable {
         return state.withLock {
             if $0.pruned != today { Self.prune(&$0) }
             if $0.stats.see(app.key, host: host, address: address, day: today) { $0.statsChanged = true }
+            if host != nil || address != nil {
+                $0.stats.countFlow(app.key, host: host, address: address, time: .now)
+                $0.statsChanged = true
+            }
             // An earlier build may have marked a user tool as Apple.
             if app.isApple ? $0.stats.apple.insert(app.key).inserted : $0.stats.apple.remove(app.key) != nil {
                 $0.statsChanged = true

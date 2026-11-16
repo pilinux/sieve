@@ -341,3 +341,28 @@ struct EmptyState: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
+
+/// Text that copies itself on a click. A checkmark shows for a moment after.
+struct Copyable: View {
+    let text: String
+    @State private var copied = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(text)
+            Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.system(size: 9, weight: .semibold))
+        }
+        .contentShape(.rect)
+        .onTapGesture {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            copied = true
+        }
+        .help("Click to copy")
+        .task(id: copied) {
+            guard copied else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
+        }
+    }
+}

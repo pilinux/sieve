@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// What Ask mode shows when an unknown app connects.
@@ -84,30 +83,5 @@ struct PromptView: View {
         .foregroundStyle(.ink)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
         .preferredColorScheme(.dark)
-    }
-}
-
-// Text that copies itself on a click. A checkmark shows for a moment after.
-private struct Copyable: View {
-    let text: String
-    @State private var copied = false
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Text(text)
-            Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.system(size: 9, weight: .semibold))
-        }
-        .contentShape(.rect)
-        .onTapGesture {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-            copied = true
-        }
-        .help("Click to copy")
-        .task(id: copied) {
-            guard copied else { return }
-            try? await Task.sleep(for: .seconds(1.5))
-            copied = false
-        }
     }
 }

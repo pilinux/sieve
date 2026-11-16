@@ -74,4 +74,20 @@ struct FileTests {
         #expect(stats.blockedSplit("2026-11-14") == nil)
         #expect(stats.trackerCalls("EQHXZ8M8AV.com.google.Chrome") == 12)
     }
+
+    // Files as saved by the build that added flows per host and address.
+    @Test func statsWithHostHitsLoad() throws {
+        let data = Data(
+            #"""
+            {"addresses":{"EQHXZ8M8AV.com.google.Chrome":{"192.0.2.1":{"day":"2026-11-16","host":"example.com",
+            "hits":{"count":4,"last":800000000}}}},
+            "apple":[],"apps":{"EQHXZ8M8AV.com.google.Chrome":{"example.com":"2026-11-16"}},
+            "blocked":{},"blockedTrackers":{},"brokenConfig":false,"bytes":{},"daily":{},"flags":[],"hits":[],
+            "hostHits":{"EQHXZ8M8AV.com.google.Chrome":{"example.com":{"count":5,"last":800000000}}},
+            "listSizes":{},"networks":[],"paths":{},"seen":{"EQHXZ8M8AV.com.google.Chrome":"2026-11-16"},"trackers":[]}
+            """#.utf8)
+        let stats = try JSONDecoder().decode(Stats.self, from: data)
+        #expect(stats.hostHits?["EQHXZ8M8AV.com.google.Chrome"]?["example.com"]?.count == 5)
+        #expect(stats.addresses?["EQHXZ8M8AV.com.google.Chrome"]?["192.0.2.1"]?.hits?.count == 4)
+    }
 }

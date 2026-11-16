@@ -3,6 +3,8 @@ import SwiftUI
 struct RulesView: View {
     let filter: Filter
     @State private var query = ""
+    // The row whose app shows its hosts and addresses.
+    @State private var traffic: String?
 
     // The order of `Config.decide`, with the verdicts each step can give.
     private static let steps: [(label: String, outs: [Color])] = [
@@ -249,6 +251,11 @@ struct RulesView: View {
             }
         }
         .padding(.trailing, 8)
+        .contentShape(.rect)
+        .onTapGesture { traffic = row.id }
+        .popover(isPresented: .init(get: { traffic == row.id }, set: { if !$0 { traffic = nil } })) {
+            Traffic(stats: stats, app: row.app)
+        }
     }
 
     private func hits(_ row: Row) -> (count: Int, last: Date?) {
@@ -285,6 +292,52 @@ struct RulesView: View {
     }
 
     private func flag(_ row: Row) -> Flag? { row.rules.lazy.compactMap { filter.stats.flags[$0.id] }.first }
+}
+
+// The hosts and IP addresses of one app, each with flows and the last one, most first.
+private struct Traffic: View {
+    let stats: Stats
+    let app: String
+
+    var body: some View {
+        let hosts = stats.apps[app, default: [:]].keys.map { (name: $0, hit: stats.hostHits?[app]?[$0]) }
+        let addresses = (stats.addresses?[app] ?? [:]).map { (name: $0.key, hit: $0.value.hits) }
+        let content = VStack(alignment: .leading, spacing: 6) {
+            section("Hosts", hosts)
+            section("IP addresses", addresses).padding(.top, 10)
+        }
+        .padding(16)
+        .frame(width: 440, alignment: .leading)
+        // Short lists take only the height they need.
+        ViewThatFits(in: .vertical) {
+            content
+            ScrollView { content }
+        }
+        .frame(maxHeight: 420)
+    }
+
+    private func section(_ title: String, _ items: [(name: String, hit: Hit?)]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Caption("\(title) · \(items.count)")
+                Spacer()
+                Caption("Flows")
+                Caption("Last flow").frame(width: 110, alignment: .trailing)
+            }
+            // An entry from before Sieve counted flows sorts last.
+            ForEach(items.sorted { ($0.hit?.count ?? -1, $1.name) > ($1.hit?.count ?? -1, $0.name) }, id: \.name) { item in
+                HStack {
+                    Copyable(text: item.name).lineLimit(1).truncationMode(.middle)
+                    Spacer()
+                    Text(item.hit.map { $0.count.formatted() } ?? "–").monospacedDigit()
+                    Text(item.hit.map { $0.last.formatted(.relative(presentation: .named)) } ?? "–")
+                        .foregroundStyle(.ink3).lineLimit(1)
+                        .frame(width: 110, alignment: .trailing)
+                }
+                .font(.aileron(12))
+            }
+        }
+    }
 }
 
 // One table row, with a line on top. The fixed height keeps the fixed and scrolling parts lined up.

@@ -47,6 +47,9 @@ struct Stats: Codable, Equatable {
     var trackerFlows: [String: [String: Int]]?
     /// Keys of VPN and proxy apps. Their flows carry other apps' traffic again. It is optional, so an older file without it still loads.
     var vpns: Set<String>?
+    /// Flows to each host, allowed or blocked, and the last one, by app key, then host.
+    /// It is optional, so an older file without it still loads.
+    var hostHits: [String: [String: Hit]]?
 
     /// The most hosts, and the most IP addresses, that Sieve keeps for one app.
     static let maxHosts = 1_000
@@ -90,12 +93,13 @@ struct Stats: Codable, Equatable {
             changed = true
         }
         if let host, apps[app]?[host] != day {
-            Self.makeRoom(for: host, in: &apps[app, default: [:]]) { $0 }
+            if let gone = Self.makeRoom(for: host, in: &apps[app, default: [:]], day: { $0 }) { hostHits?[app]?[gone] = nil }
             apps[app, default: [:]][host] = day
             changed = true
         }
         if let address {
-            let new = Address(day: day, host: host ?? addresses?[app]?[address]?.host)
+            let old = addresses?[app]?[address]
+            let new = Address(day: day, host: host ?? old?.host, hits: old?.hits)
             if addresses?[app]?[address] != new {
                 // Take the map out first. With one owner, Swift changes it in place instead of copying it.
                 var all = addresses.take() ?? [:]
@@ -137,6 +141,20 @@ struct Stats: Codable, Equatable {
         (daily[day] ?? [:]).filter { vpns?.contains($0.key) != true }.values.reduce(0, +)
     }
 
+    /// Counts one flow from the app to `host` and `address`. Call it after `see(_:host:address:day:)`, which adds them.
+    mutating func countFlow(_ app: String, host: String?, address: String?, time: Date) {
+        if let host {
+            // Take the map out first. With one owner, Swift changes it in place instead of copying it.
+            var all = hostHits.take() ?? [:]
+            all[app, default: [:]][host, default: Hit()].count += 1
+            all[app]?[host]?.last = time
+            hostHits = all
+        }
+        if let address, let old = addresses?[app]?[address] {
+            addresses?[app]?[address]?.hits = Hit(count: (old.hits?.count ?? 0) + 1, last: time)
+        }
+    }
+
     /// Counts one flow from the app to a tracker host.
     mutating func countTrackerFlow(_ app: String, host: String) {
         // Take the map out first. With one owner, Swift changes it in place instead of copying it.
@@ -155,16 +173,18 @@ struct Stats: Codable, Equatable {
         trackerFlows?.values.reduce(0) { $0 + ($1[host] ?? 0) } ?? 0
     }
 
-    // Drops the entry seen longest ago when a new key would pass `maxHosts`.
-    private static func makeRoom<Value>(for key: String, in map: inout [String: Value], day: (Value) -> String) {
+    // Drops the entry seen longest ago when a new key would pass `maxHosts`, and returns its key.
+    @discardableResult
+    private static func makeRoom<Value>(for key: String, in map: inout [String: Value], day: (Value) -> String) -> String? {
         guard map[key] == nil, map.count >= maxHosts,
             let oldest = map.min(by: { (day($0.value), $0.key) < (day($1.value), $1.key) })?.key
-        else { return }
+        else { return nil }
         map[oldest] = nil
+        return oldest
     }
 
     /// Removes what was last seen on or before `cutoff`: hosts, addresses, days, and apps with no rule and no data limit.
-    /// Also removes the hits of rules not in `config`, trackers no app still has, and tracker flows to hosts an app dropped.
+    /// Also removes the hits of rules not in `config`, trackers no app still has, and tracker flows and host hits of hosts an app dropped.
     mutating func prune(_ config: Config, cutoff: String) {
         let kept = Set(config.rules.map(\.app) + config.limits.map(\.app))
         for (app, day) in seen where day <= cutoff && !kept.contains(app) {
@@ -184,18 +204,23 @@ struct Stats: Codable, Equatable {
             let hosts = entry.value.filter { apps[entry.key]?[$0.key] != nil }
             if !hosts.isEmpty { kept[entry.key] = hosts }
         }
+        hostHits = hostHits?.reduce(into: [:]) { kept, entry in
+            let hosts = entry.value.filter { apps[entry.key]?[$0.key] != nil }
+            if !hosts.isEmpty { kept[entry.key] = hosts }
+        }
         daily = daily.filter { $0.key > cutoff }
         let rules = Set(config.rules.map(\.id))
         hits = hits.filter { rules.contains($0.key) }
         trackers = trackers.filter { host in apps.values.contains { $0[host] != nil } }
     }
 
-    /// Clears the app's history: its hosts, addresses, tracker flows, bytes, and rule hits. The app stays in the list, with its path.
+    /// Clears the app's history: its hosts, addresses, tracker flows, host hits, bytes, and rule hits. The app stays in the list, with its path.
     /// - Parameter rules: the IDs of the app's rules.
     mutating func forget(_ app: String, rules: [UUID]) {
         apps[app] = [:]
         addresses?[app] = nil
         trackerFlows?[app] = nil
+        hostHits?[app] = nil
         bytes[app] = nil
         for day in daily.keys { daily[day]?[app] = nil }
         for rule in rules { hits[rule] = nil }
@@ -220,6 +245,8 @@ struct Address: Codable, Equatable {
     var day: String
     /// The last host name seen with it, or nil if no flow to it had one.
     var host: String?
+    /// Flows to it, allowed or blocked, and the last one. Nil for an address seen before Sieve counted them.
+    var hits: Hit?
 
     /// The address in the form rules and stats use, or nil if `text` is not an IP address.
     /// Drops the `%` zone from IPv6, and turns an IPv4-mapped IPv6 address into IPv4.
