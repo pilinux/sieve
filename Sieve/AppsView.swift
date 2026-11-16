@@ -253,6 +253,7 @@ private struct XRay: View {
     let app: String
     @FocusState private var editing: Bool
     @State private var clearing = false
+    @State private var undeciding = false
 
     var body: some View {
         let stats = filter.stats
@@ -286,6 +287,19 @@ private struct XRay: View {
                     } message: {
                         Text("Its traffic, hosts, IP addresses, and rule hits go. Its rules and data limit stay.")
                     }
+                // Without an app rule, an Apple app still counts as decided, so the button would not move it.
+                if config.hasAppRule(app), !stats.apple.contains(app) {
+                    // An Always rule comes back with one click, but profile rules take more, so ask only for those.
+                    let profiled = config.rules.contains { $0.app == app && $0.host == nil && $0.profile != nil }
+                    IconButton(icon: "arrow.uturn.backward", help: "Make undecided", ring: true) {
+                        if profiled { undeciding = true } else { undecide() }
+                    }
+                    .confirmationDialog("Make \(stats.name(app)) undecided?", isPresented: $undeciding) {
+                        Button("Make Undecided", role: .destructive) { undecide() }
+                    } message: {
+                        Text("Its app rules in every profile go. Its host rules stay.")
+                    }
+                }
                 // `unknown` cannot have a rule, because many processes share it.
                 if app != Config.unknownApp {
                     Segments(verdict: config.action(for: app)) { action in filter.update { $0.setAction(action, for: app) } }
@@ -317,6 +331,11 @@ private struct XRay: View {
         // macOS keeps a field focused when the user clicks outside it.
         .contentShape(.rect)
         .onTapGesture { editing = false }
+    }
+
+    // Removes the app rules in every column, so the app goes back to Undecided. Host rules stay.
+    private func undecide() {
+        filter.update { $0.rules.removeAll { $0.app == app && $0.host == nil } }
     }
 
     private func grade(_ grade: String, trackers: Int, blocked: Int, hosts: Int) -> some View {
