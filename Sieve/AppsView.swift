@@ -116,8 +116,10 @@ struct AppsView: View {
                     Text(stats.name(app)).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
                     GradeBadge(grade: stats.grade(app))
                 }
-                Text("\(hosts.count) hosts · \(hosts.intersection(stats.trackers).count) trackers")
-                    .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
+                Text(
+                    "\(hosts.count) hosts · \(stats.addresses?[app]?.count ?? 0) IPs · \(hosts.intersection(stats.trackers).count) trackers"
+                )
+                .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
             }
             Spacer()
             IconButton(icon: "xmark", help: "Block", tint: .block, ring: true) {

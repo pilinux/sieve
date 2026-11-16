@@ -252,8 +252,10 @@ struct AppRow: View {
                         Text(stats.name(app)).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
                         GradeBadge(grade: stats.grade(app))
                     }
-                    Text("\(bytes(stats.bytes[app] ?? 0)) · \(stats.apps[app]?.count ?? 0) hosts")
-                        .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit().lineLimit(1)
+                    Text(
+                        "\(bytes(stats.bytes[app] ?? 0)) · \(stats.apps[app]?.count ?? 0) hosts · \(stats.addresses?[app]?.count ?? 0) IPs"
+                    )
+                    .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit().lineLimit(1)
                 }
             }
             .opacity(on ? 1 : 0.5)
