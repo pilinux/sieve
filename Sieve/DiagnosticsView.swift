@@ -4,6 +4,8 @@ import SwiftUI
 /// Counts from both error logs, and their newest entries.
 struct DiagnosticsView: View {
     let filter: Filter
+    // The time of the open entry. Row positions shift when new entries arrive, so the time is the identity.
+    @State private var open: Date?
 
     var body: some View {
         let entries = filter.logs.values.flatMap(\.entries).sorted { $0.time > $1.time }
@@ -102,13 +104,24 @@ struct DiagnosticsView: View {
                 .frame(minHeight: 18)
                 if let detail = entry.detail {
                     Text(detail).font(.system(size: 11, design: .monospaced)).foregroundStyle(.ink3)
-                        .lineLimit(1).truncationMode(.tail)
+                        .lineLimit(open == entry.time ? nil : 1).truncationMode(.tail)
                         .help("\(detail)\n\(entry.build ?? "")")
+                }
+                if open == entry.time {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let file = entry.file { Text("\(file):\(entry.line ?? 0) in \(entry.function ?? "?")") }
+                        if let build = entry.build { Text("Build \(build)") }
+                        Text(entry.time.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true)))
+                    }
+                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(.ink3)
+                    .padding(.top, 4)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 10)
+        .contentShape(.rect)
+        .onTapGesture { open = open == entry.time ? nil : entry.time }
         .overlay(alignment: .top) { Rectangle().fill(.line).frame(height: 1) }
     }
 }
