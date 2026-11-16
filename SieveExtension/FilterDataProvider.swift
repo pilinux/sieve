@@ -59,7 +59,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
     override func handleNewFlow(_ flow: NEFilterFlow) -> NEFilterNewFlowVerdict {
         let app = app(of: flow)
         let host = flow.hostname
-        let action = store.verdict(app: app, host: host, address: flow.address)
+        let action = store.verdict(app: app, host: host, address: flow.address, dns: flow.isDNS)
         // Keep the app and host private, because this log ends up in sysdiagnose reports.
         logger.log("\(action?.rawValue ?? "ask", privacy: .public) \(app.key, privacy: .private) to \(host ?? "?", privacy: .private)")
         switch action {
@@ -110,7 +110,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(100)) { [self] in
             for flow in flows {
                 let flowHost = flow.hostname
-                var action = store.verdict(app: app, host: flowHost, address: flow.address)
+                var action = store.verdict(app: app, host: flowHost, address: flow.address, dns: flow.isDNS)
                 if action == nil, let answer, !answer.hostOnly || flowHost == host {
                     action = answer.action
                     if action == .block { store.countBlocked() }
@@ -171,7 +171,20 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
 }
 
 private extension NEFilterFlow {
-    var hostname: String? { (url?.host ?? (self as? NEFilterSocketFlow)?.remoteHostname).flatMap(DomainList.normalize) }
+    // A query to port 53 carries the name it looks up, not the server's. So a public resolver takes its own name from the
+    // list, and any other server gets none. DNS over HTTPS and TLS name the server, so other ports keep their name.
+    var hostname: String? {
+        if port == 53 { return address.flatMap(PublicDNS.bundled.entry)?.host }
+        return (url?.host ?? (self as? NEFilterSocketFlow)?.remoteHostname).flatMap(DomainList.normalize)
+    }
+
+    // Port 53 is plain DNS, and 853 is DNS over TLS.
+    var isDNS: Bool { port == 53 || port == 853 }
+
+    private var port: UInt16? {
+        guard case .some(.hostPort(_, let port)) = (self as? NEFilterSocketFlow)?.remoteFlowEndpoint else { return nil }
+        return port.rawValue
+    }
 
     // When the flow is new, the endpoint may still be unset, or it may be a host name.
     var address: String? {

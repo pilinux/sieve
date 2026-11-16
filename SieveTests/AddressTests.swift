@@ -112,4 +112,32 @@ struct AddressTests {
         stats.forget(app, rules: [])
         #expect(stats.hostHits?[app] == nil)
     }
+
+    @Test func isLocalCoversOnlyLocalRanges() {
+        for address in ["10.1.0.1", "172.31.255.255", "192.168.1.1", "100.100.100.100", "169.254.1.1", "fd00::1", "fe80::1"] {
+            #expect(Address.isLocal(address), "\(address)")
+        }
+        for address in ["172.32.0.1", "100.128.0.1", "1.1.1.3", "2606:4700:4700::1113", "example.com"] {
+            #expect(!Address.isLocal(address), "\(address)")
+        }
+    }
+
+    @Test func seeKeepsTheDNSMark() {
+        var stats = Stats()
+        _ = stats.see(app, host: nil, address: "192.168.1.1", dns: true, day: day)
+        _ = stats.see(app, host: "router.example", address: "192.168.1.1", day: "2026-11-14")
+        #expect(stats.addresses?[app]?["192.168.1.1"] == Address(day: "2026-11-14", host: "router.example", dns: true))
+        _ = stats.see(app, host: nil, address: "192.168.1.2", day: day)
+        #expect(stats.addresses?[app]?["192.168.1.2"]?.dns == nil)
+    }
+
+    @Test func dnsFlowReplacesTheHostName() {
+        var stats = Stats()
+        _ = stats.see(app, host: "api.github.com", address: "10.1.0.1", day: day)
+        _ = stats.see(app, host: nil, address: "10.1.0.1", dns: true, day: day)
+        #expect(stats.addresses?[app]?["10.1.0.1"] == Address(day: day, host: nil, dns: true))
+        _ = stats.see(app, host: "api.github.com", address: "1.1.1.3", day: day)
+        _ = stats.see(app, host: "family.cloudflare-dns.com", address: "1.1.1.3", dns: true, day: day)
+        #expect(stats.addresses?[app]?["1.1.1.3"]?.host == "family.cloudflare-dns.com")
+    }
 }

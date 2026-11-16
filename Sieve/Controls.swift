@@ -88,6 +88,18 @@ extension Chip {
     }
 
     static let tracker = Chip(text: "Tracker", icon: "exclamationmark.triangle.fill", iconColor: .warn, fill: .warn.opacity(0.14))
+
+    /// The DNS tag of a host or address: "Public DNS" when it is on the list, and hover shows the provider.
+    /// Else, for an address that a DNS flow went to, "Local DNS" on a local network, or "DNS".
+    @ViewBuilder static func dns(_ value: String, used: Bool = false) -> some View {
+        if let entry = PublicDNS.bundled.entry(for: value) {
+            Chip(text: "Public DNS", icon: "server.rack").help("\(entry.provider) public DNS resolver")
+        } else if used {
+            let local = Address.isLocal(value)
+            Chip(text: local ? "Local DNS" : "DNS", icon: "server.rack")
+                .help(local ? "A DNS server on a local network" : "A DNS server")
+        }
+    }
 }
 
 /// A privacy grade, A to F, on its own colour.

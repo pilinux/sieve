@@ -90,4 +90,17 @@ struct FileTests {
         #expect(stats.hostHits?["EQHXZ8M8AV.com.google.Chrome"]?["example.com"]?.count == 5)
         #expect(stats.addresses?["EQHXZ8M8AV.com.google.Chrome"]?["192.0.2.1"]?.hits?.count == 4)
     }
+
+    // Files as saved by the build that marked DNS addresses.
+    @Test func statsWithDNSMarkLoad() throws {
+        let data = Data(
+            #"""
+            {"addresses":{"com.apple.mDNSResponder":{"192.168.1.1":{"day":"2026-11-16","dns":true}}},
+            "apple":["com.apple.mDNSResponder"],"apps":{"com.apple.mDNSResponder":{}},
+            "blocked":{},"blockedTrackers":{},"brokenConfig":false,"bytes":{},"daily":{},"flags":[],"hits":[],
+            "listSizes":{},"networks":[],"paths":{},"seen":{"com.apple.mDNSResponder":"2026-11-16"},"trackers":[]}
+            """#.utf8)
+        let stats = try JSONDecoder().decode(Stats.self, from: data)
+        #expect(stats.addresses?["com.apple.mDNSResponder"]?["192.168.1.1"]?.dns == true)
+    }
 }

@@ -85,8 +85,9 @@ struct Stats: Codable, Equatable {
 
     /// Records that the app made a flow on `day`, to `host` and `address` if known. Returns whether anything changed.
     /// Once the app has `maxHosts`, a new host or address replaces the one seen longest ago.
-    /// An address keeps its last host name when a later flow to it has none.
-    mutating func see(_ app: String, host: String?, address: String? = nil, day: String) -> Bool {
+    /// An address keeps its last host name when a later flow to it has none, unless that flow is DNS, whose host name
+    /// replaces it even when it is none. An address stays marked once a flow to it was DNS.
+    mutating func see(_ app: String, host: String?, address: String? = nil, dns: Bool = false, day: String) -> Bool {
         var changed = seen.updateValue(day, forKey: app) != day
         if apps[app] == nil {
             apps[app] = [:]
@@ -99,7 +100,8 @@ struct Stats: Codable, Equatable {
         }
         if let address {
             let old = addresses?[app]?[address]
-            let new = Address(day: day, host: host ?? old?.host, hits: old?.hits)
+            let new = Address(
+                day: day, host: dns ? host : host ?? old?.host, hits: old?.hits, dns: dns || old?.dns == true ? true : nil)
             if addresses?[app]?[address] != new {
                 // Take the map out first. With one owner, Swift changes it in place instead of copying it.
                 var all = addresses.take() ?? [:]
@@ -247,6 +249,17 @@ struct Address: Codable, Equatable {
     var host: String?
     /// Flows to it, allowed or blocked, and the last one. Nil for an address seen before Sieve counted them.
     var hits: Hit?
+    /// True once a flow to it was DNS: port 53, or 853 for DNS over TLS. Nil otherwise.
+    var dns: Bool?
+
+    /// Whether the address is in a range for local networks: RFC 1918, RFC 6598 shared space, link-local, or RFC 4193.
+    static func isLocal(_ address: String) -> Bool {
+        localRanges.contains { $0.contains(address) }
+    }
+
+    private static let localRanges = [
+        "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", "fc00::/7", "fe80::/10",
+    ].compactMap { AddressRange($0) }
 
     /// The address in the form rules and stats use, or nil if `text` is not an IP address.
     /// Drops the `%` zone from IPv6, and turns an IPv4-mapped IPv6 address into IPv4.
@@ -256,6 +269,32 @@ struct Address: Codable, Equatable {
         if ipv6.isIPv4Mapped, let ipv4 = ipv6.asIPv4 { return "\(ipv4)" }
         // Rebuilding the address from its bytes leaves out the interface, so the zone goes too.
         return IPv6Address(ipv6.rawValue).map { "\($0)" }
+    }
+}
+
+/// The IP addresses that share their first bits, written as `prefix/length`, such as `10.0.0.0/8`.
+struct AddressRange {
+    private let prefix: [UInt8]
+    private let length: Int
+
+    init?(_ text: String) {
+        let parts = text.split(separator: "/")
+        guard parts.count == 2, let length = Int(parts[1]), let prefix = Self.bytes(String(parts[0])),
+            (0...prefix.count * 8).contains(length)
+        else { return nil }
+        self.prefix = prefix
+        self.length = length
+    }
+
+    func contains(_ address: String) -> Bool {
+        guard let bytes = Self.bytes(address), bytes.count == prefix.count else { return false }
+        return (0..<length).allSatisfy { bit in (bytes[bit / 8] ^ prefix[bit / 8]) & (0x80 >> (bit % 8)) == 0 }
+    }
+
+    // Normalizing first makes an IPv4-mapped IPv6 address compare as IPv4.
+    private static func bytes(_ text: String) -> [UInt8]? {
+        guard let address = Address.normalize(text) else { return nil }
+        return (IPv4Address(address)?.rawValue ?? IPv6Address(address)?.rawValue).map(Array.init)
     }
 }
 

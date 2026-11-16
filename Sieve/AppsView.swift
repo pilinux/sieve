@@ -461,6 +461,7 @@ private struct XRay: View {
                         }
                         Spacer()
                         if tracker { Chip.tracker }
+                        Chip.dns(host)
                         if app != Config.unknownApp {
                             // A parent domain's rule is not this host's to remove.
                             if rule?.host == host { undecideButton(host) }
@@ -478,12 +479,14 @@ private struct XRay: View {
 
     // Rows with no host name come first, because only an IP rule can catch those flows.
     private func addressList(_ addresses: [String: Address]) -> some View {
-        let rows = addresses.map { (address: $0.key, host: $0.value.host, action: filter.config.action(for: app, host: $0.key)) }
-            .sorted { ($0.host == nil ? 0 : 1, $0.host ?? "", $0.address) < ($1.host == nil ? 0 : 1, $1.host ?? "", $1.address) }
+        let rows = addresses.map {
+            (address: $0.key, host: $0.value.host, used: $0.value.dns == true, action: filter.config.action(for: app, host: $0.key))
+        }
+        .sorted { ($0.host == nil ? 0 : 1, $0.host ?? "", $0.address) < ($1.host == nil ? 0 : 1, $1.host ?? "", $1.address) }
         return VStack(alignment: .leading, spacing: 0) {
             listHead("IP addresses", actions: rows.map(\.action))
             LazyVStack(spacing: 0) {
-                ForEach(rows, id: \.address) { address, host, action in
+                ForEach(rows, id: \.address) { address, host, used, action in
                     Rectangle().fill(.line).frame(height: 1)
                     HStack(spacing: 10) {
                         Image(systemName: "circle").font(.system(size: 5, weight: .semibold)).foregroundStyle(.ink3)
@@ -495,6 +498,7 @@ private struct XRay: View {
                             Chip(text: "No host name")
                         }
                         Spacer()
+                        Chip.dns(address, used: used)
                         if app != Config.unknownApp {
                             if action != nil { undecideButton(address) }
                             Segments(verdict: action, small: true) { action in

@@ -1,0 +1,232 @@
+# Public DNS resolvers. The filter uses their host names, and X-Ray and Rules tag them.
+# One record per line: value,provider,host
+# value: an IP address, a range as prefix/length, or a host name. A host name also matches its subdomains.
+# provider: the name hover shows. It must not hold a comma.
+# host: for an address, the resolver's host name, shown when no flow named one. Else empty.
+8.8.8.8,Google,dns.google
+8.8.4.4,Google,dns.google
+2001:4860:4860::8888,Google,dns.google
+2001:4860:4860::8844,Google,dns.google
+dns.google,Google
+2001:4860:4860::6464,Google,dns64.dns.google
+2001:4860:4860::64,Google,dns64.dns.google
+dns64.dns.google,Google
+1.1.1.1,Cloudflare,one.one.one.one
+1.0.0.1,Cloudflare,one.one.one.one
+2606:4700:4700::1111,Cloudflare,one.one.one.one
+2606:4700:4700::1001,Cloudflare,one.one.one.one
+one.one.one.one,Cloudflare
+cloudflare-dns.com,Cloudflare
+1dot1dot1dot1.cloudflare-dns.com,Cloudflare
+mozilla.cloudflare-dns.com,Cloudflare
+1.1.1.2,Cloudflare,security.cloudflare-dns.com
+1.0.0.2,Cloudflare,security.cloudflare-dns.com
+2606:4700:4700::1112,Cloudflare,security.cloudflare-dns.com
+2606:4700:4700::1002,Cloudflare,security.cloudflare-dns.com
+security.cloudflare-dns.com,Cloudflare
+1.1.1.3,Cloudflare,family.cloudflare-dns.com
+1.0.0.3,Cloudflare,family.cloudflare-dns.com
+2606:4700:4700::1113,Cloudflare,family.cloudflare-dns.com
+2606:4700:4700::1003,Cloudflare,family.cloudflare-dns.com
+family.cloudflare-dns.com,Cloudflare
+9.9.9.9,Quad9,dns.quad9.net
+149.112.112.112,Quad9,dns.quad9.net
+2620:fe::fe,Quad9,dns.quad9.net
+2620:fe::9,Quad9,dns.quad9.net
+dns.quad9.net,Quad9
+dns9.quad9.net,Quad9
+9.9.9.11,Quad9,dns11.quad9.net
+149.112.112.11,Quad9,dns11.quad9.net
+2620:fe::11,Quad9,dns11.quad9.net
+2620:fe::fe:11,Quad9,dns11.quad9.net
+dns11.quad9.net,Quad9
+9.9.9.10,Quad9,dns10.quad9.net
+149.112.112.10,Quad9,dns10.quad9.net
+2620:fe::10,Quad9,dns10.quad9.net
+2620:fe::fe:10,Quad9,dns10.quad9.net
+dns10.quad9.net,Quad9
+208.67.222.222,OpenDNS,dns.opendns.com
+208.67.220.220,OpenDNS,dns.opendns.com
+2620:119:35::35,OpenDNS,dns.opendns.com
+2620:119:53::53,OpenDNS,dns.opendns.com
+dns.opendns.com,OpenDNS
+doh.opendns.com,OpenDNS
+208.67.222.123,OpenDNS,familyshield.opendns.com
+208.67.220.123,OpenDNS,familyshield.opendns.com
+2620:119:35::123,OpenDNS,familyshield.opendns.com
+2620:119:53::123,OpenDNS,familyshield.opendns.com
+familyshield.opendns.com,OpenDNS
+doh.familyshield.opendns.com,OpenDNS
+208.67.222.2,OpenDNS,sandbox.opendns.com
+208.67.220.2,OpenDNS,sandbox.opendns.com
+2620:0:ccd::2,OpenDNS,sandbox.opendns.com
+2620:0:ccc::2,OpenDNS,sandbox.opendns.com
+sandbox.opendns.com,OpenDNS
+doh.sandbox.opendns.com,OpenDNS
+94.140.14.14,AdGuard,dns.adguard-dns.com
+94.140.15.15,AdGuard,dns.adguard-dns.com
+2a10:50c0::ad1:ff,AdGuard,dns.adguard-dns.com
+2a10:50c0::ad2:ff,AdGuard,dns.adguard-dns.com
+dns.adguard-dns.com,AdGuard
+94.140.14.140,AdGuard,unfiltered.adguard-dns.com
+94.140.14.141,AdGuard,unfiltered.adguard-dns.com
+2a10:50c0::1:ff,AdGuard,unfiltered.adguard-dns.com
+2a10:50c0::2:ff,AdGuard,unfiltered.adguard-dns.com
+unfiltered.adguard-dns.com,AdGuard
+94.140.14.15,AdGuard,family.adguard-dns.com
+94.140.15.16,AdGuard,family.adguard-dns.com
+2a10:50c0::bad1:ff,AdGuard,family.adguard-dns.com
+2a10:50c0::bad2:ff,AdGuard,family.adguard-dns.com
+family.adguard-dns.com,AdGuard
+185.228.168.9,CleanBrowsing,security-filter-dns.cleanbrowsing.org
+185.228.169.9,CleanBrowsing,security-filter-dns.cleanbrowsing.org
+2a0d:2a00:1::2,CleanBrowsing,security-filter-dns.cleanbrowsing.org
+2a0d:2a00:2::2,CleanBrowsing,security-filter-dns.cleanbrowsing.org
+security-filter-dns.cleanbrowsing.org,CleanBrowsing
+185.228.168.10,CleanBrowsing,adult-filter-dns.cleanbrowsing.org
+185.228.169.11,CleanBrowsing,adult-filter-dns.cleanbrowsing.org
+2a0d:2a00:1::1,CleanBrowsing,adult-filter-dns.cleanbrowsing.org
+2a0d:2a00:2::1,CleanBrowsing,adult-filter-dns.cleanbrowsing.org
+adult-filter-dns.cleanbrowsing.org,CleanBrowsing
+185.228.168.168,CleanBrowsing,family-filter-dns.cleanbrowsing.org
+185.228.169.168,CleanBrowsing,family-filter-dns.cleanbrowsing.org
+2a0d:2a00:1::,CleanBrowsing,family-filter-dns.cleanbrowsing.org
+2a0d:2a00:2::,CleanBrowsing,family-filter-dns.cleanbrowsing.org
+family-filter-dns.cleanbrowsing.org,CleanBrowsing
+doh.cleanbrowsing.org,CleanBrowsing
+76.76.2.0,Control D,p0.freedns.controld.com
+76.76.10.0,Control D,p0.freedns.controld.com
+2606:1a40::0,Control D,p0.freedns.controld.com
+2606:1a40:1::0,Control D,p0.freedns.controld.com
+p0.freedns.controld.com,Control D
+freedns.controld.com,Control D
+dns.controld.com,Control D
+76.76.2.1,Control D,p1.freedns.controld.com
+76.76.10.1,Control D,p1.freedns.controld.com
+2606:1a40::1,Control D,p1.freedns.controld.com
+2606:1a40:1::1,Control D,p1.freedns.controld.com
+p1.freedns.controld.com,Control D
+76.76.2.2,Control D,p2.freedns.controld.com
+76.76.10.2,Control D,p2.freedns.controld.com
+2606:1a40::2,Control D,p2.freedns.controld.com
+2606:1a40:1::2,Control D,p2.freedns.controld.com
+p2.freedns.controld.com,Control D
+76.76.2.3,Control D,p3.freedns.controld.com
+76.76.10.3,Control D,p3.freedns.controld.com
+2606:1a40::3,Control D,p3.freedns.controld.com
+2606:1a40:1::3,Control D,p3.freedns.controld.com
+p3.freedns.controld.com,Control D
+76.76.2.4,Control D,family.freedns.controld.com
+76.76.10.4,Control D,family.freedns.controld.com
+2606:1a40::4,Control D,family.freedns.controld.com
+2606:1a40:1::4,Control D,family.freedns.controld.com
+family.freedns.controld.com,Control D
+45.90.28.0/24,NextDNS,dns.nextdns.io
+45.90.30.0/24,NextDNS,dns.nextdns.io
+2a07:a8c0::/96,NextDNS,dns.nextdns.io
+2a07:a8c1::/96,NextDNS,dns.nextdns.io
+dns.nextdns.io,NextDNS
+firefox.dns.nextdns.io,NextDNS
+194.242.2.2,Mullvad,dns.mullvad.net
+2a07:e340::2,Mullvad,dns.mullvad.net
+dns.mullvad.net,Mullvad
+194.242.2.3,Mullvad,adblock.dns.mullvad.net
+2a07:e340::3,Mullvad,adblock.dns.mullvad.net
+adblock.dns.mullvad.net,Mullvad
+194.242.2.4,Mullvad,base.dns.mullvad.net
+2a07:e340::4,Mullvad,base.dns.mullvad.net
+base.dns.mullvad.net,Mullvad
+194.242.2.5,Mullvad,extended.dns.mullvad.net
+2a07:e340::5,Mullvad,extended.dns.mullvad.net
+extended.dns.mullvad.net,Mullvad
+194.242.2.6,Mullvad,family.dns.mullvad.net
+2a07:e340::6,Mullvad,family.dns.mullvad.net
+family.dns.mullvad.net,Mullvad
+194.242.2.9,Mullvad,all.dns.mullvad.net
+2a07:e340::9,Mullvad,all.dns.mullvad.net
+all.dns.mullvad.net,Mullvad
+86.54.11.1,DNS4EU,protective.joindns4.eu
+86.54.11.201,DNS4EU,protective.joindns4.eu
+2a13:1001::86:54:11:1,DNS4EU,protective.joindns4.eu
+2a13:1001::86:54:11:201,DNS4EU,protective.joindns4.eu
+protective.joindns4.eu,DNS4EU
+86.54.11.12,DNS4EU,child.joindns4.eu
+86.54.11.212,DNS4EU,child.joindns4.eu
+2a13:1001::86:54:11:12,DNS4EU,child.joindns4.eu
+2a13:1001::86:54:11:212,DNS4EU,child.joindns4.eu
+child.joindns4.eu,DNS4EU
+86.54.11.13,DNS4EU,noads.joindns4.eu
+86.54.11.213,DNS4EU,noads.joindns4.eu
+2a13:1001::86:54:11:13,DNS4EU,noads.joindns4.eu
+2a13:1001::86:54:11:213,DNS4EU,noads.joindns4.eu
+noads.joindns4.eu,DNS4EU
+86.54.11.11,DNS4EU,child-noads.joindns4.eu
+86.54.11.211,DNS4EU,child-noads.joindns4.eu
+2a13:1001::86:54:11:11,DNS4EU,child-noads.joindns4.eu
+2a13:1001::86:54:11:211,DNS4EU,child-noads.joindns4.eu
+child-noads.joindns4.eu,DNS4EU
+86.54.11.100,DNS4EU,unfiltered.joindns4.eu
+86.54.11.200,DNS4EU,unfiltered.joindns4.eu
+2a13:1001::86:54:11:100,DNS4EU,unfiltered.joindns4.eu
+2a13:1001::86:54:11:200,DNS4EU,unfiltered.joindns4.eu
+unfiltered.joindns4.eu,DNS4EU
+185.222.222.222,DNS.SB,dns.sb
+45.11.45.11,DNS.SB,dns.sb
+2a09::,DNS.SB,dns.sb
+2a11::,DNS.SB,dns.sb
+dns.sb,DNS.SB
+doh.dns.sb,DNS.SB
+64.6.64.6,UltraDNS
+64.6.65.6,UltraDNS
+2620:74:1b::1:1,UltraDNS
+2620:74:1c::2:2,UltraDNS
+156.154.70.2,UltraDNS
+156.154.71.2,UltraDNS
+156.154.70.3,UltraDNS
+156.154.71.3,UltraDNS
+8.26.56.26,Comodo
+8.20.247.20,Comodo
+4.2.2.1,Level3
+4.2.2.2,Level3
+4.2.2.3,Level3
+4.2.2.4,Level3
+4.2.2.5,Level3
+4.2.2.6,Level3
+74.82.42.42,Hurricane Electric,ordns.he.net
+2001:470:20::2,Hurricane Electric,ordns.he.net
+ordns.he.net,Hurricane Electric
+101.101.101.101,Quad101,dns.twnic.tw
+101.102.103.104,Quad101,dns.twnic.tw
+2001:de4::101,Quad101,dns.twnic.tw
+2001:de4::102,Quad101,dns.twnic.tw
+dns.twnic.tw,Quad101
+77.88.8.8,Yandex,common.dot.dns.yandex.net
+77.88.8.1,Yandex,common.dot.dns.yandex.net
+2a02:6b8::feed:0ff,Yandex,common.dot.dns.yandex.net
+2a02:6b8:0:1::feed:0ff,Yandex,common.dot.dns.yandex.net
+common.dot.dns.yandex.net,Yandex
+77.88.8.88,Yandex,safe.dot.dns.yandex.net
+77.88.8.2,Yandex,safe.dot.dns.yandex.net
+2a02:6b8::feed:bad,Yandex,safe.dot.dns.yandex.net
+2a02:6b8:0:1::feed:bad,Yandex,safe.dot.dns.yandex.net
+safe.dot.dns.yandex.net,Yandex
+77.88.8.7,Yandex,family.dot.dns.yandex.net
+77.88.8.3,Yandex,family.dot.dns.yandex.net
+2a02:6b8::feed:a11,Yandex,family.dot.dns.yandex.net
+2a02:6b8:0:1::feed:a11,Yandex,family.dot.dns.yandex.net
+family.dot.dns.yandex.net,Yandex
+223.5.5.5,AliDNS,dns.alidns.com
+223.6.6.6,AliDNS,dns.alidns.com
+2400:3200::1,AliDNS,dns.alidns.com
+2400:3200:baba::1,AliDNS,dns.alidns.com
+dns.alidns.com,AliDNS
+1.12.12.12,DNSPod,dot.pub
+120.53.53.53,DNSPod,dot.pub
+dot.pub,DNSPod
+doh.pub,DNSPod
+119.29.29.29,DNSPod
+2402:4e00::,DNSPod
+114.114.114.114,114DNS
+114.114.115.115,114DNS
+180.76.76.76,Baidu
+2400:da00::6666,Baidu

@@ -160,11 +160,12 @@ final class Store: Sendable {
     }
 
     /// Decides one flow and records the app, host, and address. Returns nil when Sieve should ask the user.
-    func verdict(app: App, host: String?, address: String?) -> Action? {
+    /// - Parameter dns: whether the flow is DNS, so its address gets marked.
+    func verdict(app: App, host: String?, address: String?, dns: Bool) -> Action? {
         let today = Stats.day(.now)
         return state.withLock {
             if $0.pruned != today { Self.prune(&$0) }
-            if $0.stats.see(app.key, host: host, address: address, day: today) { $0.statsChanged = true }
+            if $0.stats.see(app.key, host: host, address: address, dns: dns, day: today) { $0.statsChanged = true }
             if host != nil || address != nil {
                 $0.stats.countFlow(app.key, host: host, address: address, time: .now)
                 $0.statsChanged = true
@@ -208,7 +209,7 @@ final class Store: Sendable {
         }
     }
 
-    /// Counts a flow dropped outside `verdict(app:host:address:)`, such as when the Sieve app cannot be asked.
+    /// Counts a flow dropped outside `verdict(app:host:address:dns:)`, such as when the Sieve app cannot be asked.
     func countBlocked() {
         state.withLock {
             $0.stats.countBlocked(day: Stats.day(.now), byList: false)

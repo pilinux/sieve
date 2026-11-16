@@ -242,7 +242,10 @@ struct RulesView: View {
             AppIcon(path: stats.paths[row.app], size: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(stats.name(row.app)).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
-                Text(row.host ?? "All hosts").font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
+                HStack(spacing: 6) {
+                    Text(row.host ?? "All hosts").font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
+                    if let host = row.host { Chip.dns(host, used: stats.addresses?[row.app]?[host]?.dns == true) }
+                }
                 if let flag = flag(row) {
                     Label(flag.rawValue, systemImage: "exclamationmark.triangle.fill")
                         .font(.aileron(11, .semibold))
@@ -300,8 +303,8 @@ private struct Traffic: View {
     let app: String
 
     var body: some View {
-        let hosts = stats.apps[app, default: [:]].keys.map { (name: $0, hit: stats.hostHits?[app]?[$0]) }
-        let addresses = (stats.addresses?[app] ?? [:]).map { (name: $0.key, hit: $0.value.hits) }
+        let hosts = stats.apps[app, default: [:]].keys.map { (name: $0, hit: stats.hostHits?[app]?[$0], dns: false) }
+        let addresses = (stats.addresses?[app] ?? [:]).map { (name: $0.key, hit: $0.value.hits, dns: $0.value.dns == true) }
         let content = VStack(alignment: .leading, spacing: 6) {
             section("Hosts", hosts)
             section("IP addresses", addresses).padding(.top, 10)
@@ -316,7 +319,7 @@ private struct Traffic: View {
         .frame(maxHeight: 420)
     }
 
-    private func section(_ title: String, _ items: [(name: String, hit: Hit?)]) -> some View {
+    private func section(_ title: String, _ items: [(name: String, hit: Hit?, dns: Bool)]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Caption("\(title) · \(items.count)")
@@ -328,6 +331,7 @@ private struct Traffic: View {
             ForEach(items.sorted { ($0.hit?.count ?? -1, $1.name) > ($1.hit?.count ?? -1, $0.name) }, id: \.name) { item in
                 HStack {
                     Copyable(text: item.name).lineLimit(1).truncationMode(.middle)
+                    Chip.dns(item.name, used: item.dns)
                     Spacer()
                     Text(item.hit.map { $0.count.formatted() } ?? "–").monospacedDigit()
                     Text(item.hit.map { $0.last.formatted(.relative(presentation: .named)) } ?? "–")
