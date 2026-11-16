@@ -50,14 +50,14 @@ struct RateLine: View {
 
     var body: some View {
         let top = max(values.max() ?? 0, 1)
+        let points = Array(values.enumerated())
+        // A vectorized plot draws the whole series as one mark. One mark per point costs far more on every update.
         Chart {
-            ForEach(Array(values.enumerated()), id: \.offset) { second, value in
-                AreaMark(x: .value("Second", second), y: .value("Rate", value))
-                    .foregroundStyle(Color.allow.opacity(0.12))
-                LineMark(x: .value("Second", second), y: .value("Rate", value))
-                    .foregroundStyle(Color.allow)
-                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-            }
+            AreaPlot(points, x: .value("Second", \.offset), y: .value("Rate", \.element))
+                .foregroundStyle(Color.allow.opacity(0.12))
+            LinePlot(points, x: .value("Second", \.offset), y: .value("Rate", \.element))
+                .foregroundStyle(Color.allow)
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             if let last = values.indices.last {
                 PointMark(x: .value("Second", last), y: .value("Rate", values[last]))
                     .foregroundStyle(Color.allow)
@@ -84,8 +84,8 @@ struct RateLine: View {
 
 /// One bar per day from one baseline, with an optional limit line.
 /// A cumulative chart starts each bar where the previous one ended, like a waterfall.
-struct DayBars: View {
-    struct Bar: Identifiable {
+struct DayBars: View, Equatable {
+    struct Bar: Identifiable, Equatable {
         let id: String
         /// The tooltip text after the value: the date, and any lines before it.
         let label: String
@@ -105,6 +105,12 @@ struct DayBars: View {
     var cumulative = false
     let format: (Double) -> String
     @State private var hovered: String?
+
+    // A closure cannot be compared. Each caller always passes the same `format`, so the data alone decides a redraw.
+    static func == (lhs: DayBars, rhs: DayBars) -> Bool {
+        lhs.bars == rhs.bars && lhs.domain == rhs.domain && lhs.color == rhs.color && lhs.limit == rhs.limit
+            && lhs.cumulative == rhs.cumulative
+    }
 
     var body: some View {
         let starts = bars.indices.map { cumulative ? bars[..<$0].reduce(0) { $0 + $1.value } : 0 }
@@ -260,7 +266,7 @@ struct RankedBars<Leading: View>: View {
 
 /// A bar that splits a whole into parts. A tall bar shows each part's value inside it.
 struct SegmentBar: View {
-    struct Part: Identifiable {
+    struct Part: Identifiable, Equatable {
         var id: String { name }
         let name: String
         let value: Int

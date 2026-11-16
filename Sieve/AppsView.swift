@@ -214,7 +214,7 @@ private struct Overview: View {
             .fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 14) {
                 Caption("Data · 31 days")
-                DayBars(bars: data, format: { bytes(Int($0)) }).frame(height: 170)
+                DayBars(bars: data, format: { bytes(Int($0)) }).equatable().frame(height: 170)
             }
             .card()
             HStack(alignment: .top, spacing: 12) {
@@ -228,7 +228,7 @@ private struct Overview: View {
                 .card()
                 VStack(alignment: .leading, spacing: 14) {
                     Caption("Blocked flows · 31 days")
-                    DayBars(bars: blocked, format: { Int($0).formatted() }).frame(height: 172)
+                    DayBars(bars: blocked, format: { Int($0).formatted() }).equatable().frame(height: 172)
                     Legend(parts: legend)
                 }
                 .card()
@@ -415,6 +415,7 @@ private struct XRay: View {
                 bars: bars, domain: month ? monthDays.map { Stats.day($0) } : nil,
                 limit: limit.map { Double($0.bytes) }, cumulative: month, format: { bytes(Int($0)) }
             )
+            .equatable()
             .frame(height: 170)
         }
         .card()
