@@ -21,6 +21,8 @@ import Foundation
     func readErrorLog(reply: @escaping @Sendable (Data) -> Void)
     /// Clears that log.
     func resetErrorLog(reply: @escaping @Sendable (Data) -> Void)
+    /// Returns `Config.listEntries(for:domains:)` for the host, as JSON.
+    func listEntries(_ host: String, reply: @escaping @Sendable (Data) -> Void)
 }
 
 /// Calls from the extension to the app, for Ask mode.

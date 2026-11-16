@@ -198,7 +198,7 @@ struct Config: Codable, Equatable {
 
     /// Whether any block list covers the host, enabled or not.
     func isTracker(_ host: String, domains: [String: Set<String>]) -> Bool {
-        lists.contains { $0.action == .block && Self.covers(domains[$0.id] ?? [], host) }
+        lists.contains { $0.action == .block && Self.entry(in: domains[$0.id] ?? [], for: host) != nil }
     }
 
     /// Whether an enabled block list covers the host and no enabled allow list does.
@@ -207,15 +207,23 @@ struct Config: Codable, Equatable {
     }
 
     private func isListed(_ host: String, _ action: Action, _ domains: [String: Set<String>]) -> Bool {
-        lists.contains { $0.enabled && $0.action == action && Self.covers(domains[$0.id] ?? [], host) }
+        lists.contains { $0.enabled && $0.action == action && Self.entry(in: domains[$0.id] ?? [], for: host) != nil }
     }
 
     // An entry covers its own host and every subdomain, so check the host and then each parent domain.
-    private static func covers(_ entries: Set<String>, _ host: String) -> Bool {
+    /// The entry of each list that covers the host, by list ID, whether the list is on or not.
+    func listEntries(for host: String, domains: [String: Set<String>]) -> [String: String] {
+        lists.reduce(into: [:]) { found, list in
+            if let entry = Self.entry(in: domains[list.id] ?? [], for: host) { found[list.id] = entry }
+        }
+    }
+
+    // The host itself or its nearest parent domain in `entries`, since a list entry covers its subdomains too.
+    private static func entry(in entries: Set<String>, for host: String) -> String? {
         var domain = Substring(host)
         while true {
-            if entries.contains(String(domain)) { return true }
-            guard let dot = domain.firstIndex(of: ".") else { return false }
+            if entries.contains(String(domain)) { return String(domain) }
+            guard let dot = domain.firstIndex(of: ".") else { return nil }
             domain = domain[domain.index(after: dot)...]
         }
     }

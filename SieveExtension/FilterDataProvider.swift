@@ -247,6 +247,10 @@ extension FilterDataProvider: FilterXPC {
         reply(Data())
     }
 
+    func listEntries(_ host: String, reply: @escaping @Sendable (Data) -> Void) {
+        reply((try? JSONEncoder().encode(store.listEntries(for: host))) ?? Data())
+    }
+
     func brokenConfig(reply: @escaping @Sendable (Data) -> Void) {
         reply(store.brokenConfig ?? Data())
     }

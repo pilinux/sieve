@@ -113,4 +113,18 @@ struct ListTests {
         let domains = ["b": Set(["ads.example.com"])]
         #expect(config.verdict(app: app, host: "ads.example.com", isApple: false, domains: domains) == .allow)
     }
+
+    @Test func listEntriesNameTheMatchingEntryOfEachList() {
+        var off = blocked
+        off.id = "off"
+        off.enabled = false
+        let config = Config(lists: [blocked, allowed, off])
+        let domains = ["b": Set(["example.com"]), "a": ["ads.example.com"], "off": ["example.com"]]
+        #expect(
+            config.listEntries(for: "ads.example.com", domains: domains) == [
+                "b": "example.com", "a": "ads.example.com", "off": "example.com",
+            ])
+        #expect(config.listEntries(for: "cdn.example.com", domains: domains) == ["b": "example.com", "off": "example.com"])
+        #expect(config.listEntries(for: "example.org", domains: domains) == [:])
+    }
 }

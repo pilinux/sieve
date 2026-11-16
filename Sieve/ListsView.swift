@@ -6,6 +6,8 @@ struct ListsView: View {
     @State private var url = ""
     @State private var action = Action.block
     @State private var picking = false
+    @State private var domain = ""
+    @State private var checked: (host: String, entries: [String: String])?
 
     var body: some View {
         let config = filter.config
@@ -40,6 +42,13 @@ struct ListsView: View {
                             filter.message = ("Cannot open the file: \(error.localizedDescription)", true)
                         }
                     }
+                    VStack(alignment: .leading, spacing: 12) {
+                        Caption("Check a domain")
+                        TextField("Host name or URL", text: $domain).textFieldStyle(.roundedBorder)
+                            .onSubmit { Task { await check() } }
+                        if let checked { checkResult(checked) }
+                    }
+                    .card()
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(spacing: 10) {
                             Caption("Lists")
@@ -133,6 +142,48 @@ struct ListsView: View {
                 }
             }
             .padding(EdgeInsets(top: 20, leading: 24, bottom: 28, trailing: 24))
+        }
+    }
+
+    // A URL works too. Only its host counts.
+    private func check() async {
+        let text = domain.trimmingCharacters(in: .whitespaces)
+        guard let host = DomainList.normalize(text.contains("://") ? URL(string: text)?.host ?? "" : text) else { return }
+        guard let entries = await filter.listEntries(for: host) else {
+            filter.message = ("The filter cannot be reached, so the lists cannot be checked.", true)
+            return
+        }
+        checked = (host, entries)
+    }
+
+    // The lists' verdict, as `Config.isListBlocked` decides it, then each list that has the host.
+    private func checkResult(_ checked: (host: String, entries: [String: String])) -> some View {
+        let lists = filter.config.lists.filter { checked.entries[$0.id] != nil }
+        let on = lists.filter(\.enabled)
+        let verdict =
+            if on.contains(where: { $0.action == .allow }) {
+                "An allow list lets \(checked.host) through."
+            } else if !on.isEmpty {
+                "Lists block \(checked.host)."
+            } else if !lists.isEmpty {
+                "Only lists that are off have \(checked.host)."
+            } else {
+                "No list has \(checked.host)."
+            }
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(verdict).font(.aileron(13, .semibold))
+            ForEach(lists) { list in
+                HStack(spacing: 8) {
+                    Text(list.name).lineLimit(1)
+                    Chip(action: list.action)
+                    if !list.enabled { Chip(text: "Off") }
+                    Spacer()
+                    Text(checked.entries[list.id] ?? "").foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
+                        .help("The entry that matched. It covers its subdomains too.")
+                }
+                .font(.aileron(12))
+            }
+            Text("Lists only. An app's own rules come first.").font(.aileron(11)).foregroundStyle(.ink3)
         }
     }
 

@@ -117,6 +117,13 @@ final class Store: Sendable {
         saveStats()
     }
 
+    /// The entry of each list that covers the host, by list ID.
+    func listEntries(for host: String) -> [String: String] {
+        // Copy out of the lock, so a lookup never holds up a flow.
+        let (config, domains) = state.withLock { ($0.config, $0.domains) }
+        return config.listEntries(for: host, domains: domains)
+    }
+
     func discardBrokenConfig() {
         try? FileManager.default.removeItem(at: brokenConfigFile)
     }

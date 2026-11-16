@@ -181,6 +181,12 @@ final class Filter: NSObject {
         await refresh()
     }
 
+    /// The entry of each list that covers the host, by list ID. Nil if the filter cannot be reached.
+    func listEntries(for host: String) async -> [String: String]? {
+        guard let data = await send({ $0.listEntries(host, reply: $1) }) else { return nil }
+        return decode([String: String].self, data)
+    }
+
     /// The config file the extension could not read. Nil or empty if there is none.
     func brokenConfig() async -> Data? {
         await send { $0.brokenConfig(reply: $1) }
