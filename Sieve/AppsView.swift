@@ -271,6 +271,7 @@ private struct XRay: View {
                 }
                 Spacer()
                 if stats.apple.contains(app) { Chip(text: "Apple") }
+                if stats.vpns?.contains(app) == true { Chip(text: "VPN") }
                 if let limit, used >= limit.bytes {
                     Chip(text: "Over limit", icon: "exclamationmark.triangle.fill", iconColor: .serious, fill: .crit.opacity(0.2))
                 }
