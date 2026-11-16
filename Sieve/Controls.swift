@@ -253,7 +253,7 @@ struct AppRow: View {
                         GradeBadge(grade: stats.grade(app))
                     }
                     Text(
-                        "\(bytes(stats.bytes[app] ?? 0)) · \(stats.apps[app]?.count ?? 0) hosts · \(stats.addresses?[app]?.count ?? 0) IPs"
+                        "\(bytes(stats.bytes[app] ?? 0)) · \(counted(stats.apps[app]?.count ?? 0, "host")) · \(counted(stats.addresses?[app]?.count ?? 0, "IP"))"
                     )
                     .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit().lineLimit(1)
                 }

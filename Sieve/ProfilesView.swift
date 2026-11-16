@@ -83,7 +83,7 @@ struct ProfilesView: View {
         let color = Color.profile(index, profile.color)
         let id = profile.id
         let count = filter.config.rules.filter { $0.profile == id }.count
-        let rules = Text("\(count) \(count == 1 ? "rule" : "rules")").foregroundStyle(.ink3).monospacedDigit()
+        let rules = Text(counted(count, "rule")).foregroundStyle(.ink3).monospacedDigit()
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
                 // Cards are laid out by position. The ID makes a fresh field, so a deleted profile's edit does not pass to the next card.

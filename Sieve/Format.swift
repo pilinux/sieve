@@ -23,6 +23,13 @@ func rate(_ bytesPerSecond: Double) -> String {
     bytes(Int(bytesPerSecond)) + "/s"
 }
 
+/// A count with its noun in the matching form, such as "1 host" or "2 hosts".
+func counted(_ count: Int, _ noun: String) -> String {
+    // Automatic grammar agreement leaves "IP" as it is.
+    if noun == "IP" { return "\(count.formatted()) \(count == 1 ? "IP" : "IPs")" }
+    return String(AttributedString(localized: "^[\(count) \(noun)](inflect: true)").characters)
+}
+
 /// The last `count` days, oldest first, ending today.
 func lastDays(_ count: Int) -> [Date] {
     (0..<count).map { Calendar.current.date(byAdding: .day, value: $0 - count + 1, to: .now) ?? .now }

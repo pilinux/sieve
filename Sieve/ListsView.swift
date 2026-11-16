@@ -85,7 +85,7 @@ struct ListsView: View {
                 VStack(spacing: 12) {
                     HStack(spacing: 12) {
                         Kpi(title: "Domains blocked", value: (stats.blockedDomains ?? 0).formatted()) {
-                            Text("\(blocking.count) lists on")
+                            Text("\(counted(blocking.count, "list")) on")
                         }
                         Kpi(title: "Trackers seen", value: "\(stats.trackers.count)") {
                             Label("hosts on a block list", systemImage: "exclamationmark.triangle")
@@ -103,14 +103,16 @@ struct ListsView: View {
                             items: apps.map {
                                 .init(
                                     key: $0.key, name: stats.name($0.key), value: Double($0.count),
-                                    text: "\($0.count) hosts · \(stats.trackerCalls($0.key).formatted()) calls")
+                                    text:
+                                        "\(counted($0.count, "host")) · \(counted(stats.trackerCalls($0.key), "call"))"
+                                )
                             },
                             color: .block, nameWidth: 190, valueWidth: 150,
                             details: { item in
                                 stats.apps[item.key, default: [:]].keys.filter(stats.trackers.contains)
                                     .map { (host: $0, calls: stats.trackerFlows?[item.key]?[$0] ?? 0) }
                                     .sorted { ($0.calls, $1.host) > ($1.calls, $0.host) }
-                                    .map { (name: $0.host, text: "\($0.calls.formatted()) calls") }
+                                    .map { (name: $0.host, text: counted($0.calls, "call")) }
                             }
                         ) { item in AppIcon(path: stats.paths[item.key], size: 22) }
                     }
@@ -124,14 +126,16 @@ struct ListsView: View {
                             items: hosts.map {
                                 .init(
                                     name: $0.host, value: Double($0.count),
-                                    text: "\($0.count) apps · \(stats.trackerCalls(host: $0.host).formatted()) calls")
+                                    text:
+                                        "\(counted($0.count, "app")) · \(counted(stats.trackerCalls(host: $0.host), "call"))"
+                                )
                             },
                             color: .block, nameWidth: 190, valueWidth: 150,
                             details: { item in
                                 stats.apps.filter { $0.value[item.name] != nil }
                                     .map { (name: stats.name($0.key), calls: stats.trackerFlows?[$0.key]?[item.name] ?? 0) }
                                     .sorted { ($0.calls, $1.name) > ($1.calls, $0.name) }
-                                    .map { (name: $0.name, text: "\($0.calls.formatted()) calls") }
+                                    .map { (name: $0.name, text: counted($0.calls, "call")) }
                             }
                         ) { _ in
                             Image(systemName: "exclamationmark.triangle").font(.system(size: 12, weight: .semibold))
@@ -197,7 +201,7 @@ struct ListsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(shield.name).font(.aileron(16, .bold))
                     if let size = filter.stats.listSizes[shield.id] {
-                        Text("\(size.formatted()) domains").foregroundStyle(.ink3).monospacedDigit()
+                        Text(counted(size, "domain")).foregroundStyle(.ink3).monospacedDigit()
                     }
                 }
                 Spacer()

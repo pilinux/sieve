@@ -77,7 +77,7 @@ struct AppsView: View {
                 .background(.s3, in: .rect(cornerRadius: 7))
             VStack(alignment: .leading, spacing: 1) {
                 Text("All apps").font(.aileron(13, .semibold))
-                Text("\(bytes(filter.stats.totalBytes)) · \(filter.stats.apps.count) apps")
+                Text("\(bytes(filter.stats.totalBytes)) · \(counted(filter.stats.apps.count, "app"))")
                     .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
             }
             Spacer()
@@ -117,7 +117,7 @@ struct AppsView: View {
                     GradeBadge(grade: stats.grade(app))
                 }
                 Text(
-                    "\(hosts.count) hosts · \(stats.addresses?[app]?.count ?? 0) IPs · \(hosts.intersection(stats.trackers).count) trackers"
+                    "\(counted(hosts.count, "host")) · \(counted(stats.addresses?[app]?.count ?? 0, "IP")) · \(counted(hosts.intersection(stats.trackers).count, "tracker"))"
                 )
                 .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
             }
@@ -210,7 +210,7 @@ private struct Overview: View {
                 }
                 BlockedToday(stats: stats)
                 Kpi(title: "Trackers seen", value: "\(stats.trackers.count)") {
-                    Label("in \(withTrackers) apps", systemImage: "exclamationmark.triangle")
+                    Label("in \(counted(withTrackers, "app"))", systemImage: "exclamationmark.triangle")
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -240,7 +240,7 @@ private struct Overview: View {
                 HStack {
                     Caption("Privacy grades")
                     Spacer()
-                    Text("\(stats.apps.count) apps").foregroundStyle(.ink3)
+                    Text(counted(stats.apps.count, "app")).foregroundStyle(.ink3)
                 }
                 SegmentBar(parts: grades, tall: true)
                 Legend(parts: grades.map { ($0.name, $0.color) })
@@ -348,9 +348,9 @@ private struct XRay: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Text("\(trackers)").font(.aileron(26, .light))
-                        Text("trackers open").foregroundStyle(.ink3)
+                        Text(trackers == 1 ? "tracker open" : "trackers open").foregroundStyle(.ink3)
                     }
-                    Text("\(blocked) blocked · \(hosts) hosts").font(.aileron(12)).foregroundStyle(.ink3)
+                    Text("\(blocked) blocked · \(counted(hosts, "host"))").font(.aileron(12)).foregroundStyle(.ink3)
                 }
             }
             HStack(spacing: 2) {
