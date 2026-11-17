@@ -286,6 +286,12 @@ private struct WorldMap: View {
     let paths: [String: String]
     let select: (String) -> Void
     @State private var hover: (code: String, at: CGPoint)?
+    // Zoom from 1 to 8 times, and how far a drag moved the zoomed map, in points.
+    @State private var zoom: CGFloat = 1
+    @State private var pan = CGSize.zero
+    // The zoom and the pan when the current pinch or drag began.
+    @State private var pinchStart: CGFloat?
+    @State private var dragStart: CGSize?
 
     /// Five steps of the traffic blue, from the quietest country to the busiest.
     static let shades = [0.22, 0.38, 0.55, 0.75, 1.0]
@@ -311,7 +317,8 @@ private struct WorldMap: View {
     var body: some View {
         let shade = shades()
         GeometryReader { geometry in
-            let transform = Self.transform(geometry.size)
+            let size = geometry.size
+            let transform = Self.transform(size).concatenating(viewing(size))
             Canvas { context, _ in
                 for (code, path) in Self.outlines {
                     let shape = path.applying(transform)
@@ -329,11 +336,63 @@ private struct WorldMap: View {
             .onTapGesture { point in
                 if let code = Self.country(at: point, transform), places.countries[code] != nil { select(code) }
             }
+            // A drag of 3 points or more pans, so a click still picks a country.
+            .gesture(
+                DragGesture(minimumDistance: 3)
+                    .onChanged { drag in
+                        let from = dragStart ?? pan
+                        dragStart = from
+                        pan = clamped(
+                            CGSize(width: from.width + drag.translation.width, height: from.height + drag.translation.height), size)
+                    }
+                    .onEnded { _ in dragStart = nil }
+            )
+            .simultaneousGesture(
+                MagnifyGesture()
+                    .onChanged { pinch in
+                        let from = pinchStart ?? zoom
+                        pinchStart = from
+                        setZoom(from * pinch.magnification, size)
+                    }
+                    .onEnded { _ in pinchStart = nil }
+            )
+            .clipShape(.rect(cornerRadius: 8))
+            .overlay(alignment: .bottomTrailing) {
+                VStack(spacing: 4) {
+                    IconButton(icon: "plus", help: "Zoom in") { setZoom(zoom * 1.5, size) }
+                    IconButton(icon: "minus", help: "Zoom out") { setZoom(zoom / 1.5, size) }
+                    if zoom > 1 { IconButton(icon: "arrow.counterclockwise", help: "Reset the map") { setZoom(1, size) } }
+                }
+                .padding(4)
+                .background(.s2, in: .rect(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.line2))
+                .padding(8)
+            }
             .overlay(alignment: .topLeading) {
                 if let hover { tip(hover.code).offset(x: hover.at.x + 14, y: hover.at.y + 14).allowsHitTesting(false) }
             }
         }
         .aspectRatio(Self.bounds.width / Self.bounds.height, contentMode: .fit)
+    }
+
+    // Zooms around the centre of the view, then moves by the pan.
+    private func viewing(_ size: CGSize) -> CGAffineTransform {
+        let pan = clamped(pan, size)
+        return CGAffineTransform(translationX: -size.width / 2, y: -size.height / 2)
+            .concatenating(CGAffineTransform(scaleX: zoom, y: zoom))
+            .concatenating(CGAffineTransform(translationX: size.width / 2 + pan.width, y: size.height / 2 + pan.height))
+    }
+
+    // A pan can move the map only as far as the zoom pushed it off screen, so no empty edge shows.
+    private func clamped(_ pan: CGSize, _ size: CGSize) -> CGSize {
+        let x = size.width * (zoom - 1) / 2
+        let y = size.height * (zoom - 1) / 2
+        return CGSize(width: min(max(pan.width, -x), x), height: min(max(pan.height, -y), y))
+    }
+
+    private func setZoom(_ next: CGFloat, _ size: CGSize) {
+        zoom = min(max(next, 1), 8)
+        pan = clamped(pan, size)
     }
 
     // Scales the map to fit the view, centred.
