@@ -9,6 +9,10 @@ struct Config: Codable, Equatable {
     var profiles: [Profile] = []
     /// The code pin the user allowed, by path key: a code directory hash, or `file:INODE:CTIME`. It is optional, so an older file without it still loads.
     var codes: [String: String]?
+    /// True while Allowlist only is on. It is optional, so an older file without it still loads.
+    var allowOnly: Bool?
+    /// True while the lock is on: every change needs Touch ID or the Mac password. It is optional for the same reason.
+    var locked: Bool?
 
     /// The key for a process that exited before Sieve could look it up. Many processes share it, so it cannot have a rule.
     static let unknownApp = "unknown"
@@ -19,11 +23,11 @@ struct Config: Codable, Equatable {
     ///   - domains: the hosts of each list, by list ID.
     func verdict(
         app: String, host: String?, address: String? = nil, isApple: Bool, domains: [String: Set<String>] = [:],
-        overLimit: Bool = false, profile: UUID? = nil
+        overLimit: Bool = false, profile: UUID? = nil, allowlist: Allowlist = .empty
     ) -> Action? {
         decide(
             app: app, host: host, address: address, isApple: isApple, domains: domains, overLimit: overLimit,
-            profile: profile
+            profile: profile, allowlist: allowlist
         ).action
     }
 
@@ -33,9 +37,10 @@ struct Config: Codable, Equatable {
     ///   - trusted: false ignores the app's Allow rules. Its Block rules still apply.
     func decide(
         app: String, host: String?, address: String? = nil, isApple: Bool, domains: [String: Set<String>],
-        overLimit: Bool = false, profile: UUID? = nil, trusted: Bool = true
+        overLimit: Bool = false, profile: UUID? = nil, trusted: Bool = true, allowlist: Allowlist = .empty
     ) -> (action: Action?, rule: Rule?) {
         if mode == .off { return (.allow, nil) }
+        if isFenced(app: app, host: host, address: address, isApple: isApple, allowlist: allowlist) { return (.block, nil) }
         let appRule = rule(for: app, profile: profile, trusted: trusted)
         if appRule?.action == .block { return (.block, appRule) }
         if overLimit { return (.block, nil) }
@@ -55,6 +60,12 @@ struct Config: Codable, Equatable {
         // Ask mode cannot ask about a process that is gone.
         if mode == .ask, app == Self.unknownApp { return (.block, nil) }
         return (mode == .ask ? nil : .allow, nil)
+    }
+
+    /// Whether Allowlist only drops the flow: it is on, the app is not a core macOS service, and the list has neither
+    /// the host nor the address.
+    func isFenced(app: String, host: String?, address: String?, isApple: Bool, allowlist: Allowlist) -> Bool {
+        allowOnly == true && !(isApple && Allowlist.services.contains(app)) && !allowlist.allows(host: host, address: address)
     }
 
     /// Why a rule is not needed, or nil if it is needed.
@@ -218,8 +229,8 @@ struct Config: Codable, Equatable {
         }
     }
 
-    // The host itself or its nearest parent domain in `entries`, since a list entry covers its subdomains too.
-    private static func entry(in entries: Set<String>, for host: String) -> String? {
+    /// The host itself or its nearest parent domain in `entries`, since an entry covers its subdomains too.
+    static func entry(in entries: Set<String>, for host: String) -> String? {
         var domain = Substring(host)
         while true {
             if entries.contains(String(domain)) { return String(domain) }

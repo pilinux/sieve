@@ -141,6 +141,7 @@ struct RulesView: View {
                         Pick(value: own, follows: own == nil ? always : nil, tip: tip) { action in
                             filter.update { $0.pick(action, for: row.app, host: row.host, profile: profile.id) }
                         }
+                        .held()
                         .frame(width: 120, alignment: .leading)
                         .frame(maxHeight: .infinity)
                         .background(profile.id == stats.profile ? Color.white.opacity(0.03) : .clear)
@@ -183,6 +184,7 @@ struct RulesView: View {
                             ) {
                                 action in filter.update { $0.pick(action, for: row.app, host: row.host, profile: nil) }
                             }
+                            .held()
                             .frame(width: 92, alignment: .leading)
                         }
                         .modifier(RowFrame(height: flag(row) == nil ? 48 : 60))
@@ -226,6 +228,7 @@ struct RulesView: View {
                             IconButton(icon: "trash", help: "Delete this row's rules") {
                                 filter.update { $0.rules.removeAll { $0.app == row.app && $0.host == row.host } }
                             }
+                            .held()
                         }
                         .modifier(RowFrame(height: flag(row) == nil ? 48 : 60))
                     }

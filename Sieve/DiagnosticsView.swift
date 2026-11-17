@@ -133,7 +133,9 @@ struct DiagnosticsTools: View {
 
     var body: some View {
         ToolButton(title: "Save a copy…", icon: "square.and.arrow.down") { Task { await save() } }
+            .held()
         ToolButton(title: "Reset…", icon: "trash") { resetting = true }
+            .held()
             .confirmationDialog("Reset the error log?", isPresented: $resetting) {
                 Button("Reset", role: .destructive) { Task { await filter.resetErrorLogs() } }
             } message: {
@@ -142,6 +144,7 @@ struct DiagnosticsTools: View {
     }
 
     private func save() async {
+        guard await filter.mayChange("save a copy of its error log") else { return }
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "sieve-log-\(Date.now.formatted(.iso8601.year().month().day())).jsonl"
         NSApp.activate()

@@ -125,9 +125,11 @@ struct AppsView: View {
             IconButton(icon: "xmark", help: "Block", tint: .block, ring: true) {
                 filter.update { $0.setAction(.block, for: app) }
             }
+            .held()
             IconButton(icon: "checkmark", help: "Allow", tint: .allow, ring: true) {
                 filter.update { $0.setAction(.allow, for: app) }
             }
+            .held()
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -284,6 +286,7 @@ private struct XRay: View {
                         .help("Its Allow rules do not count until you allow it again")
                 }
                 IconButton(icon: "clock.arrow.circlepath", help: "Clear history", ring: true) { clearing = true }
+                    .held()
                     .confirmationDialog("Clear the history of \(stats.name(app))?", isPresented: $clearing) {
                         Button("Clear History", role: .destructive) { Task { await filter.forget(app) } }
                     } message: {
@@ -296,6 +299,7 @@ private struct XRay: View {
                     IconButton(icon: "arrow.uturn.backward", help: "Make undecided", ring: true) {
                         if profiled { undeciding = true } else { undecide() }
                     }
+                    .held()
                     .confirmationDialog("Make \(stats.name(app)) undecided?", isPresented: $undeciding) {
                         Button("Make Undecided", role: .destructive) { undecide() }
                     } message: {
@@ -305,6 +309,7 @@ private struct XRay: View {
                 // `unknown` cannot have a rule, because many processes share it.
                 if app != Config.unknownApp {
                     Segments(verdict: config.action(for: app)) { action in filter.update { $0.setAction(action, for: app) } }
+                        .held()
                 }
             }
             HStack(spacing: 12) {
@@ -409,6 +414,7 @@ private struct XRay: View {
                     // A focused field keeps its caret until something else takes focus.
                     .onSubmit { editing = false }
                     .onExitCommand { editing = false }
+                    .held()
                 Text("MB").foregroundStyle(.ink3)
                 // The period menu needs a limit first.
                 if let limit {
@@ -420,6 +426,7 @@ private struct XRay: View {
                             if let index = config.limits.firstIndex(where: { $0.app == app }) { config.limits[index].period = period }
                         }
                     }
+                    .held()
                 }
             }
             if let limit {
@@ -470,6 +477,7 @@ private struct XRay: View {
                             Segments(verdict: rule?.action, small: true) { action in
                                 filter.update { $0.setAction(action, for: app, host: host) }
                             }
+                            .held()
                         }
                     }
                     .frame(height: 38)
@@ -506,6 +514,7 @@ private struct XRay: View {
                             Segments(verdict: action, small: true) { action in
                                 filter.update { $0.setAction(action, for: app, host: address) }
                             }
+                            .held()
                         }
                     }
                     .frame(height: 38)
@@ -531,6 +540,7 @@ private struct XRay: View {
         IconButton(icon: "arrow.uturn.backward", help: "Make undecided") {
             filter.update { $0.rules.removeAll { $0.app == app && $0.host == host && $0.profile == nil } }
         }
+        .held()
     }
 
     // A list card's title, count, legend, and the bar of allowed, blocked, and no rule.
@@ -572,6 +582,7 @@ struct ClearAllHistory: View {
 
     var body: some View {
         ToolButton(title: "Clear all history…", icon: "clock.arrow.circlepath") { clearing = true }
+            .held()
             .confirmationDialog("Clear all history?", isPresented: $clearing) {
                 Button("Clear All History", role: .destructive) { Task { await filter.clearHistory() } }
             } message: {

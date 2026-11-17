@@ -55,7 +55,7 @@ struct SetupView: View {
                 }
             }
             .frame(minHeight: 96, alignment: .top)
-            LaunchAtLogin().frame(width: 160)
+            LaunchAtLogin(filter: filter).frame(width: 160)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

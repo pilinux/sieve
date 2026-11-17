@@ -26,11 +26,13 @@ struct BrokenConfigNotice: View {
                 } label: {
                     Label("Save a copy…", systemImage: "square.and.arrow.down").frame(maxWidth: compact ? .infinity : nil)
                 }
+                .held()
                 Button {
                     discarding = true
                 } label: {
                     Text("Discard").frame(maxWidth: compact ? .infinity : nil)
                 }
+                .held()
                 .confirmationDialog("Discard the broken config?", isPresented: $discarding) {
                     Button("Discard", role: .destructive) { Task { await filter.discardBrokenConfig() } }
                 } message: {
@@ -44,6 +46,7 @@ struct BrokenConfigNotice: View {
     }
 
     private func save() async {
+        guard await filter.mayChange("save a copy of its broken config") else { return }
         guard let data = await filter.brokenConfig(), !data.isEmpty else { return }
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "config.json.broken"

@@ -57,9 +57,13 @@ struct PromptView: View {
                     Text("This host only").foregroundStyle(.ink2)
                 }
             }
+            if filter.isLocked {
+                Label("Sieve is locked. Your answer asks for Touch ID or your password.", systemImage: "lock")
+                    .font(.aileron(11)).foregroundStyle(.ink2)
+            }
             HStack(spacing: 8) {
                 Button {
-                    answer(.block, hostOnly)
+                    reply(.block)
                 } label: {
                     Label {
                         Text("Block")
@@ -69,7 +73,7 @@ struct PromptView: View {
                     .frame(maxWidth: .infinity)
                 }
                 Button {
-                    answer(.allow, hostOnly)
+                    reply(.allow)
                 } label: {
                     Label("Allow", systemImage: "checkmark").frame(maxWidth: .infinity)
                 }
@@ -84,5 +88,12 @@ struct PromptView: View {
         .foregroundStyle(.ink)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
         .preferredColorScheme(.dark)
+    }
+
+    // The answer becomes a rule, so it needs the unlock. A cancelled unlock leaves the prompt open.
+    private func reply(_ action: Action) {
+        Task {
+            if await filter.mayChange("save your answer to a connection request") { answer(action, hostOnly) }
+        }
     }
 }

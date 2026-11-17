@@ -237,6 +237,10 @@ extension FilterDataProvider: FilterXPC {
         reply(Data())
     }
 
+    func allowlist(reply: @escaping @Sendable (Data) -> Void) {
+        reply(Data(store.allowlist.utf8))
+    }
+
     func forget(_ app: String, reply: @escaping @Sendable (Data) -> Void) {
         store.forget(app)
         reply(Data())

@@ -14,9 +14,22 @@ struct MenuView: View {
                 // A mode means nothing while the system filter is off.
                 if filter.status == .on {
                     ModePicker(filter: filter)
+                    if filter.config.locked == true { LockButton(filter: filter, compact: true) }
                 } else {
                     Text(filter.status.text).foregroundStyle(.ink3).lineLimit(1)
                 }
+            }
+            // The line shows only while the filter applies it, so a failed connection has a visible cause.
+            if filter.status == .on, filter.config.allowOnly == true, filter.config.mode != .off {
+                HStack {
+                    Label("Allowlist only", systemImage: "pedestrian.gate.closed").font(.aileron(13, .semibold))
+                    Spacer()
+                    Text(counted(filter.stats.listSizes[Allowlist.id] ?? 0, "entry")).foregroundStyle(.ink2).monospacedDigit()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Color.allow.opacity(0.16), in: .rect(cornerRadius: 10))
+                .help("Only hosts and IP addresses on your list connect. DNS, time, and certificate checks stay allowed.")
             }
             if filter.stats.brokenConfig { BrokenConfigNotice(filter: filter, compact: true) }
             VStack(alignment: .leading, spacing: 6) {
@@ -52,6 +65,7 @@ struct MenuView: View {
         .font(.aileron(13))
         .foregroundStyle(.ink)
         .preferredColorScheme(.dark)
+        .environment(\.locked, filter.isLocked)
         .task { await filter.poll() }
     }
 }

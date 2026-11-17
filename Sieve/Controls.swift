@@ -264,6 +264,56 @@ struct ModePicker: View {
             options: [.init(value: Mode.off, label: "Off"), .init(value: .ask, label: "Ask"), .init(value: .quiet, label: "Quiet")],
             selection: filter.config.mode, glass: glass
         ) { mode in filter.update { $0.mode = mode } }
+        .held()
+    }
+}
+
+/// The lock in the window toolbar and the menu panel. It shows the state, and unlocks or locks.
+struct LockButton: View {
+    let filter: Filter
+    var compact = false
+
+    var body: some View {
+        let locked = filter.isLocked
+        Button {
+            if locked { Task { _ = await filter.lock.unlock("unlock its settings") } } else { filter.lock.lock() }
+        } label: {
+            let icon = locked ? "lock" : "lock.open"
+            Group {
+                if compact { Image(systemName: icon) } else { Label(locked ? "Locked" : "Unlocked", systemImage: icon) }
+            }
+            .font(.aileron(12, .semibold))
+            .foregroundStyle(locked ? .ink : .good)
+            .padding(.horizontal, compact ? 6 : 14)
+            .frame(height: compact ? 28 : 34)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(compact ? .identity : .regular.interactive(), in: .capsule)
+        .help(
+            locked
+                ? "Click to unlock with Touch ID or your password"
+                : "Locks again on screen lock, sleep, or 5 minutes after the last change. Click to lock now.")
+    }
+}
+
+extension EnvironmentValues {
+    /// True while Sieve is locked, so the controls that change something are dimmed.
+    @Entry var locked = false
+}
+
+extension View {
+    /// Dims a control that changes something while Sieve is locked. A click on it still works, and asks for the unlock.
+    func held() -> some View {
+        modifier(Held())
+    }
+}
+
+private struct Held: ViewModifier {
+    @Environment(\.locked) private var locked
+
+    func body(content: Content) -> some View {
+        content.opacity(locked ? 0.45 : 1)
     }
 }
 
@@ -313,6 +363,7 @@ struct AppRow: View {
                 .toggleStyle(.switch)
                 .labelsHidden()
                 .tint(.allow)
+                .held()
             }
         }
         .padding(.horizontal, 10)

@@ -7,6 +7,9 @@ struct ListsView: View {
     @State private var action = Action.block
     @State private var picking = false
     @State private var pickingIPInfo = false
+    @State private var pickingAllowlist = false
+    @State private var confirmingAllowOnly = false
+    @State private var deletingAllowlist = false
     @State private var domain = ""
     @State private var checked: (host: String, entries: [String: String])?
 
@@ -20,17 +23,19 @@ struct ListsView: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(spacing: 12) {
                     if let shield { shieldCard(shield) }
+                    allowlistCard
                     VStack(alignment: .leading, spacing: 14) {
                         Caption("Add a list")
                         TextField("https URL", text: $url).textFieldStyle(.roundedBorder)
                         HStack {
                             Segments(verdict: action) { action = $0 }
                             Spacer()
-                            Button("Upload", systemImage: "square.and.arrow.up") { picking = true }
+                            Button("Upload", systemImage: "square.and.arrow.up") { picking = true }.held()
                             Button("Add", systemImage: "plus") { add() }
                                 .buttonStyle(.borderedProminent)
                                 .tint(.allow)
                                 .disabled(URL(string: url)?.scheme != "https")
+                                .held()
                         }
                     }
                     .card()
@@ -59,7 +64,7 @@ struct ListsView: View {
                         ForEach(others) { list in
                             Rectangle().fill(.line).frame(height: 1).padding(.top, 8)
                             HStack(spacing: 12) {
-                                Toggle(list.name, isOn: enabled(list.id)).toggleStyle(.switch).labelsHidden().tint(.allow)
+                                Toggle(list.name, isOn: enabled(list.id)).toggleStyle(.switch).labelsHidden().tint(.allow).held()
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(list.name).font(.aileron(13, .semibold))
                                     Text(list.url ?? "Uploaded file").font(.aileron(11)).foregroundStyle(.ink3)
@@ -71,11 +76,12 @@ struct ListsView: View {
                                 }
                                 Chip(action: list.action)
                                 if list.url != nil {
-                                    IconButton(icon: "arrow.clockwise", help: "Refresh") { Task { await filter.load(list) } }
+                                    IconButton(icon: "arrow.clockwise", help: "Refresh") { Task { await filter.load(list) } }.held()
                                 }
                                 IconButton(icon: "trash", help: "Delete this list") {
                                     filter.update { $0.lists.removeAll { $0.id == list.id } }
                                 }
+                                .held()
                             }
                             .padding(.top, 8)
                         }
@@ -209,8 +215,8 @@ struct ListsView: View {
                         .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
                     }
                     Spacer()
-                    IconButton(icon: "square.and.arrow.up", help: "Upload a newer copy") { pickingIPInfo = true }
-                    IconButton(icon: "trash", help: "Remove the IP data") { filter.removeIPInfo() }
+                    IconButton(icon: "square.and.arrow.up", help: "Upload a newer copy") { pickingIPInfo = true }.held()
+                    IconButton(icon: "trash", help: "Remove the IP data") { Task { await filter.removeIPInfo() } }.held()
                 }
                 Text(
                     "X-Ray, Rules, and prompts show each address's country and network owner. CDN, public DNS, and local addresses show those labels in place of a country, with or without this file."
@@ -225,7 +231,7 @@ struct ListsView: View {
                 .foregroundStyle(.ink3)
                 HStack {
                     Spacer()
-                    Button("Upload", systemImage: "square.and.arrow.up") { pickingIPInfo = true }
+                    Button("Upload", systemImage: "square.and.arrow.up") { pickingIPInfo = true }.held()
                 }
             }
         }
@@ -254,14 +260,165 @@ struct ListsView: View {
                 }
                 Spacer()
                 Toggle(shield.name, isOn: enabled(shield.id)).toggleStyle(.switch).labelsHidden().controlSize(.large).tint(.allow)
+                    .held()
             }
             HStack {
                 Text("Ads, trackers, malware · Steven Black's hosts").font(.aileron(12)).foregroundStyle(.ink2)
                 Spacer()
-                IconButton(icon: "arrow.clockwise", help: "Refresh") { Task { await filter.load(shield) } }
+                IconButton(icon: "arrow.clockwise", help: "Refresh") { Task { await filter.load(shield) } }.held()
             }
         }
         .card()
+    }
+
+    // Allowlist only: one uploaded file of hosts, IP addresses, and ranges. A new upload replaces it.
+    private var allowlistCard: some View {
+        let count = filter.stats.listSizes[Allowlist.id] ?? 0
+        let on = count > 0 && filter.config.allowOnly == true
+        let upload = filter.allowlistUpload
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 16) {
+                Image(systemName: "pedestrian.gate.closed").font(.system(size: 26, weight: .medium))
+                    .foregroundStyle(on ? .allow : .ink3)
+                    .frame(width: 56, height: 56)
+                    .background(on ? Color.allow.opacity(0.16) : .s3, in: .rect(cornerRadius: 16))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Allowlist only").font(.aileron(16, .bold))
+                    Text(count > 0 ? counted(count, "entry") : "No list uploaded").foregroundStyle(.ink3).monospacedDigit()
+                }
+                Spacer()
+                Toggle(
+                    "Allowlist only",
+                    isOn: Binding(
+                        get: { on },
+                        set: { wanted in
+                            if wanted { confirmingAllowOnly = true } else { filter.update { $0.allowOnly = nil } }
+                        })
+                )
+                .toggleStyle(.switch).labelsHidden().controlSize(.large).tint(.allow)
+                .disabled(count == 0)
+                .held()
+            }
+            Text("Only hosts and IP addresses on your list can connect. DNS, time, and certificate checks stay allowed.")
+                .font(.aileron(12)).foregroundStyle(.ink3)
+            if on {
+                Label(
+                    "List downloads need their host on your list, such as raw.githubusercontent.com for Tracker Shield.",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.aileron(12)).foregroundStyle(.ink2)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.s1, in: .rect(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.line2))
+            }
+            if count > 0 {
+                Rectangle().fill(.line).frame(height: 1)
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(upload?.name ?? "Allowlist").font(.aileron(13, .semibold))
+                        if let upload {
+                            Text("Uploaded \(upload.date.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.aileron(11)).foregroundStyle(.ink3)
+                        }
+                    }
+                    Spacer()
+                    IconButton(icon: "square.and.arrow.down", help: "Save a copy of the list, without duplicates") {
+                        Task { await saveAllowlist() }
+                    }
+                    .held()
+                    IconButton(icon: "square.and.arrow.up", help: "Upload a new file. It replaces the list.") {
+                        pickingAllowlist = true
+                    }
+                    .held()
+                    IconButton(icon: "trash", help: "Delete the allowlist") { deletingAllowlist = true }
+                        .held()
+                        .confirmationDialog("Delete the allowlist?", isPresented: $deletingAllowlist) {
+                            Button("Delete", role: .destructive) { Task { await filter.removeAllowlist() } }
+                        } message: {
+                            Text("Allowlist only turns off, and Sieve deletes the list. Upload a file to use it again.")
+                        }
+                }
+                if let tally = upload?.tally { tallyView(tally) }
+            } else {
+                Text(
+                    "A **.csv** or **.txt** file with one entry per line: a host such as **example.com**, an IP address, or a range such as **10.0.0.0/8**. A host covers its subdomains. Sieve removes duplicates."
+                )
+                .font(.aileron(12)).foregroundStyle(.ink3)
+                HStack {
+                    Spacer()
+                    Button("Upload", systemImage: "square.and.arrow.up") { pickingAllowlist = true }.held()
+                }
+            }
+        }
+        .card()
+        .fileImporter(isPresented: $pickingAllowlist, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
+            switch result {
+            case .success(let file): Task { await filter.uploadAllowlist(from: file) }
+            case .failure(let error): filter.message = ("Cannot open the file: \(error.localizedDescription)", true)
+            }
+        }
+        // It blocks every app, Apple apps included, so it asks first.
+        .confirmationDialog("Turn on Allowlist only?", isPresented: $confirmingAllowOnly) {
+            Button("Turn On") { filter.update { $0.allowOnly = true } }
+        } message: {
+            Text(
+                "Only the \(counted(count, "entry")) on your list can connect. DNS, time, and certificate checks stay allowed. Every other connection is blocked, Apple apps included."
+            )
+        }
+    }
+
+    // The counts of the last upload, with a hint on each.
+    private func tallyView(_ tally: Allowlist.Tally) -> some View {
+        let tiles = [
+            ("kept", tally.kept, "Entries on the list"),
+            ("duplicates", tally.duplicates, "Lines equal to another after normalizing"),
+            ("covered", tally.covered, "A listed parent domain or range already covers them"),
+            ("invalid", tally.invalid, "Not a host, IP address, or range"),
+        ]
+        let more = tally.invalid - tally.invalidLines.count
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ForEach(tiles, id: \.0) { label, value, help in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(value.formatted()).font(.aileron(18, .light)).monospacedDigit()
+                            .foregroundStyle(label == "invalid" && value > 0 ? .warn : .ink)
+                        Text(label).font(.aileron(11)).foregroundStyle(.ink3)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.s2, in: .rect(cornerRadius: 8))
+                    .help(help)
+                }
+            }
+            if tally.invalid > 0 {
+                Text(
+                    "Skipped \(tally.invalid == 1 ? "line" : "lines") \(tally.invalidLines.map(String.init).joined(separator: ", "))\(more > 0 ? ", and \(more) more" : "")."
+                )
+                .font(.aileron(11)).foregroundStyle(.ink3)
+            }
+        }
+    }
+
+    // The list shows what may connect, so while Sieve is locked, a copy needs the unlock too.
+    private func saveAllowlist() async {
+        guard await filter.mayChange("save a copy of its allowlist") else { return }
+        guard let data = await filter.allowlist() else {
+            filter.message = ("The filter cannot be reached, so the allowlist cannot be saved.", true)
+            return
+        }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "allowlist.txt"
+        NSApp.activate()
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try data.write(to: url)
+        } catch {
+            errorLog.error("store", "Cannot save a copy of the allowlist", error)
+            NSApp.presentError(error)
+        }
     }
 
     private func add() {

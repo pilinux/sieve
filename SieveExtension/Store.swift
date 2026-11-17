@@ -16,6 +16,7 @@ final class Store: Sendable {
         var pruned = ""
         // The hosts of each list, by list ID.
         var domains: [String: Set<String>] = [:]
+        var allowlist = Allowlist.empty
         // Bytes counted so far for each open flow.
         var flowBytes: [UUID: Int] = [:]
         // The `NetworkSignature` of each network the Mac is on.
@@ -39,8 +40,8 @@ final class Store: Sendable {
 
     /// The stats, plus what only the app needs: rule flags, networks, the active profile, list sizes, and blocked trackers.
     var statsForApp: Stats {
-        let (config, stats, domains, networks, codes) = state.withLock {
-            ($0.config, $0.stats, $0.domains, $0.networks, $0.codes)
+        let (config, stats, domains, networks, codes, allowlist) = state.withLock {
+            ($0.config, $0.stats, $0.domains, $0.networks, $0.codes, $0.allowlist)
         }
         let gone = Set(stats.paths.filter { !FileManager.default.fileExists(atPath: $0.value) }.keys)
         var result = stats
@@ -51,12 +52,15 @@ final class Store: Sendable {
         result.codes = codes
         result.profile = Self.activeProfile(config, networks)
         result.listSizes = domains.mapValues(\.count)
+        result.listSizes[Allowlist.id] = allowlist.entries.count
         result.blockedDomains = config.blockedDomainCount(domains)
         result.brokenConfig = FileManager.default.fileExists(atPath: brokenConfigFile.path)
         for (app, hosts) in stats.apps {
             let blocked = hosts.keys.filter { host in
                 stats.trackers.contains(host)
-                    && config.verdict(app: app, host: host, isApple: false, domains: domains, profile: result.profile) == .block
+                    && config.verdict(
+                        app: app, host: host, isApple: false, domains: domains, profile: result.profile, allowlist: allowlist
+                    ) == .block
             }
             if !blocked.isEmpty { result.blockedTrackers[app] = Set(blocked) }
         }
@@ -89,10 +93,13 @@ final class Store: Sendable {
                 domains[list.id] = DomainList.parse(text)
             }
         }
+        let allowlist = listFile(Allowlist.id).flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+            .map { Allowlist.parse($0).list }
         state.withLock {
             $0.config = config ?? Config()
             $0.stats = stats ?? Stats()
             $0.domains = domains
+            $0.allowlist = allowlist ?? .empty
             Self.prune(&$0)
         }
         if config == nil { write(Config(), "config.json") }
@@ -128,11 +135,23 @@ final class Store: Sendable {
         try? FileManager.default.removeItem(at: brokenConfigFile)
     }
 
-    /// Saves a downloaded list and starts using it right away.
+    /// The allowlist's entries, one per line.
+    var allowlist: String { state.withLock { $0.allowlist.entries.joined(separator: "\n") } }
+
+    /// Saves a downloaded list, or the allowlist, and starts using it right away. An empty allowlist deletes its file.
     func setList(_ id: String, text: String) {
         guard let file = listFile(id) else { return }
-        let hosts = DomainList.parse(text)
-        state.withLock { $0.domains[id] = hosts }
+        if id == Allowlist.id {
+            let allowlist = Allowlist.parse(text).list
+            state.withLock { $0.allowlist = allowlist }
+            if allowlist.entries.isEmpty {
+                try? FileManager.default.removeItem(at: file)
+                return
+            }
+        } else {
+            let hosts = DomainList.parse(text)
+            state.withLock { $0.domains[id] = hosts }
+        }
         do {
             try FileManager.default.createDirectory(at: folder.appending(path: "lists"), withIntermediateDirectories: true)
             try text.write(to: file, atomically: true, encoding: .utf8)
@@ -199,7 +218,8 @@ final class Store: Sendable {
                 app: app.key, host: host, address: address, isApple: app.isApple, domains: $0.domains,
                 overLimit: overLimit,
                 profile: Self.activeProfile($0.config, $0.networks),
-                trusted: $0.config.trusts(app.key, signer: app.signer, code: app.code)
+                trusted: $0.config.trusts(app.key, signer: app.signer, code: app.code),
+                allowlist: $0.allowlist
             )
             if let rule {
                 $0.stats.hits[rule.id, default: Hit()].count += 1
@@ -207,8 +227,11 @@ final class Store: Sendable {
                 $0.statsChanged = true
             }
             if action == .block {
-                // With no rule and no limit, a listed host can only have been dropped by a block list.
-                let byList = if rule == nil, !overLimit, let host { $0.config.isListBlocked(host, domains: $0.domains) } else { false }
+                // With no rule, no limit, and no Allowlist only drop, a listed host can only have been dropped by a block list.
+                let fenced = $0.config.isFenced(
+                    app: app.key, host: host, address: address, isApple: app.isApple, allowlist: $0.allowlist)
+                let byList =
+                    if rule == nil, !overLimit, !fenced, let host { $0.config.isListBlocked(host, domains: $0.domains) } else { false }
                 $0.stats.countBlocked(day: today, byList: byList)
                 $0.statsChanged = true
             }

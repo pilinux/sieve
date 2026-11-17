@@ -24,7 +24,9 @@ It never reads what a connection carries.
 - Per app: its path, the hosts and IP addresses it contacted, how many
   connections went to each, and its byte counts, for the last 31 days.
 - Blocked connections per day, and the hits of each rule.
-- A copy of each list you add.
+- A copy of each list you add, and of your allowlist without
+  duplicates. The app keeps the allowlist's file name, upload date,
+  and line counts in its settings.
 - If you upload IPinfo Lite data, a compact copy of it in the app's own
   folder. It maps IP ranges to countries and network owners, and holds
   nothing about you.
@@ -70,7 +72,8 @@ address on your Mac and sends none to IPinfo or anyone else.
 - To clear one app's history, its hosts and IP addresses, open it in
   App X-Ray and clear it.
 - To empty the error log, press Reset on the Diagnostics page.
-- To delete a list, delete it under Lists.
+- To delete a list, delete it under Lists. The allowlist card has its
+  own Delete button.
 - To remove IPinfo Lite data, click the trash button under IP data on
   the Lists screen.
 - To remove everything, drag Sieve to the Trash and let macOS remove

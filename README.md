@@ -42,6 +42,8 @@ sample data.
 | Data limits | Cap an app's data per day or per month. |
 | Profiles | Rule sets that switch by network or by time. |
 | Diagnostics | Sieve's own errors and warnings, to save and share. |
+| Allowlist only | Let out only the hosts and IP addresses on your list. |
+| Lock | Every change needs Touch ID or your Mac password. |
 
 Sieve has no account, no server, no analytics, and no third-party code.
 It collects no data. See the [privacy policy](PRIVACY.md).
@@ -302,6 +304,56 @@ tracker.example.net
 > https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext
 > ```
 
+### Allowlist only
+
+**Allowlist only** on the Lists screen blocks every connection whose
+host or IP address is not on a file you upload. Apple apps are blocked
+too. Only the macOS services that keep the Mac working stay allowed:
+DNS (`mDNSResponder`), time (`timed`), certificate checks (`trustd`),
+DHCP (`configd`), and the captive portal check (`captiveagent`).
+
+The file is a `.csv` or `.txt` with one entry per line:
+
+```text
+# A host covers its subdomains
+example.com
+# An IP address, or a range as prefix/length
+203.0.113.24
+10.0.0.0/8
+2001:db8::/32
+```
+
+- Only the first comma field counts, so a CSV with more columns works.
+- Sieve removes duplicates, and entries a listed parent domain or range
+  already covers. The card shows how many lines it kept, dropped, and
+  skipped, and **Save a copy** writes the clean list.
+- A new upload replaces the list. **Delete** turns Allowlist only off
+  and removes the list.
+- A connection on the list still goes through your rules, block lists,
+  and Ask mode.
+- An app that looks up names itself shows Sieve only an IP address. List
+  its addresses too.
+- List downloads need their host on the list, such as
+  `raw.githubusercontent.com` for Tracker Shield.
+
+### Lock
+
+Turn on **Lock settings** at the bottom of the sidebar. While Sieve is
+locked, controls that change something are dimmed. A click on one asks
+for Touch ID or your Mac password, then makes the change. Every **Save
+a copy** asks for it too. Reading, search, and Check a domain need no
+unlock.
+
+- The Ask prompt still shows. Your answer asks for the unlock first.
+- The toolbar and the menu bar window show **Locked** or **Unlocked**.
+  Click it to unlock or lock.
+- Sieve locks again when the screen locks, when the Mac sleeps, and 5
+  minutes after the unlock or the last change.
+
+The lock stops a person who does not know your Mac password. Anyone who
+knows it can unlock Sieve, and an administrator can turn the filter off
+in System Settings.
+
 ### Rules
 
 ![The Rules screen](docs/images/rules.jpg)
@@ -414,7 +466,9 @@ The first match wins.
 flowchart TD
   start(["New connection"]) --> off{"Mode is Off?"}
   off -- yes --> allow1["Allow"]
-  off -- no --> blocked{"App blocked or over its limit?"}
+  off -- no --> fence{"Allowlist only on, and not on the list?"}
+  fence -- yes --> drop0["Drop"]
+  fence -- no --> blocked{"App blocked or over its limit?"}
   blocked -- yes --> drop1["Drop"]
   blocked -- no --> hostRule{"App has a rule for this host?"}
   hostRule -- yes --> useRule["Use that rule"]

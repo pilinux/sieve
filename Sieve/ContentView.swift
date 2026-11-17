@@ -72,6 +72,7 @@ struct ContentView: View {
             }
         }
         .toolbar(removing: .title)
+        .environment(\.locked, filter.isLocked)
         .font(.aileron(13))
         .foregroundStyle(.ink)
         .frame(minWidth: 1240, minHeight: 760)
@@ -90,6 +91,7 @@ struct ContentView: View {
                         ToolButton(title: "Add profile", icon: "plus") {
                             filter.update { $0.profiles.append(Profile(name: "New profile")) }
                         }
+                        .held()
                     }
                     if screen == .apps { ClearAllHistory(filter: filter) }
                     if screen == .diagnostics { DiagnosticsTools(filter: filter) }
@@ -103,6 +105,7 @@ struct ContentView: View {
                     .frame(height: 34)
                     .glassEffect(.regular, in: .capsule)
                     ModePicker(filter: filter, glass: true)
+                    if filter.config.locked == true { LockButton(filter: filter) }
                 }
             }
             // Matches the design's 24 pt margin. The toolbar already adds 6.
@@ -202,11 +205,33 @@ private struct Sidebar: View {
                     Text("\(stats.blocked[Stats.day(.now)] ?? 0)").font(.aileron(13, .semibold)).monospacedDigit()
                 }
                 .font(.aileron(12))
+                if filter.config.allowOnly == true, filter.config.mode != .off {
+                    HStack {
+                        Label("Allowlist only", systemImage: "pedestrian.gate.closed").foregroundStyle(.ink2)
+                        Spacer()
+                        Text("On").font(.aileron(13, .semibold))
+                    }
+                    .font(.aileron(12))
+                    .help("Only hosts and IP addresses on your list connect")
+                }
             }
             .card(padding: 12)
             .padding(.top, 16)
             Spacer()
-            LaunchAtLogin().padding(.horizontal, 6)
+            HStack {
+                Text("Lock settings").font(.aileron(12)).foregroundStyle(.ink2)
+                Spacer()
+                Toggle("Lock settings", isOn: Binding(get: { filter.config.locked == true }, set: setLock))
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .tint(.allow)
+                    .held()
+            }
+            .padding(.horizontal, 6)
+            .padding(.bottom, 10)
+            .help("Every change asks for Touch ID or your password")
+            LaunchAtLogin(filter: filter).padding(.horizontal, 6)
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 14)
@@ -215,5 +240,18 @@ private struct Sidebar: View {
         // Keep the corner concentric with the window corner.
         .glassEffect(.regular, in: .rect(cornerRadius: 19))
         .padding(EdgeInsets(top: 7, leading: 7, bottom: 7, trailing: 8))
+    }
+
+    // Turning the lock on asks first, then locks at once.
+    private func setLock(_ on: Bool) {
+        Task {
+            if on {
+                guard await filter.lock.unlock("turn on its lock") else { return }
+                filter.lock.lock()
+                filter.update { $0.locked = true }
+            } else if await filter.mayChange("turn off its lock") {
+                filter.update { $0.locked = nil }
+            }
+        }
     }
 }

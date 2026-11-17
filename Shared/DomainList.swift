@@ -35,13 +35,19 @@ struct DomainList: Codable, Equatable, Identifiable {
         for line in text.split(whereSeparator: \.isNewline) {
             let words = line.prefix { $0 != "#" }.split(whereSeparator: \.isWhitespace)
             for word in words.dropFirst(words.count == 1 ? 0 : 1) {
-                guard let host = normalize(String(word)), host.contains("."),
-                    host.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "-_.".contains($0)) }),
-                    Address.normalize(host) == nil
-                else { continue }
-                hosts.insert(host)
+                if let host = host(String(word)) { hosts.insert(host) }
             }
         }
         return hosts
+    }
+
+    /// The word as a host name, after `normalize(_:)`. Nil for a name without a dot, text that cannot be a host name,
+    /// and an IP address.
+    static func host(_ word: String) -> String? {
+        guard let host = normalize(word), host.contains("."),
+            host.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "-_.".contains($0)) }),
+            Address.normalize(host) == nil
+        else { return nil }
+        return host
     }
 }

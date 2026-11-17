@@ -22,6 +22,13 @@ struct FileTests {
         #expect(config.limits.first?.period == .month)
     }
 
+    @Test func configWithAllowOnlyAndLockLoads() throws {
+        let data = Data(#"{"lists":[],"mode":"quiet","profiles":[],"rules":[],"limits":[],"allowOnly":true,"locked":true}"#.utf8)
+        let config = try JSONDecoder().decode(Config.self, from: data)
+        #expect(config.allowOnly == true)
+        #expect(config.locked == true)
+    }
+
     @Test func statsOfAnEarlierBuildLoad() throws {
         let data = Data(
             #"""

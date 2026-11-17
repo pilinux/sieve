@@ -7,8 +7,10 @@ import Foundation
     func stats(reply: @escaping @Sendable (Data) -> Void)
     /// A `Stats` with only the bytes and blocked counts. It is cheap enough to call every second.
     func usage(reply: @escaping @Sendable (Data) -> Void)
-    /// Saves a downloaded list, sent as UTF-8 text.
+    /// Saves a downloaded list, sent as UTF-8 text. The ID `Allowlist.id` saves the allowlist, and empty text deletes it.
     func setList(_ id: String, domains: Data, reply: @escaping @Sendable (Data) -> Void)
+    /// Returns the allowlist's entries as UTF-8 text, one per line.
+    func allowlist(reply: @escaping @Sendable (Data) -> Void)
     /// Clears one app's history but keeps its config.
     func forget(_ app: String, reply: @escaping @Sendable (Data) -> Void)
     /// Clears the history of every app but keeps the config.

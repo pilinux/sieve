@@ -87,8 +87,8 @@ struct ProfilesView: View {
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
                 // Cards are laid out by position. The ID makes a fresh field, so a deleted profile's edit does not pass to the next card.
-                ColourWell(filter: filter, id: id, index: index).id(id)
-                NameField(filter: filter, id: id, name: profile.name).id(id)
+                ColourWell(filter: filter, id: id, index: index).id(id).held()
+                NameField(filter: filter, id: id, name: profile.name).id(id).held()
                 if filter.stats.profile == id {
                     HStack(spacing: 6) {
                         Circle().fill(.good).frame(width: 7, height: 7)
@@ -107,6 +107,7 @@ struct ProfilesView: View {
                         config.rules.removeAll { $0.profile == id }
                     }
                 }
+                .held()
             }
             HStack(spacing: 8) {
                 Image(systemName: "wifi").foregroundStyle(.ink2)
@@ -121,12 +122,15 @@ struct ProfilesView: View {
                         }
                     }
                     .fixedSize()
+                    .held()
                 } else {
                     Button("Use this network") { filter.update { $0.profiles[id]?.network = networks.first } }
                         .disabled(networks.isEmpty)
+                        .held()
                 }
                 IconButton(icon: "xmark", help: "Clear network") { filter.update { $0.profiles[id]?.network = nil } }
                     .disabled(profile.network == nil)
+                    .held()
             }
             HStack(spacing: 8) {
                 Image(systemName: "clock").foregroundStyle(.ink2)
@@ -137,6 +141,7 @@ struct ProfilesView: View {
                     filter.update { $0.profiles[id]?.schedules.append(Schedule(weekdays: [], start: 9 * 60, end: 17 * 60)) }
                 }
                 .controlSize(.small)
+                .held()
             }
             ForEach(profile.schedules.indices, id: \.self) { block in
                 timeBlock(profile.schedules[block], profile: id, block: block, color: color)
@@ -163,6 +168,7 @@ struct ProfilesView: View {
                     }
                     .buttonStyle(.plain)
                     .help(Calendar.current.weekdaySymbols[day - 1])
+                    .held()
                 }
                 Spacer()
                 IconButton(icon: "xmark", help: "Remove this time") {
@@ -172,6 +178,7 @@ struct ProfilesView: View {
                         }
                     }
                 }
+                .held()
             }
             GeometryReader { geometry in
                 Capsule().fill(.s3).overlay(alignment: .leading) {
@@ -182,10 +189,10 @@ struct ProfilesView: View {
             }
             .frame(height: 6)
             HStack(spacing: 8) {
-                TimeField(minutes: minutes(id, block, \.start), range: 0...schedule.end - 1)
+                TimeField(minutes: minutes(id, block, \.start), range: 0...schedule.end - 1).held()
                 Text("to").foregroundStyle(.ink3)
                 // 24:00 is the end of the day. The end minute is not covered, so ending at 23:59 would leave a gap.
-                TimeField(minutes: minutes(id, block, \.end), range: schedule.start + 1...1440)
+                TimeField(minutes: minutes(id, block, \.end), range: schedule.start + 1...1440).held()
             }
         }
         .padding(10)

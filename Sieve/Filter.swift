@@ -30,6 +30,11 @@ final class Filter: NSObject {
     private(set) var ipInfoProgress: Double?
     /// Both error logs, by source, as last read. There is no `extension` key if the extension could not be reached.
     private(set) var logs: [String: LogFile] = [:]
+    let lock = Lock()
+    /// The file name, time, and counts of the last allowlist upload. The app keeps them in its defaults for the Lists card.
+    private(set) var allowlistUpload = UserDefaults.standard.data(forKey: "allowlistUpload").flatMap {
+        try? JSONDecoder().decode(AllowlistUpload.self, from: $0)
+    }
 
     private static let extensionID = "me.pilinux.Sieve.SieveExtension"
     // The extension inside this app, as macOS installs it.
@@ -149,11 +154,30 @@ final class Filter: NSObject {
         }
     }
 
-    /// Changes the config here right away, then in the extension. The task ends when the extension has the change.
+    /// True while the lock is on and Sieve is not unlocked.
+    var isLocked: Bool { config.locked == true && !lock.unlocked }
+
+    /// While the lock is on, asks for the unlock. Returns whether the change may go ahead.
+    /// - Parameter reason: what macOS shows after "Sieve is trying to".
+    func mayChange(_ reason: String = "change its settings") async -> Bool {
+        guard config.locked == true else { return true }
+        return await lock.unlock(reason)
+    }
+
+    /// Changes the config here, then in the extension. The task ends when the extension has the change.
     /// Does nothing until the config is read, because editing the defaults would replace every stored rule.
+    /// While the lock is on, the change waits for the unlock, and a cancelled unlock drops it.
     @discardableResult
-    func update(_ change: (inout Config) -> Void) -> Task<Void, Never>? {
+    func update(_ change: @escaping (inout Config) -> Void) -> Task<Void, Never>? {
         guard status == .on else { return nil }
+        guard config.locked != true else {
+            return Task { if await mayChange() { await save(change)?.value } }
+        }
+        return save(change)
+    }
+
+    // Changes the config here right away, then in the extension.
+    private func save(_ change: (inout Config) -> Void) -> Task<Void, Never>? {
         let old = config
         change(&config)
         config.approveCode(since: old, running: stats.codes ?? [:])
@@ -175,12 +199,14 @@ final class Filter: NSObject {
 
     /// Clears the app's history in the extension, then reads the stats again.
     func forget(_ app: String) async {
+        guard await mayChange() else { return }
         _ = await send { $0.forget(app, reply: $1) }
         await refresh()
     }
 
     /// Clears every app's history in the extension, then reads the stats again.
     func clearHistory() async {
+        guard await mayChange() else { return }
         _ = await send { $0.clearHistory(reply: $1) }
         await refresh()
     }
@@ -198,12 +224,14 @@ final class Filter: NSObject {
 
     /// Deletes that file in the extension, then reads the stats again.
     func discardBrokenConfig() async {
+        guard await mayChange() else { return }
         _ = await send { $0.discardBrokenConfig(reply: $1) }
         await refresh()
     }
 
     /// Downloads the list and hands it to the extension.
     func load(_ list: DomainList) async {
+        guard await mayChange() else { return }
         do {
             guard let url = list.url.flatMap(URL.init(string:)) else { throw URLError(.badURL) }
             let (bytes, response) = try await URLSession.shared.bytes(from: url)
@@ -234,6 +262,7 @@ final class Filter: NSObject {
 
     /// Reads a list file the user picked, hands it to the extension, and adds the list.
     func upload(_ list: DomainList, from file: URL) async {
+        guard await mayChange() else { return }
         // The sandbox lets the app read a picked file only inside this scope.
         let scoped = file.startAccessingSecurityScopedResource()
         defer { if scoped { file.stopAccessingSecurityScopedResource() } }
@@ -261,6 +290,53 @@ final class Filter: NSObject {
         return true
     }
 
+    /// Reads a picked allowlist file, drops duplicates, and hands the entries to the extension.
+    /// A file with no entry keeps the old list, since it would block every connection.
+    func uploadAllowlist(from file: URL) async {
+        guard await mayChange() else { return }
+        let scoped = file.startAccessingSecurityScopedResource()
+        defer { if scoped { file.stopAccessingSecurityScopedResource() } }
+        do {
+            guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= DomainList.maxBytes
+            else { throw URLError(.dataLengthExceedsMaximum) }
+            let (list, tally) = Allowlist.parse(String(decoding: try Data(contentsOf: file), as: UTF8.self))
+            guard !list.entries.isEmpty else {
+                message = ("\(file.lastPathComponent) has no host or IP address. Kept the old allowlist.", true)
+                return
+            }
+            let text = Data(list.entries.joined(separator: "\n").utf8)
+            guard await send({ $0.setList(Allowlist.id, domains: text, reply: $1) }) != nil else {
+                throw URLError(.cannotConnectToHost)
+            }
+            let upload = AllowlistUpload(name: file.lastPathComponent, date: .now, tally: tally)
+            allowlistUpload = upload
+            UserDefaults.standard.set(try? JSONEncoder().encode(upload), forKey: "allowlistUpload")
+            message = ("Loaded \(file.lastPathComponent): \(counted(list.entries.count, "entry"))", false)
+            await refresh()
+        } catch {
+            errorLog.warning("lists", "Cannot read a picked allowlist file", error)
+            message = ("Cannot load \(file.lastPathComponent): \(error.localizedDescription)", true)
+        }
+    }
+
+    /// Turns Allowlist only off, then deletes the list. In that order, an empty list never blocks every connection.
+    func removeAllowlist() async {
+        guard await mayChange() else { return }
+        await update { $0.allowOnly = nil }?.value
+        guard await send({ $0.setList(Allowlist.id, domains: Data(), reply: $1) }) != nil else {
+            message = ("Cannot delete the allowlist. The filter does not respond.", true)
+            return
+        }
+        allowlistUpload = nil
+        UserDefaults.standard.removeObject(forKey: "allowlistUpload")
+        await refresh()
+    }
+
+    /// The allowlist's entries, one per line. Nil if the filter cannot be reached.
+    func allowlist() async -> Data? {
+        await send { $0.allowlist(reply: $1) }
+    }
+
     // The compact copy of the uploaded IPinfo file. Only the app reads it.
     private static let ipInfoFile = URL.applicationSupportDirectory.appending(path: "me.pilinux.Sieve/ipinfo.bin")
 
@@ -274,6 +350,7 @@ final class Filter: NSObject {
 
     /// Reads a picked IPinfo Lite file, plain or gzip, and saves a compact copy. A file that fails to read keeps the old copy.
     func uploadIPInfo(from file: URL) async {
+        guard await mayChange() else { return }
         let scoped = file.startAccessingSecurityScopedResource()
         defer { if scoped { file.stopAccessingSecurityScopedResource() } }
         ipInfoProgress = 0
@@ -297,7 +374,8 @@ final class Filter: NSObject {
     }
 
     /// Deletes the saved IPinfo copy.
-    func removeIPInfo() {
+    func removeIPInfo() async {
+        guard await mayChange() else { return }
         do {
             try FileManager.default.removeItem(at: Self.ipInfoFile)
         } catch {
@@ -315,6 +393,7 @@ final class Filter: NSObject {
 
     /// Clears both error logs, then reads them again. The extension's log stays if the extension cannot be reached.
     func resetErrorLogs() async {
+        guard await mayChange("reset its error log") else { return }
         errorLog.reset()
         _ = await send { $0.resetErrorLog(reply: $1) }
         await readErrorLogs()
@@ -424,6 +503,13 @@ final class Filter: NSObject {
     }
 }
 
+/// The last allowlist upload, for the Lists card.
+struct AllowlistUpload: Codable {
+    var name: String
+    var date: Date
+    var tally: Allowlist.Tally
+}
+
 /// The filter's status, from Turn on to On.
 enum Status: Equatable {
     case off, activating, needsApproval, on
@@ -450,7 +536,6 @@ extension Filter: PromptXPC {
         Task { @MainActor in
             // With no window open, nothing polls, but the tracker mark needs fresh stats.
             await refresh()
-            var answer = (action: Action.allow, hostOnly: false)
             // No close button, so only Allow or Block can end the prompt.
             let panel = NSPanel(
                 contentRect: .zero, styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false
@@ -462,17 +547,26 @@ extension Filter: PromptXPC {
             // Make the window clear, so the prompt's glass is its background.
             panel.isOpaque = false
             panel.backgroundColor = .clear
-            let view = NSHostingView(
-                rootView: PromptView(filter: self, app: app, path: path, signer: signer, host: host, address: address) {
-                    action, hostOnly in
-                    answer = (action, hostOnly)
-                    NSApp.stopModal()
-                })
-            panel.contentView = view
-            panel.setContentSize(view.fittingSize)
-            panel.center()
-            NSApp.activate()
-            NSApp.runModal(for: panel)
+            // Keep the prompt in front, also while the unlock sheet or another app is active.
+            panel.level = .floating
+            panel.hidesOnDeactivate = false
+            // Wait without a modal loop. `runModal(for:)` would hold the main actor, so the unlock could never run.
+            let answer = await withCheckedContinuation { (continuation: CheckedContinuation<(action: Action, hostOnly: Bool), Never>) in
+                var answered = false
+                let view = NSHostingView(
+                    rootView: PromptView(filter: self, app: app, path: path, signer: signer, host: host, address: address) {
+                        action, hostOnly in
+                        // A second click before the panel closes must not answer twice.
+                        guard !answered else { return }
+                        answered = true
+                        continuation.resume(returning: (action, hostOnly))
+                    })
+                panel.contentView = view
+                panel.setContentSize(view.fittingSize)
+                panel.center()
+                NSApp.activate()
+                panel.makeKeyAndOrderFront(nil)
+            }
             panel.close()
             // The app is the only one that writes the config, so the rule is saved before the extension resumes the flows.
             // The reply carries the answer as well, so a failed save cannot turn Block into Allow.
