@@ -4,7 +4,7 @@ struct MenuView: View {
     let filter: Filter
 
     var body: some View {
-        let blocked = lastDays(7).map { (day: $0, count: filter.stats.blocked[Stats.day($0)] ?? 0) }
+        let blocked = lastDays(7).map { (day: $0, count: filter.usage.blocked[Stats.day($0)] ?? 0) }
         let most = Double(max(blocked.map(\.count).max() ?? 0, 1))
         VStack(alignment: .leading, spacing: 14) {
             HStack {

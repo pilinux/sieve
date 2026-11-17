@@ -10,6 +10,9 @@ import SwiftUI
 struct ContentView: View {
     let filter: Filter
     @State private var screen = Screen.apps
+    // Screens opened so far. Each stays in the window, hidden while another shows, so going back to it does not build
+    // it again. Its search, selection, and scroll position stay as they were.
+    @State private var opened: Set<Screen> = [.apps]
 
     var body: some View {
         Group {
@@ -25,15 +28,19 @@ struct ContentView: View {
                         if filter.stats.brokenConfig {
                             BrokenConfigNotice(filter: filter).padding(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 24))
                         }
-                        Group {
-                            switch screen {
-                            case .apps: AppsView(filter: filter)
-                            case .addresses: AddressesView(filter: filter)
-                            case .lists: ListsView(filter: filter)
-                            case .rules: RulesView(filter: filter)
-                            case .profiles: ProfilesView(filter: filter)
-                            case .diagnostics: DiagnosticsView(filter: filter)
+                        ZStack {
+                            ForEach(Screen.allCases.filter(opened.contains), id: \.self) { item in
+                                page(item)
+                                    .opacity(item == screen ? 1 : 0)
+                                    .allowsHitTesting(item == screen)
+                                    .accessibilityHidden(item != screen)
                             }
+                        }
+                        .onChange(of: screen) {
+                            opened.insert(screen)
+                            // A hidden screen must not keep the keyboard. Ending the edit also saves it, as a field
+                            // that went away did.
+                            NSApp.keyWindow?.makeFirstResponder(nil)
                         }
                         // A soft scroll edge under the title. A mask costs less than a blur.
                         .mask {
@@ -81,6 +88,17 @@ struct ContentView: View {
         .task { await filter.poll() }
     }
 
+    @ViewBuilder private func page(_ item: Screen) -> some View {
+        switch item {
+        case .apps: AppsView(filter: filter)
+        case .addresses: AddressesView(filter: filter, visible: screen == .addresses)
+        case .lists: ListsView(filter: filter)
+        case .rules: RulesView(filter: filter)
+        case .profiles: ProfilesView(filter: filter)
+        case .diagnostics: DiagnosticsView(filter: filter, visible: screen == .diagnostics)
+        }
+    }
+
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarSpacer(.flexible)
         ToolbarItem {
@@ -91,19 +109,10 @@ struct ContentView: View {
                         ToolButton(title: "Add profile", icon: "plus") {
                             filter.update { $0.profiles.append(Profile(name: "New profile")) }
                         }
-                        .held()
                     }
                     if screen == .apps { ClearAllHistory(filter: filter) }
                     if screen == .diagnostics { DiagnosticsTools(filter: filter) }
-                    HStack(spacing: 10) {
-                        RateLine(values: filter.trend(nil)).frame(width: 72, height: 22)
-                        Text(rate(filter.totalRate))
-                            .font(.aileron(13, .semibold)).monospacedDigit()
-                            .frame(minWidth: 76, alignment: .trailing)
-                    }
-                    .padding(.horizontal, 14)
-                    .frame(height: 34)
-                    .glassEffect(.regular, in: .capsule)
+                    LiveRate(filter: filter)
                     ModePicker(filter: filter, glass: true)
                     if filter.config.locked == true { LockButton(filter: filter) }
                 }
@@ -129,6 +138,31 @@ enum Screen: String, CaseIterable {
         case .profiles: "wifi"
         case .diagnostics: "waveform.path.ecg"
         }
+    }
+}
+
+// The total rate in the toolbar. It changes every second, so it is its own view and the window does not redraw with it.
+private struct LiveRate: View {
+    let filter: Filter
+
+    var body: some View {
+        HStack(spacing: 10) {
+            RateLine(values: filter.trend(nil)).frame(width: 72, height: 22)
+            Text(rate(filter.totalRate))
+                .font(.aileron(13, .semibold)).monospacedDigit()
+                .frame(minWidth: 76, alignment: .trailing)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 34)
+        .glassEffect(.regular, in: .capsule)
+    }
+}
+
+private struct BlockedTodayCount: View {
+    let filter: Filter
+
+    var body: some View {
+        Text("\(filter.usage.blocked[Stats.day(.now)] ?? 0)").font(.aileron(13, .semibold)).monospacedDigit()
     }
 }
 
@@ -202,7 +236,8 @@ private struct Sidebar: View {
                 HStack {
                     Text("Blocked today").foregroundStyle(.ink2)
                     Spacer()
-                    Text("\(stats.blocked[Stats.day(.now)] ?? 0)").font(.aileron(13, .semibold)).monospacedDigit()
+                    // The count changes every second, so it has its own view and the sidebar does not redraw with it.
+                    BlockedTodayCount(filter: filter)
                 }
                 .font(.aileron(12))
                 if filter.config.allowOnly == true, filter.config.mode != .off {

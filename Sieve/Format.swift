@@ -23,11 +23,20 @@ func rate(_ bytesPerSecond: Double) -> String {
     bytes(Int(bytesPerSecond)) + "/s"
 }
 
+// Counts with their nouns, cached. Grammar agreement is slow, and lists show several counts per row on every redraw.
+@MainActor private var countedTexts: [String: String] = [:]
+
 /// A count with its noun in the matching form, such as "1 host" or "2 hosts".
 func counted(_ count: Int, _ noun: String) -> String {
     // Automatic grammar agreement leaves "IP" as it is.
     if noun == "IP" { return "\(count.formatted()) \(count == 1 ? "IP" : "IPs")" }
-    return String(AttributedString(localized: "^[\(count) \(noun)](inflect: true)").characters)
+    let key = "\(count) \(noun)"
+    if let text = countedTexts[key] { return text }
+    // Counts such as flows keep growing, so start over rather than keep every one.
+    if countedTexts.count >= 10_000 { countedTexts.removeAll() }
+    let text = String(AttributedString(localized: "^[\(count) \(noun)](inflect: true)").characters)
+    countedTexts[key] = text
+    return text
 }
 
 /// The last `count` days, oldest first, ending today.

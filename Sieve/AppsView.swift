@@ -40,7 +40,8 @@ struct AppsView: View {
         let decided = stats.apps.keys.filter { !all.contains($0) && match($0) }.sorted(by: byName)
         // All apps and the search field stay in place. Each group header sticks to the top until the next one pushes it out.
         return VStack(spacing: 0) {
-            allApps.padding(EdgeInsets(top: 12, leading: 10, bottom: 0, trailing: 10))
+            AllApps(filter: filter, selected: selected == nil).onTapGesture { selected = nil }.padding(
+                EdgeInsets(top: 12, leading: 10, bottom: 0, trailing: 10))
             SearchField(text: $query, prompt: "Search apps").padding(EdgeInsets(top: 10, leading: 10, bottom: 0, trailing: 10))
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
@@ -68,23 +69,6 @@ struct AppsView: View {
                 .padding(EdgeInsets(top: 0, leading: 10, bottom: 12, trailing: 10))
             }
         }
-    }
-
-    private var allApps: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "sum").font(.system(size: 13, weight: .semibold))
-                .frame(width: 28, height: 28)
-                .background(.s3, in: .rect(cornerRadius: 7))
-            VStack(alignment: .leading, spacing: 1) {
-                Text("All apps").font(.aileron(13, .semibold))
-                Text("\(bytes(filter.stats.totalBytes)) · \(counted(filter.stats.apps.count, "app"))")
-                    .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
-            }
-            Spacer()
-            Text(rate(filter.totalRate)).font(.aileron(12)).foregroundStyle(.ink2).monospacedDigit()
-        }
-        .appRowStyle(selected: selected == nil)
-        .onTapGesture { selected = nil }
     }
 
     private func group(_ title: String, _ count: Int) -> some View {
@@ -116,17 +100,121 @@ struct AppsView: View {
                 .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
             }
             Spacer()
-            IconButton(icon: "xmark", help: "Block", tint: .block, ring: true) {
+            IconButton(icon: "xmark", help: "Block", tint: .block, ring: true, held: true) {
                 filter.update { $0.setAction(.block, for: app) }
             }
-            .held()
-            IconButton(icon: "checkmark", help: "Allow", tint: .allow, ring: true) {
+            IconButton(icon: "checkmark", help: "Allow", tint: .allow, ring: true, held: true) {
                 filter.update { $0.setAction(.allow, for: app) }
             }
-            .held()
         }
         .appRowStyle(selected: selected == app, bar: false)
         .onTapGesture { selected = app }
+    }
+}
+
+// The totals of every app. It reads the per-second counts, so it is its own view, and the list does not redraw each second.
+private struct AllApps: View {
+    let filter: Filter
+    let selected: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sum").font(.system(size: 13, weight: .semibold))
+                .frame(width: 28, height: 28)
+                .background(.s3, in: .rect(cornerRadius: 7))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("All apps").font(.aileron(13, .semibold))
+                Text("\(bytes(filter.usage.totalBytes)) · \(counted(filter.stats.apps.count, "app"))")
+                    .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
+            }
+            Spacer()
+            Text(rate(filter.totalRate)).font(.aileron(12)).foregroundStyle(.ink2).monospacedDigit()
+        }
+        .appRowStyle(selected: selected)
+    }
+}
+
+// The rate now, with its last minute.
+private struct NowKpi: View {
+    let filter: Filter
+
+    var body: some View {
+        let now = split(rate(filter.totalRate))
+        Kpi(title: "Now", value: now.value, unit: now.unit) {
+            RateLine(values: filter.trend(nil), hover: true).frame(height: 28)
+        }
+    }
+}
+
+// The five apps with the most bytes.
+private struct TopApps: View {
+    let filter: Filter
+
+    var body: some View {
+        let stats = filter.stats
+        VStack(alignment: .leading, spacing: 14) {
+            Caption("Top apps")
+            RankedBars(
+                items: filter.usage.bytes.sorted { $0.value > $1.value }.prefix(5).map {
+                    .init(key: $0.key, name: stats.name($0.key), value: Double($0.value), text: bytes($0.value))
+                },
+                stacked: true
+            ) { item in AppIcon(path: stats.paths[item.key], size: 22) }
+        }
+        .card()
+    }
+}
+
+// Blocked flows of the last 31 days, split by block lists and by rules and limits.
+private struct BlockedChart: View {
+    let filter: Filter
+
+    var body: some View {
+        let stats = filter.usage
+        let days = lastDays(31)
+        let blocked = days.enumerated().map { index, day in
+            let parts = blockedParts(stats, day: Stats.day(day))
+            let lines = parts.count > 1 ? parts.map { "\($0.name): \($0.value.formatted())" } : parts.map(\.name)
+            return DayBars.Bar(
+                day: day, value: Double(stats.blocked[Stats.day(day)] ?? 0),
+                tick: DayBars.Bar.weekly(index, of: days.count, day, step: 14), parts: parts, lines: lines
+            )
+        }
+        // The legend lists only the kinds the chart draws.
+        let kinds = blocked.flatMap { $0.parts ?? [] }.filter { $0.value > 0 }
+        let legend = [
+            (name: "Block lists", color: Color.block), (name: "Rules and limits", color: .ruleBlock), (name: "Not split", color: .unsplit),
+        ]
+        .filter { kind in kinds.contains { $0.name == kind.name } }
+        VStack(alignment: .leading, spacing: 14) {
+            Caption("Blocked flows · 31 days")
+            DayBars(bars: blocked, format: { Int($0).formatted() }).equatable().frame(height: 172)
+            Legend(parts: legend)
+        }
+        .card()
+    }
+}
+
+// One app's rate now, its last minute, and its bytes.
+private struct AppNow: View {
+    let filter: Filter
+    let app: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Caption("Now")
+            Text(rate(filter.rates[app] ?? 0)).font(.aileron(26, .light)).monospacedDigit()
+            RateLine(values: filter.trend(app), hover: true).frame(height: 70)
+            HStack {
+                Text("Total \(Text(bytes(filter.usage.bytes[app] ?? 0)).foregroundStyle(.ink))")
+                Spacer()
+                Text("Today \(Text(bytes(filter.stats.daily[Stats.day(.now)]?[app] ?? 0)).foregroundStyle(.ink))")
+            }
+            .font(.aileron(12))
+            .foregroundStyle(.ink3)
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .card()
     }
 }
 
@@ -169,21 +257,6 @@ private struct Overview: View {
         let data = days.enumerated().map { index, day in
             DayBars.Bar(day: day, value: Double(total(Stats.day(day))), tick: DayBars.Bar.weekly(index, of: days.count, day))
         }
-        let blocked = days.enumerated().map { index, day in
-            let parts = blockedParts(stats, day: Stats.day(day))
-            let lines = parts.count > 1 ? parts.map { "\($0.name): \($0.value.formatted())" } : parts.map(\.name)
-            return DayBars.Bar(
-                day: day, value: Double(stats.blocked[Stats.day(day)] ?? 0),
-                tick: DayBars.Bar.weekly(index, of: days.count, day, step: 14), parts: parts, lines: lines
-            )
-        }
-        // The legend lists only the kinds the chart draws.
-        let kinds = blocked.flatMap { $0.parts ?? [] }.filter { $0.value > 0 }
-        let legend = [
-            (name: "Block lists", color: Color.block), (name: "Rules and limits", color: .ruleBlock), (name: "Not split", color: .unsplit),
-        ]
-        .filter { kind in kinds.contains { $0.name == kind.name } }
-        let top = stats.bytes.sorted { $0.value > $1.value }.prefix(5)
         let todayBytes = split(bytes(total(today)))
         let withTrackers = stats.apps.values.filter { $0.keys.contains(where: stats.trackers.contains) }.count
         let grades = Stats.grades.map { grade, range in
@@ -194,14 +267,11 @@ private struct Overview: View {
         }
         VStack(spacing: 12) {
             HStack(spacing: 12) {
-                let now = split(rate(filter.totalRate))
-                Kpi(title: "Now", value: now.value, unit: now.unit) {
-                    RateLine(values: filter.trend(nil), hover: true).frame(height: 28)
-                }
+                NowKpi(filter: filter)
                 Kpi(title: "Today", value: todayBytes.value, unit: todayBytes.unit) {
                     Text("\(bytes(Int(data.reduce(0) { $0 + $1.value }))) in 31 days")
                 }
-                BlockedToday(stats: stats)
+                BlockedToday(filter: filter)
                 Kpi(title: "Trackers seen", value: "\(stats.trackers.count)") {
                     Label("in \(counted(withTrackers, "app"))", systemImage: "exclamationmark.triangle")
                 }
@@ -213,20 +283,8 @@ private struct Overview: View {
             }
             .card()
             HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 14) {
-                    Caption("Top apps")
-                    RankedBars(
-                        items: top.map { .init(key: $0.key, name: stats.name($0.key), value: Double($0.value), text: bytes($0.value)) },
-                        stacked: true
-                    ) { item in AppIcon(path: stats.paths[item.key], size: 22) }
-                }
-                .card()
-                VStack(alignment: .leading, spacing: 14) {
-                    Caption("Blocked flows · 31 days")
-                    DayBars(bars: blocked, format: { Int($0).formatted() }).equatable().frame(height: 172)
-                    Legend(parts: legend)
-                }
-                .card()
+                TopApps(filter: filter)
+                BlockedChart(filter: filter)
             }
             .fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 14) {
@@ -276,8 +334,7 @@ private struct XRay: View {
                     Chip(text: "Code changed", icon: "exclamationmark.triangle.fill", iconColor: .warn)
                         .help("Its Allow rules do not count until you allow it again")
                 }
-                IconButton(icon: "clock.arrow.circlepath", help: "Clear history", ring: true) { clearing = true }
-                    .held()
+                IconButton(icon: "clock.arrow.circlepath", help: "Clear history", ring: true, held: true) { clearing = true }
                     .confirmationDialog("Clear the history of \(stats.name(app))?", isPresented: $clearing) {
                         Button("Clear History", role: .destructive) { Task { await filter.forget(app) } }
                     } message: {
@@ -287,10 +344,9 @@ private struct XRay: View {
                 if config.hasAppRule(app), !stats.apple.contains(app) {
                     // An Always rule comes back with one click, but profile rules take more, so ask only for those.
                     let profiled = config.rules.contains { $0.app == app && $0.host == nil && $0.profile != nil }
-                    IconButton(icon: "arrow.uturn.backward", help: "Make undecided", ring: true) {
+                    IconButton(icon: "arrow.uturn.backward", help: "Make undecided", ring: true, held: true) {
                         if profiled { undeciding = true } else { undecide() }
                     }
-                    .held()
                     .confirmationDialog("Make \(stats.name(app)) undecided?", isPresented: $undeciding) {
                         Button("Make Undecided", role: .destructive) { undecide() }
                     } message: {
@@ -299,27 +355,13 @@ private struct XRay: View {
                 }
                 // `unknown` cannot have a rule, because many processes share it.
                 if app != Config.unknownApp {
-                    Segments(verdict: config.action(for: app)) { action in filter.update { $0.setAction(action, for: app) } }
-                        .held()
+                    Segments(verdict: config.action(for: app), held: true) { action in filter.update { $0.setAction(action, for: app) } }
                 }
             }
             HStack(spacing: 12) {
                 let open = stats.openTrackers(app)
                 grade(stats.grade(app), trackers: open, blocked: trackers.count - open, hosts: hosts.count).frame(width: 250)
-                VStack(alignment: .leading, spacing: 6) {
-                    Caption("Now")
-                    Text(rate(filter.rates[app] ?? 0)).font(.aileron(26, .light)).monospacedDigit()
-                    RateLine(values: filter.trend(app), hover: true).frame(height: 70)
-                    HStack {
-                        Text("Total \(Text(bytes(stats.bytes[app] ?? 0)).foregroundStyle(.ink))")
-                        Spacer()
-                        Text("Today \(Text(bytes(stats.daily[Stats.day(.now)]?[app] ?? 0)).foregroundStyle(.ink))")
-                    }
-                    .font(.aileron(12))
-                    .foregroundStyle(.ink3)
-                }
-                .frame(maxHeight: .infinity, alignment: .top)
-                .card()
+                AppNow(filter: filter, app: app)
             }
             .fixedSize(horizontal: false, vertical: true)
             data(limit: limit, used: used)
@@ -411,13 +453,12 @@ private struct XRay: View {
                 if let limit {
                     Segments(
                         options: [.init(value: Period.day, label: "Day"), .init(value: .month, label: "Month")],
-                        selection: limit.period
+                        selection: limit.period, held: true
                     ) { period in
                         filter.update { config in
                             if let index = config.limits.firstIndex(where: { $0.app == app }) { config.limits[index].period = period }
                         }
                     }
-                    .held()
                 }
             }
             if let limit {
@@ -465,10 +506,9 @@ private struct XRay: View {
                         if app != Config.unknownApp {
                             // A parent domain's rule is not this host's to remove.
                             if rule?.host == host { undecideButton(host) }
-                            Segments(verdict: rule?.action, small: true) { action in
+                            Segments(verdict: rule?.action, small: true, held: true) { action in
                                 filter.update { $0.setAction(action, for: app, host: host) }
                             }
-                            .held()
                         }
                     }
                     .frame(height: 38)
@@ -502,10 +542,9 @@ private struct XRay: View {
                         AddressFact(value: address, dns: used, ipInfo: filter.ipInfo?.table)
                         if app != Config.unknownApp {
                             if action != nil { undecideButton(address) }
-                            Segments(verdict: action, small: true) { action in
+                            Segments(verdict: action, small: true, held: true) { action in
                                 filter.update { $0.setAction(action, for: app, host: address) }
                             }
-                            .held()
                         }
                     }
                     .frame(height: 38)
@@ -528,10 +567,9 @@ private struct XRay: View {
 
     // Removes the Always rule of a host or address, the one its Allow and Block show. Profile rules stay.
     private func undecideButton(_ host: String) -> some View {
-        IconButton(icon: "arrow.uturn.backward", help: "Make undecided") {
+        IconButton(icon: "arrow.uturn.backward", help: "Make undecided", held: true) {
             filter.update { $0.rules.removeAll { $0.app == app && $0.host == host && $0.profile == nil } }
         }
-        .held()
     }
 
     // A list card's title, count, legend, and the bar of allowed, blocked, and no rule.
@@ -573,7 +611,6 @@ struct ClearAllHistory: View {
 
     var body: some View {
         ToolButton(title: "Clear all history…", icon: "clock.arrow.circlepath") { clearing = true }
-            .held()
             .confirmationDialog("Clear all history?", isPresented: $clearing) {
                 Button("Clear All History", role: .destructive) { Task { await filter.clearHistory() } }
             } message: {

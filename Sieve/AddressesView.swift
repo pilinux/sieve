@@ -3,40 +3,82 @@ import SwiftUI
 /// Every IP address any app reached, as a table or as a world map shaded by flows.
 struct AddressesView: View {
     let filter: Filter
+    /// Whether the screen shows. It stays in the window while hidden, and skips refreshes until it shows again.
+    let visible: Bool
 
     var body: some View {
-        // The stats change every second as bytes come in. This view redraws only when the addresses or the IP data change.
+        // This view redraws only when the addresses or the IP data change, and only while it shows.
         AddressesContent(
             addresses: filter.stats.addresses ?? [:], paths: filter.stats.paths, ipInfo: filter.ipInfo?.table,
-            ipInfoDate: filter.ipInfo?.date
+            ipInfoDate: filter.ipInfo?.date, visible: visible
         )
         .equatable()
     }
 }
 
+// Labels and sorts the addresses. Searching and opening rows happen in `AddressesScreen`, so they do not label or sort
+// every address again. The sort is stable, so filtering sorted lines gives the same order as sorting filtered ones.
 private struct AddressesContent: View, Equatable {
     let addresses: [String: [String: Address]]
     let paths: [String: String]
     let ipInfo: AddressTable?
     let ipInfoDate: Date?
+    let visible: Bool
+    @State private var order = [KeyPathComparator(\Line.flows, order: .reverse)]
+
+    // While hidden, a refresh would re-sort every address and update the table for nothing. Skipping it keeps the
+    // older data, which the next comparison, once the screen shows, finds out of date.
+    static func == (a: Self, b: Self) -> Bool {
+        !b.visible || (a.addresses == b.addresses && a.paths == b.paths && a.ipInfoDate == b.ipInfoDate)
+    }
+
+    var body: some View {
+        let rows = Stats(addresses: addresses).addressRows()
+        let lines = labeled(rows)
+        let labels = Dictionary(uniqueKeysWithValues: lines.map { ($0.id, $0.label) })
+        AddressesScreen(
+            lines: lines.sorted(using: order), order: $order, places: FlowsByPlace(rows) { labels[$0.id] ?? nil },
+            paths: paths, ipInfo: ipInfo)
+    }
+
+    // A refresh every 10 seconds changes flow counts, not labels. A label depends only on the address, whether it
+    // served DNS, and the IP data, so this reuses the labels of the last pass. It keeps only current addresses, so the
+    // cache stays as small as the table.
+    private func labeled(_ rows: [AddressRow]) -> [Line] {
+        let old = cachedFacts.ipInfo == ipInfoDate ? cachedFacts.byKey : [:]
+        var byKey: [String: Facts] = [:]
+        let lines = rows.map { row in
+            let key = row.dns ? "dns \(row.address)" : row.address
+            let facts =
+                old[key] ?? Facts(address: row.address, label: AddressLabel(row.address, dns: row.dns, ipInfo: ipInfo))
+            byKey[key] = facts
+            return Line(row: row, facts: facts)
+        }
+        cachedFacts = (ipInfoDate, byKey)
+        return lines
+    }
+}
+
+// The facts of the last pass, by address, for the IP data with this upload date.
+@MainActor private var cachedFacts: (ipInfo: Date?, byKey: [String: Facts]) = (nil, [:])
+
+private struct AddressesScreen: View {
+    // Sorted by `order`.
+    let lines: [Line]
+    @Binding var order: [KeyPathComparator<Line>]
+    let places: FlowsByPlace
+    let paths: [String: String]
+    let ipInfo: AddressTable?
     @State private var showsMap = false
     @State private var query = ""
     // The country a click on the map narrowed the table to.
     @State private var country: String?
-    @State private var order = [KeyPathComparator(\Line.flows, order: .reverse)]
     // Rows opened to one row per app, by address.
     @State private var open: Set<String> = []
 
-    static func == (a: Self, b: Self) -> Bool {
-        a.addresses == b.addresses && a.paths == b.paths && a.ipInfoDate == b.ipInfoDate
-    }
-
     var body: some View {
         let names = Stats(paths: paths)
-        let rows = Stats(addresses: addresses).addressRows()
-        let lines = rows.map { Line(row: $0, label: AddressLabel($0.address, dns: $0.dns, ipInfo: ipInfo)) }
-        let labels = Dictionary(uniqueKeysWithValues: lines.map { ($0.id, $0.label) })
-        let places = FlowsByPlace(rows) { labels[$0.id] ?? nil }
+        let rows = lines.map(\.row)
         VStack(spacing: 12) {
             HStack(spacing: 12) {
                 Kpi(title: "Addresses", value: rows.count.formatted()) {
@@ -81,7 +123,6 @@ private struct AddressesContent: View, Equatable {
             (country == nil || line.code == country)
                 && (query.isEmpty || [line.address, line.host, line.labelName].contains { $0.localizedStandardContains(query) })
         }
-        .sorted(using: order)
         let most = Double(max(lines.map(\.flows).max() ?? 1, 1))
         return Table(of: Line.self, sortOrder: $order) {
             TableColumn("Address", value: \.sortAddress) { line in
@@ -233,9 +274,13 @@ private struct AddressesContent: View, Equatable {
 // One table row: an address, or one app's share under an opened address. Each sortable column reads a property here.
 private nonisolated struct Line: Identifiable, Sendable {
     let row: AddressRow
-    let label: AddressLabel?
+    let facts: Facts
     /// The app of a row under an opened address. Nil for the address's own row.
     var app: String?
+    var label: AddressLabel? { facts.label }
+    var sortAddress: String { facts.sortAddress }
+    var labelName: String { facts.name }
+    var labelKey: String { facts.key }
     var id: String { app.map { "\(row.address)\n\($0)" } ?? row.address }
     var address: String { row.address }
     var host: String { row.host ?? "" }
@@ -246,37 +291,43 @@ private nonisolated struct Line: Identifiable, Sendable {
     var last: Date { lastFlow ?? .distantPast }
 
     func child(_ app: String) -> Line {
-        Line(row: row, label: nil, app: app)
+        Line(row: row, facts: Facts(address: row.address, label: nil), app: app)
     }
     var code: String? {
         if case .country(let code, _, _, _) = label { code } else { nil }
     }
+}
 
+// An address's label and the text the table searches and sorts by. It depends only on the address, whether it served
+// DNS, and the IP data, so `AddressesContent` keeps it from one refresh to the next.
+private nonisolated struct Facts: Sendable {
+    let label: AddressLabel?
     // Sorts IPv4 before IPv6, each by number rather than by text.
-    var sortAddress: String {
-        let bytes = AddressTable.bytes(address) ?? []
-        return "\(bytes.count)" + bytes.map { String(format: "%02x", $0) }.joined()
-    }
-
+    let sortAddress: String
     // The words a search can match: the provider, or the country and owner.
-    var labelName: String {
-        switch label {
-        case .publicDNS(let provider), .cdn(let provider): provider
-        case .country(let code, _, let owner, _): "\(countryName(code)) \(code) \(owner)"
-        default: ""
-        }
-    }
-
+    let name: String
     // Sorts by kind, then by name.
-    var labelKey: String {
-        switch label {
-        case .publicDNS: "0 \(labelName)"
-        case .dns: "1"
-        case .local: "2"
-        case .cdn: "3 \(labelName)"
-        case .country: "4 \(labelName)"
-        case nil: "5"
-        }
+    let key: String
+
+    init(address: String, label: AddressLabel?) {
+        self.label = label
+        let bytes = AddressTable.bytes(address) ?? []
+        sortAddress = "\(bytes.count)" + bytes.map { String(format: "%02x", $0) }.joined()
+        name =
+            switch label {
+            case .publicDNS(let provider), .cdn(let provider): provider
+            case .country(let code, _, let owner, _): "\(countryName(code)) \(code) \(owner)"
+            default: ""
+            }
+        key =
+            switch label {
+            case .publicDNS: "0 \(name)"
+            case .dns: "1"
+            case .local: "2"
+            case .cdn: "3 \(name)"
+            case .country: "4 \(name)"
+            case nil: "5"
+            }
     }
 }
 

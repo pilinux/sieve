@@ -71,12 +71,11 @@ struct ListsView: View {
                                 }
                                 Chip(action: list.action)
                                 if list.url != nil {
-                                    IconButton(icon: "arrow.clockwise", help: "Refresh") { Task { await filter.load(list) } }.held()
+                                    IconButton(icon: "arrow.clockwise", help: "Refresh", held: true) { Task { await filter.load(list) } }
                                 }
-                                IconButton(icon: "trash", help: "Delete this list") {
+                                IconButton(icon: "trash", help: "Delete this list", held: true) {
                                     filter.update { $0.lists.removeAll { $0.id == list.id } }
                                 }
-                                .held()
                             }
                             .padding(.top, 8)
                         }
@@ -93,7 +92,7 @@ struct ListsView: View {
                         Kpi(title: "Trackers seen", value: "\(stats.trackers.count)") {
                             Label("hosts on a block list", systemImage: "exclamationmark.triangle")
                         }
-                        BlockedToday(stats: stats)
+                        BlockedToday(filter: filter)
                     }
                     .fixedSize(horizontal: false, vertical: true)
                     VStack(alignment: .leading, spacing: 14) {
@@ -210,8 +209,8 @@ struct ListsView: View {
                         .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
                     }
                     Spacer()
-                    IconButton(icon: "square.and.arrow.up", help: "Upload a newer copy") { pickingIPInfo = true }.held()
-                    IconButton(icon: "trash", help: "Remove the IP data") { Task { await filter.removeIPInfo() } }.held()
+                    IconButton(icon: "square.and.arrow.up", help: "Upload a newer copy", held: true) { pickingIPInfo = true }
+                    IconButton(icon: "trash", help: "Remove the IP data", held: true) { Task { await filter.removeIPInfo() } }
                 }
                 Text(
                     "X-Ray, Rules, and prompts show each address's country and network owner. CDN, public DNS, and local addresses show those labels in place of a country, with or without this file."
@@ -254,7 +253,7 @@ struct ListsView: View {
             HStack {
                 Text("Ads, trackers, malware · Steven Black's hosts").font(.aileron(12)).foregroundStyle(.ink2)
                 Spacer()
-                IconButton(icon: "arrow.clockwise", help: "Refresh") { Task { await filter.load(shield) } }.held()
+                IconButton(icon: "arrow.clockwise", help: "Refresh", held: true) { Task { await filter.load(shield) } }
             }
         }
         .card()
@@ -310,16 +309,13 @@ struct ListsView: View {
                         }
                     }
                     Spacer()
-                    IconButton(icon: "square.and.arrow.down", help: "Save a copy of the list, without duplicates") {
+                    IconButton(icon: "square.and.arrow.down", help: "Save a copy of the list, without duplicates", held: true) {
                         Task { await saveAllowlist() }
                     }
-                    .held()
-                    IconButton(icon: "square.and.arrow.up", help: "Upload a new file. It replaces the list.") {
+                    IconButton(icon: "square.and.arrow.up", help: "Upload a new file. It replaces the list.", held: true) {
                         pickingAllowlist = true
                     }
-                    .held()
-                    IconButton(icon: "trash", help: "Delete the allowlist") { deletingAllowlist = true }
-                        .held()
+                    IconButton(icon: "trash", help: "Delete the allowlist", held: true) { deletingAllowlist = true }
                         .confirmationDialog("Delete the allowlist?", isPresented: $deletingAllowlist) {
                             Button("Delete", role: .destructive) { Task { await filter.removeAllowlist() } }
                         } message: {

@@ -62,9 +62,10 @@ func blockedParts(_ stats: Stats, day: String) -> [SegmentBar.Part] {
 
 /// Today's blocked flows, with a bar that splits them. If today was counted before the split, there is no bar.
 struct BlockedToday: View {
-    let stats: Stats
+    let filter: Filter
 
     var body: some View {
+        let stats = filter.usage
         let today = Stats.day(.now)
         Kpi(title: "Blocked today", value: "\(stats.blocked[today] ?? 0)") {
             if stats.blockedSplit(today) != nil { SegmentBar(parts: blockedParts(stats, day: today)) }
@@ -166,14 +167,24 @@ struct GradeBadge: View {
     }
 }
 
+// Finder icons, cached by path. Each lookup reads from disk, and lists redraw every second.
+@MainActor private var icons: [String: NSImage] = [:]
+
 /// The app's Finder icon.
 struct AppIcon: View {
     let path: String?
     var size: CGFloat = 28
 
     var body: some View {
+        Image(nsImage: Self.icon(path)).resizable().frame(width: size, height: size)
+    }
+
+    private static func icon(_ path: String?) -> NSImage {
+        let key = path ?? ""
+        if let icon = icons[key] { return icon }
         let icon = path.map { NSWorkspace.shared.icon(forFile: $0) } ?? NSWorkspace.shared.icon(for: .unixExecutable)
-        Image(nsImage: icon).resizable().frame(width: size, height: size)
+        icons[key] = icon
+        return icon
     }
 }
 
@@ -191,7 +202,10 @@ struct Segments<Value: Hashable>: View {
     var small = false
     /// A glass capsule, for the toolbar.
     var glass = false
+    /// Dims it while Sieve is locked, as `held()` does.
+    var held = false
     let choose: (Value) -> Void
+    @Environment(\.locked) private var locked
 
     var body: some View {
         HStack(spacing: 2) {
@@ -225,18 +239,19 @@ struct Segments<Value: Hashable>: View {
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(glass ? .clear : .line))
         .glassEffect(glass ? .regular : .identity, in: .capsule)
         .fixedSize()
+        .opacity(held && locked ? 0.45 : 1)
     }
 }
 
 extension Segments where Value == Action {
     /// Allow and Block. Neither is chosen while there is no rule.
-    init(verdict: Action?, small: Bool = false, choose: @escaping (Action) -> Void) {
+    init(verdict: Action?, small: Bool = false, held: Bool = false, choose: @escaping (Action) -> Void) {
         self.init(
             options: [
                 Option(value: .allow, label: "Allow", icon: "checkmark", tint: .allow),
                 Option(value: .block, label: "Block", icon: "xmark", tint: .block),
             ],
-            selection: verdict, small: small, choose: choose
+            selection: verdict, small: small, held: held, choose: choose
         )
     }
 }
@@ -247,9 +262,12 @@ struct IconButton: View {
     let help: String
     var tint: Color?
     var ring = false
+    /// Dims it while Sieve is locked, as `held()` does.
+    var held = false
     let action: () -> Void
     @State private var hover = false
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.locked) private var locked
 
     var body: some View {
         Button(action: action) {
@@ -262,7 +280,7 @@ struct IconButton: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .opacity(isEnabled ? 1 : 0.4)
+        .opacity((isEnabled ? 1 : 0.4) * (held && locked ? 0.45 : 1))
         .onHover { hover = $0 && isEnabled }
         .help(help)
     }
@@ -276,9 +294,8 @@ struct ModePicker: View {
     var body: some View {
         Segments(
             options: [.init(value: Mode.off, label: "Off"), .init(value: .ask, label: "Ask"), .init(value: .quiet, label: "Quiet")],
-            selection: filter.config.mode, glass: glass
+            selection: filter.config.mode, glass: glass, held: true
         ) { mode in filter.update { $0.mode = mode } }
-        .held()
     }
 }
 
@@ -318,6 +335,7 @@ extension EnvironmentValues {
 
 extension View {
     /// Dims a control that changes something while Sieve is locked. A click on it still works, and asks for the unlock.
+    /// `IconButton`, `Segments`, `ToolButton`, and the rule cells dim themselves, so rows of them add no extra views.
     func held() -> some View {
         modifier(Held())
     }
@@ -365,7 +383,7 @@ struct AppRow: View {
                         GradeBadge(grade: stats.grade(app))
                     }
                     Text(
-                        "\(bytes(stats.bytes[app] ?? 0)) · \(counted(stats.apps[app]?.count ?? 0, "host")) · \(counted(stats.addresses?[app]?.count ?? 0, "IP"))"
+                        "\(bytes(filter.usage.bytes[app] ?? 0)) · \(counted(stats.apps[app]?.count ?? 0, "host")) · \(counted(stats.addresses?[app]?.count ?? 0, "IP"))"
                     )
                     .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit().lineLimit(1)
                 }
@@ -437,11 +455,12 @@ struct SearchField: View {
     }
 }
 
-/// A glass capsule button for the toolbar.
+/// A glass capsule button for the toolbar. Each one changes something, so it dims while Sieve is locked.
 struct ToolButton: View {
     let title: String
     let icon: String
     let action: () -> Void
+    @Environment(\.locked) private var locked
 
     var body: some View {
         Button(action: action) {
@@ -454,6 +473,7 @@ struct ToolButton: View {
         }
         .buttonStyle(.plain)
         .glassEffect(.regular.interactive(), in: .capsule)
+        .opacity(locked ? 0.45 : 1)
     }
 }
 

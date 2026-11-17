@@ -2,9 +2,6 @@ import SwiftUI
 
 struct RulesView: View {
     let filter: Filter
-    @State private var query = ""
-    // The row whose app shows its hosts and addresses.
-    @State private var traffic: String?
 
     // The order of `Config.decide`, with the verdicts each step can give.
     private static let steps: [(label: String, outs: [Color])] = [
@@ -64,7 +61,7 @@ struct RulesView: View {
                         }
                     }
                     .fixedSize(horizontal: false, vertical: true)
-                    table(rules)
+                    RulesTable(filter: filter)
                 }
                 .padding(EdgeInsets(top: 20, leading: 24, bottom: 28, trailing: 24))
             }
@@ -105,53 +102,30 @@ struct RulesView: View {
             }
         }
     }
+}
 
-    private func table(_ rules: [Rule]) -> some View {
+// The rules by app and host, with a column per profile. It holds the search, so typing redraws only the table.
+private struct RulesTable: View {
+    let filter: Filter
+    @State private var query = ""
+    // The row whose app shows its hosts and addresses.
+    @State private var traffic: String?
+    // The width the table can use. It starts unbounded, so the first pass draws the columns without a scroll view.
+    @State private var width = CGFloat.infinity
+
+    var body: some View {
         let stats = filter.stats
         let profiles = filter.config.profiles
         // Ignore case and accents.
-        let rows = Self.rows(rules).filter { row in
+        let rows = Self.rows(filter.config.rules, stats: stats).filter { row in
             query.isEmpty || stats.name(row.app).localizedStandardContains(query) || row.app.localizedStandardContains(query)
                 || (row.host ?? "").localizedStandardContains(query)
         }
-        let most = Double(max(rows.map { hits($0).count }.max() ?? 0, 1))
-        let columns = VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 0) {
-                ForEach(profiles.indices, id: \.self) { index in
-                    let profile = profiles[index]
-                    HStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: 3).fill(Color.profile(index, profile.color)).frame(width: 10, height: 10)
-                        Caption(profile.name).lineLimit(1)
-                        if profile.id == stats.profile { Circle().fill(.good).frame(width: 7, height: 7).help("Active now") }
-                    }
-                    .frame(width: 120, alignment: .leading)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .background(profile.id == stats.profile ? Color.white.opacity(0.03) : .clear)
-                }
-            }
-            .frame(height: 30)
-            ForEach(rows) { row in
-                let always = row.rule(nil)?.action
-                HStack(spacing: 0) {
-                    ForEach(profiles) { profile in
-                        let own = row.rule(profile.id)?.action
-                        let tip =
-                            own.map { "\($0 == .allow ? "Allow" : "Block") while \(profile.name) is active" }
-                            ?? "Follows Always: \(always.map { $0 == .allow ? "Allow" : "Block" } ?? "undecided")"
-                        Pick(value: own, follows: own == nil ? always : nil, tip: tip) { action in
-                            filter.update { $0.pick(action, for: row.app, host: row.host, profile: profile.id) }
-                        }
-                        .held()
-                        .frame(width: 120, alignment: .leading)
-                        .frame(maxHeight: .infinity)
-                        .background(profile.id == stats.profile ? Color.white.opacity(0.03) : .clear)
-                    }
-                }
-                .modifier(RowFrame(height: flag(row) == nil ? 48 : 60))
-            }
-        }
-        .padding(.horizontal, profiles.isEmpty ? 0 : 8)
-        return VStack(alignment: .leading, spacing: 14) {
+        let most = Double(max(rows.map(\.hits.count).max() ?? 0, 1))
+        // The fixed parts on either side take 312 and 268 points. A scroll view is a separate AppKit view and costs more
+        // on every update, so the columns get one only when they do not fit.
+        let fits = CGFloat(profiles.count) * 120 + (profiles.isEmpty ? 0 : 16) <= width - 312 - 268
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 16) {
                 Caption("Rules by profile")
                 SearchField(text: $query, prompt: "Search apps and hosts").frame(width: 240)
@@ -166,9 +140,10 @@ struct RulesView: View {
             }
             .font(.aileron(12))
             .foregroundStyle(.ink2)
-            // Only the profile columns scroll sideways. Every part uses the same row heights, so rows line up.
+            // Only the profile columns scroll sideways. Every part uses the same row heights, so rows line up. Each part
+            // is a lazy stack, so only the rows on screen are built.
             HStack(alignment: .top, spacing: 0) {
-                VStack(alignment: .leading, spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 0) {
                         Caption("App and host").frame(width: 220, alignment: .leading)
                         Caption("Always").frame(width: 92, alignment: .leading)
@@ -177,31 +152,29 @@ struct RulesView: View {
                     ForEach(rows) { row in
                         HStack(spacing: 0) {
                             appCell(row).frame(width: 220, alignment: .leading)
-                            let always = row.rule(nil)?.action
                             Pick(
-                                value: always, follows: nil,
-                                tip: always.map { "\($0 == .allow ? "Allow" : "Block") always" } ?? "Undecided: the mode decides"
+                                value: row.always, follows: nil,
+                                tip: row.always.map { "\($0 == .allow ? "Allow" : "Block") always" } ?? "Undecided: the mode decides"
                             ) {
                                 action in filter.update { $0.pick(action, for: row.app, host: row.host, profile: nil) }
                             }
-                            .held()
                             .frame(width: 92, alignment: .leading)
                         }
-                        .modifier(RowFrame(height: flag(row) == nil ? 48 : 60))
+                        .modifier(RowFrame(height: row.height))
                         .overlay(alignment: .leading) {
-                            if flag(row) != nil { Rectangle().fill(.warn).frame(width: 3).offset(x: -16) }
+                            if row.flag != nil { Rectangle().fill(.warn).frame(width: 3).offset(x: -16) }
                         }
                     }
                 }
-                // Make it as wide as the columns, so no gap is left. A scroll view would otherwise take all the spare width.
-                ViewThatFits(in: .horizontal) {
-                    columns
-                    ScrollView(.horizontal) { columns }
+                if fits {
+                    columns(rows, profiles: profiles, active: stats.profile)
+                } else {
+                    ScrollView(.horizontal) { columns(rows, profiles: profiles, active: stats.profile) }
                         // Fade the edges where columns slide under the fixed parts.
                         .overlay(alignment: .leading) { edge(.trailing) }
                         .overlay(alignment: .trailing) { edge(.leading) }
                 }
-                VStack(alignment: .leading, spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 0) {
                         Caption("Hits").frame(width: 136, alignment: .leading)
                         Caption("Last hit").frame(width: 104, alignment: .leading)
@@ -209,34 +182,76 @@ struct RulesView: View {
                     }
                     .frame(height: 30, alignment: .top)
                     ForEach(rows) { row in
-                        let hit = hits(row)
                         HStack(spacing: 0) {
                             HStack(spacing: 10) {
                                 GeometryReader { geometry in
                                     UnevenRoundedRectangle(bottomTrailingRadius: 4, topTrailingRadius: 4)
-                                        .fill(row.rule(nil)?.action == .block ? .block : .allow)
-                                        .frame(width: hit.count > 0 ? max(2, geometry.size.width * Double(hit.count) / most) : 0)
+                                        .fill(row.always == .block ? .block : .allow)
+                                        .frame(
+                                            width: row.hits.count > 0 ? max(2, geometry.size.width * Double(row.hits.count) / most) : 0)
                                 }
                                 .frame(width: 64, height: 8)
-                                Text(hit.count.formatted()).monospacedDigit().frame(width: 52, alignment: .trailing)
+                                Text(row.hits.count.formatted()).monospacedDigit().frame(width: 52, alignment: .trailing)
                             }
                             .frame(width: 136, alignment: .leading)
-                            Text(hit.last.map { $0.formatted(.relative(presentation: .named)) } ?? "Never")
-                                .foregroundStyle(hit.last == nil ? .ink3 : .ink)
+                            Text(row.hits.last.map { $0.formatted(.relative(presentation: .named)) } ?? "Never")
+                                .foregroundStyle(row.hits.last == nil ? .ink3 : .ink)
                                 .lineLimit(1)
                                 .frame(width: 104, alignment: .leading)
-                            IconButton(icon: "trash", help: "Delete this row's rules") {
+                            IconButton(icon: "trash", help: "Delete this row's rules", held: true) {
                                 filter.update { $0.rules.removeAll { $0.app == row.app && $0.host == row.host } }
                             }
-                            .held()
                         }
-                        .modifier(RowFrame(height: flag(row) == nil ? 48 : 60))
+                        .modifier(RowFrame(height: row.height))
                     }
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.width
+            } action: {
+                width = $0
             }
             if rows.isEmpty { Text("No rules match “\(query)”.").foregroundStyle(.ink3) }
         }
         .card()
+    }
+
+    private func columns(_ rows: [Row], profiles: [Profile], active: UUID?) -> some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(profiles.indices, id: \.self) { index in
+                    let profile = profiles[index]
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 3).fill(Color.profile(index, profile.color)).frame(width: 10, height: 10)
+                        Caption(profile.name).lineLimit(1)
+                        if profile.id == active { Circle().fill(.good).frame(width: 7, height: 7).help("Active now") }
+                    }
+                    .frame(width: 120, alignment: .leading)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .background(profile.id == active ? Color.white.opacity(0.03) : .clear)
+                }
+            }
+            .frame(height: 30)
+            ForEach(rows) { row in
+                HStack(spacing: 0) {
+                    ForEach(profiles) { profile in
+                        let own = row.rule(profile.id)?.action
+                        let tip =
+                            own.map { "\($0 == .allow ? "Allow" : "Block") while \(profile.name) is active" }
+                            ?? "Follows Always: \(row.always.map { $0 == .allow ? "Allow" : "Block" } ?? "undecided")"
+                        Pick(value: own, follows: own == nil ? row.always : nil, tip: tip) { action in
+                            filter.update { $0.pick(action, for: row.app, host: row.host, profile: profile.id) }
+                        }
+                        .frame(width: 120, alignment: .leading)
+                        .frame(maxHeight: .infinity)
+                        .background(profile.id == active ? Color.white.opacity(0.03) : .clear)
+                    }
+                }
+                .modifier(RowFrame(height: row.height))
+            }
+        }
+        .padding(.horizontal, profiles.isEmpty ? 0 : 8)
     }
 
     private func appCell(_ row: Row) -> some View {
@@ -252,7 +267,7 @@ struct RulesView: View {
                             value: host, dns: stats.addresses?[row.app]?[host]?.dns == true, ipInfo: filter.ipInfo?.table, compact: true)
                     }
                 }
-                if let flag = flag(row) {
+                if let flag = row.flag {
                     Label(flag.rawValue, systemImage: "exclamationmark.triangle.fill")
                         .font(.aileron(11, .semibold))
                         .foregroundStyle(.warn)
@@ -267,26 +282,30 @@ struct RulesView: View {
         }
     }
 
-    private func hits(_ row: Row) -> (count: Int, last: Date?) {
-        let hits = row.rules.compactMap { filter.stats.hits[$0.id] }
-        return (hits.reduce(0) { $0 + $1.count }, hits.map(\.last).max())
-    }
-
     private func edge(_ fade: UnitPoint) -> some View {
         LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: fade == .trailing ? .leading : .trailing, endPoint: fade)
             .frame(width: 12)
             .allowsHitTesting(false)
     }
 
-    // In the order each app and host first appears.
-    private static func rows(_ rules: [Rule]) -> [Row] {
+    // In the order each app and host first appears. Each row's flag, Always rule, and hits are worked out once here,
+    // since the three parts of the table each read them.
+    private static func rows(_ rules: [Rule], stats: Stats) -> [Row] {
         var rows: [Row] = []
+        var index: [String: Int] = [:]
         for rule in rules {
-            if let index = rows.firstIndex(where: { $0.app == rule.app && $0.host == rule.host }) {
-                rows[index].rules.append(rule)
+            let id = Row.id(app: rule.app, host: rule.host)
+            if let found = index[id] {
+                rows[found].rules.append(rule)
             } else {
+                index[id] = rows.count
                 rows.append(Row(app: rule.app, host: rule.host, rules: [rule]))
             }
+        }
+        for i in rows.indices {
+            let hits = rows[i].rules.compactMap { stats.hits[$0.id] }
+            rows[i].flag = rows[i].rules.lazy.compactMap { stats.flags[$0.id] }.first
+            rows[i].hits = (hits.reduce(0) { $0 + $1.count }, hits.map(\.last).max())
         }
         return rows
     }
@@ -295,12 +314,17 @@ struct RulesView: View {
         let app: String
         let host: String?
         var rules: [Rule]
-        var id: String { app + "\n" + (host ?? "") }
+        var flag: Flag?
+        var hits: (count: Int, last: Date?) = (0, nil)
+        var id: String { Self.id(app: app, host: host) }
+        var always: Action? { rule(nil)?.action }
+        // A flagged row is taller, to fit its warning.
+        var height: CGFloat { flag == nil ? 48 : 60 }
+
+        static func id(app: String, host: String?) -> String { app + "\n" + (host ?? "") }
 
         func rule(_ profile: UUID?) -> Rule? { rules.first { $0.profile == profile } }
     }
-
-    private func flag(_ row: Row) -> Flag? { row.rules.lazy.compactMap { filter.stats.flags[$0.id] }.first }
 }
 
 // The hosts and IP addresses of one app, each with flows and the last one, most first.
@@ -362,13 +386,14 @@ private struct RowFrame: ViewModifier {
     }
 }
 
-// Allow and Block for one column. Picking the chosen one again clears it.
+// Allow and Block for one column. Picking the chosen one again clears it. It dims while Sieve is locked, as `held()` does.
 private struct Pick: View {
     let value: Action?
     // A faint outline shows what an empty profile cell inherits from Always.
     let follows: Action?
     let tip: String
     let choose: (Action) -> Void
+    @Environment(\.locked) private var locked
 
     var body: some View {
         HStack(spacing: 2) {
@@ -398,5 +423,6 @@ private struct Pick: View {
         .background(.s1, in: .rect(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.line))
         .help(tip)
+        .opacity(locked ? 0.45 : 1)
     }
 }

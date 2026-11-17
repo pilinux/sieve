@@ -15,6 +15,9 @@ final class Filter: NSObject {
     private(set) var status = Status.activating
     private(set) var config = Config()
     private(set) var stats = Stats()
+    /// The bytes and blocked counts, read every second, with `stats.vpns` for `Stats.totalBytes`.
+    /// Only the small views that show them read this, so a change to `stats` comes at most every 10 seconds.
+    private(set) var usage = Stats()
     /// Bytes per second, by app key.
     private(set) var rates: [String: Double] = [:]
     /// Bytes per second of all apps together, leaving out VPN apps as `Stats.totalBytes` does.
@@ -107,6 +110,7 @@ final class Filter: NSObject {
             let stats = decode(Stats.self, data)
         {
             self.stats = stats
+            usage = Stats(bytes: stats.bytes, blocked: stats.blocked, blockedByList: stats.blockedByList, vpns: stats.vpns)
             measure(stats.bytes)
         }
     }
@@ -116,9 +120,8 @@ final class Filter: NSObject {
         if let data = await send({ $0.usage(reply: $1) }),
             let usage = decode(Stats.self, data)
         {
-            stats.bytes = usage.bytes
-            stats.blocked = usage.blocked
-            stats.blockedByList = usage.blockedByList
+            self.usage = Stats(
+                bytes: usage.bytes, blocked: usage.blocked, blockedByList: usage.blockedByList, vpns: stats.vpns)
             measure(usage.bytes)
         }
     }

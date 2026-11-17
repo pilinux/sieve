@@ -100,14 +100,13 @@ struct ProfilesView: View {
                     .background(.s3, in: .capsule)
                 }
                 rules.font(.aileron(12)).fixedSize()
-                IconButton(icon: "trash", help: "Delete") {
+                IconButton(icon: "trash", help: "Delete", held: true) {
                     // A deleted profile's rules could never apply again, so remove them too.
                     filter.update { config in
                         config.profiles.removeAll { $0.id == id }
                         config.rules.removeAll { $0.profile == id }
                     }
                 }
-                .held()
             }
             HStack(spacing: 8) {
                 Image(systemName: "wifi").foregroundStyle(.ink2)
@@ -171,14 +170,13 @@ struct ProfilesView: View {
                     .held()
                 }
                 Spacer()
-                IconButton(icon: "xmark", help: "Remove this time") {
+                IconButton(icon: "xmark", help: "Remove this time", held: true) {
                     filter.update { config in
                         if config.profiles[id]?.schedules.indices.contains(block) == true {
                             config.profiles[id]?.schedules.remove(at: block)
                         }
                     }
                 }
-                .held()
             }
             GeometryReader { geometry in
                 Capsule().fill(.s3).overlay(alignment: .leading) {

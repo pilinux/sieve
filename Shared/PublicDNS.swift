@@ -36,7 +36,9 @@ struct PublicDNS {
     /// The entry of an IP address, or of a host name or one of its parent domains. An exact address wins over a range.
     func entry(for value: String) -> Entry? {
         if let address = Address.normalize(value) {
-            return entries[address] ?? ranges.first { $0.range.contains(address) }?.entry
+            if let entry = entries[address] { return entry }
+            guard let bytes = AddressTable.bytes(address) else { return nil }
+            return ranges.first { $0.range.contains(bytes) }?.entry
         }
         return DomainList.nearest(value) { entries[$0] }
     }

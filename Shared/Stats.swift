@@ -260,7 +260,8 @@ struct Address: Codable, Equatable {
 
     /// Whether the address is in a range for local networks: RFC 1918, RFC 6598 shared space, link-local, or RFC 4193.
     static func isLocal(_ address: String) -> Bool {
-        localRanges.contains { $0.contains(address) }
+        guard let bytes = AddressTable.bytes(address) else { return false }
+        return localRanges.contains { $0.contains(bytes) }
     }
 
     private static let localRanges = [
@@ -294,7 +295,12 @@ struct AddressRange {
     }
 
     func contains(_ address: String) -> Bool {
-        guard let bytes = AddressTable.bytes(address), bytes.count == prefix.count else { return false }
+        AddressTable.bytes(address).map(contains) ?? false
+    }
+
+    /// Takes the bytes that `AddressTable.bytes(_:)` gives, so a caller that checks many ranges parses the address once.
+    func contains(_ bytes: [UInt8]) -> Bool {
+        guard bytes.count == prefix.count else { return false }
         return (0..<length).allSatisfy { bit in (bytes[bit / 8] ^ prefix[bit / 8]) & (0x80 >> (bit % 8)) == 0 }
     }
 }

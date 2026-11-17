@@ -3,6 +3,8 @@ import SwiftUI
 /// Counts from both error logs, and their newest entries.
 struct DiagnosticsView: View {
     let filter: Filter
+    /// Whether the screen shows. It stays in the window while hidden, so it reads the logs each time it shows again.
+    let visible: Bool
     // The time of the open entry. Row positions shift when new entries arrive, so the time is the identity.
     @State private var open: Date?
 
@@ -70,7 +72,7 @@ struct DiagnosticsView: View {
             }
             .padding(EdgeInsets(top: 20, leading: 24, bottom: 28, trailing: 24))
         }
-        .task { await filter.readErrorLogs() }
+        .task(id: visible) { if visible { await filter.readErrorLogs() } }
     }
 
     private func split(_ entries: [LogEntry], unread: Bool) -> String {
@@ -132,9 +134,7 @@ struct DiagnosticsTools: View {
 
     var body: some View {
         ToolButton(title: "Save a copy…", icon: "square.and.arrow.down") { Task { await save() } }
-            .held()
         ToolButton(title: "Reset…", icon: "trash") { resetting = true }
-            .held()
             .confirmationDialog("Reset the error log?", isPresented: $resetting) {
                 Button("Reset", role: .destructive) { Task { await filter.resetErrorLogs() } }
             } message: {
