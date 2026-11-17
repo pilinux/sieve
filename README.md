@@ -106,6 +106,8 @@ The pictures come from Sieve's design prototype, with sample apps and
 hosts. The app matches them. Try the prototype in your browser at
 [sieve-prototype.pilinux.me][prototype].
 
+On every screen, click a host name or an IP address to copy it.
+
 ### Pick a mode
 
 The toolbar switches between three modes.
@@ -196,7 +198,6 @@ flow.
   owner, or country.
 - Click the app icons, or the arrow before the address, to see each
   app's own flows under the row.
-- Click an address or a host name to copy it.
 
 ![The Addresses map](docs/images/map.jpg)
 
@@ -274,6 +275,10 @@ from the start. Refresh downloads the latest copy.
 To add your own list, paste an `https` URL and click **Add**, or click
 **Upload** and pick a file. Choose Block or Allow first. Allow lists win
 over block lists.
+
+**Check a domain** shows which lists have a host and whether they block
+it. Type a host name or a URL and press Return. Click ✕ to clear the
+result.
 
 A list is plain UTF-8 text in one of two forms:
 
