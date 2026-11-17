@@ -1,6 +1,6 @@
 # Sieve privacy policy
 
-Effective 13 November 2026.
+Effective 17 November 2026.
 
 Sieve collects no data. It has no account, no server, no analytics, no
 ads, and no third-party code. Nothing Sieve records leaves your Mac.
@@ -21,10 +21,13 @@ It never reads what a connection carries.
 
 - Your settings: mode, rules, lists, data limits, and profiles. A
   profile that follows a network keeps that network's router address.
-- Per app: its path, the hosts and IP addresses it contacted, and its
-  byte counts, for the last 31 days.
+- Per app: its path, the hosts and IP addresses it contacted, how many
+  connections went to each, and its byte counts, for the last 31 days.
 - Blocked connections per day, and the hits of each rule.
 - A copy of each list you add.
+- If you upload IPinfo Lite data, a compact copy of it in the app's own
+  folder. It maps IP ranges to countries and network owners, and holds
+  nothing about you.
 - An error log: the errors and warnings that the app and the filter
   met, at most 2,000 entries each. See below.
 
@@ -58,12 +61,18 @@ It does so only when you add a list or press Refresh. The server of
 each list sees your IP address, as with any download. GitHub's privacy
 policy covers `raw.githubusercontent.com`.
 
+Sieve never downloads IP data. If you want country and owner data, you
+download IPinfo Lite yourself and upload the file. Sieve looks up every
+address on your Mac and sends none to IPinfo or anyone else.
+
 ## Deleting your data
 
 - To clear one app's history, its hosts and IP addresses, open it in
   App X-Ray and clear it.
 - To empty the error log, press Reset on the Diagnostics page.
 - To delete a list, delete it under Lists.
+- To remove IPinfo Lite data, click the trash button under IP data on
+  the Lists screen.
 - To remove everything, drag Sieve to the Trash and let macOS remove
   the extension. Then delete the filter's folder in
   `/var/root/Library/Containers/me.pilinux.Sieve.SieveExtension`, and

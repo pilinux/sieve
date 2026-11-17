@@ -12,6 +12,10 @@ ad, tracker, and malware domains. Everything stays on your Mac.
 
 ![The Apps screen of Sieve](docs/images/apps.jpg)
 
+Try every screen in your browser at
+[sieve-prototype.pilinux.me][prototype], the design prototype with
+sample data.
+
 | Part | What you will find |
 | --- | --- |
 | [1. Get started](#1-get-started) | Features, needs, install, setup |
@@ -31,6 +35,8 @@ ad, tracker, and malware domains. Everything stays on your Mac.
 | Tracker Shield | Block Steven Black's list of ad and tracker domains. |
 | Domain lists | Add your own allow and block lists by URL or file. |
 | App X-Ray | Hosts and IP addresses an app contacts, trackers, a grade. |
+| Addresses | Every IP address your apps reach, as a table and a map. |
+| Address facts | Public DNS, local, and CDN tags, and country and owner. |
 | Traffic monitor | The live rate of each app, in the window and menu bar. |
 | Rule insights | Hits and last hit per rule, and flags on dead rules. |
 | Data limits | Cap an app's data per day or per month. |
@@ -94,8 +100,9 @@ learn what your apps do.
 
 ## 2. Use Sieve
 
-The pictures come from Sieve's design prototypes, with sample apps and
-hosts. The app matches them.
+The pictures come from Sieve's design prototype, with sample apps and
+hosts. The app matches them. Try the prototype in your browser at
+[sieve-prototype.pilinux.me][prototype].
 
 ### Pick a mode
 
@@ -170,6 +177,89 @@ Select an app to see every host and IP address it contacted.
   new connections fail until the period ends.
 - **Clear history** (the round clock button) deletes the app's hosts,
   IP addresses, and byte counts. Its rules and limit stay.
+- Each IP address carries a tag when Sieve knows what it is: Public
+  DNS, Local DNS, Local network, or a CDN such as Cloudflare. With
+  [IPinfo Lite data](#add-country-and-owner-data), the rest show a
+  country flag and the network owner.
+
+### Addresses
+
+![The Addresses table](docs/images/addresses.jpg)
+
+**Addresses** lists every IP address any app reached, one row each: its
+tag, the last host name seen with it, the apps, the flows, and the last
+flow.
+
+- Click a column heading to sort. Search matches the address, host,
+  owner, or country.
+- Click the app icons, or the arrow before the address, to see each
+  app's own flows under the row.
+- Click an address or a host name to copy it.
+
+![The Addresses map](docs/images/map.jpg)
+
+**Map** shades each country by the flows to its addresses. Hover a
+country for its addresses, flows, and busiest apps. Click it to see its
+addresses in the table. Pinch to zoom and drag to pan, or use the + and
+− buttons.
+
+- The map is drawn on your Mac. Sieve loads no map from the internet.
+- CDN, DNS, and local addresses have no single place, so they stay off
+  the map. **Not on the map** lists their flows.
+- The map needs [IPinfo Lite data](#add-country-and-owner-data). Without
+  it, no address has a country.
+
+### Add country and owner data
+
+Sieve can show the country and the network owner of each IP address,
+such as a German flag, DE, and Hetzner Online GmbH. For that it needs
+IPinfo Lite, a free database that you download yourself. Sieve does not
+ship it.
+
+![The IP data card on the Lists screen](docs/images/ipdata.jpg)
+
+1. Create a free account at [ipinfo.io][ipinfo-lite].
+2. Open [your downloads page][ipinfo-downloads] and download IPinfo
+   Lite in CSV format, `ipinfo_lite.csv.gz`, about 26 MB.
+3. In Sieve, open **Lists**. Under **IP data**, click **Upload** and pick
+   the file. Sieve reads it, which can take a minute, then shows the
+   number of ranges.
+4. Open App X-Ray or **Addresses**. Addresses now show a flag, a country
+   code, and the owner. Hover one for the country name, AS number, and
+   domain.
+
+To update, download a new copy and upload it again. IPinfo updates the
+file daily, so once a month is plenty. The trash button removes Sieve's
+copy.
+
+Your privacy stays intact:
+
+- **Sieve never contacts IPinfo.** It sends no address and no token.
+  Every lookup happens on your Mac.
+- **The download is the only contact.** IPinfo sees your account fetch
+  the same file every user gets. It never learns which addresses your
+  apps reach.
+- **Sieve keeps no token.** It keeps a compact copy of the data in its
+  own folder, and the filter never reads it. You can delete the
+  downloaded file after the upload.
+
+What the tags mean:
+
+| Tag | Meaning |
+| --- | --- |
+| Public DNS | A public resolver on Sieve's list, such as Cloudflare |
+| Local DNS | A DNS server on your network, such as your router |
+| DNS | Another DNS server that an app sent lookups to |
+| Local network | An address on a local network |
+| CDN · Fastly | A CDN address, from the provider's own published list |
+| Flag, code, owner | The country and network owner, from IPinfo Lite |
+
+- The country is where IPinfo places the address. A cloud or anycast
+  address can serve from anywhere.
+- A CDN address shows the CDN, not a country, since it answers from many
+  places.
+- IPinfo Lite names the owner but not its type, so Sieve does not guess
+  whether it is an ISP or a data center.
 
 ### Lists
 
@@ -394,7 +484,15 @@ container:
     └── lists/<id>.txt  a copy of each list
 ```
 
-Read them with `sudo`:
+The app keeps the IPinfo Lite copy, `ipinfo.bin`, in its own
+container. Only the app reads it:
+
+```text
+~/Library/Containers/me.pilinux.Sieve/Data/
+└── Library/Application Support/me.pilinux.Sieve/ipinfo.bin
+```
+
+Read the filter's files with `sudo`:
 
 ```sh
 dir="/var/root/Library/Containers/me.pilinux.Sieve.SieveExtension/Data"
@@ -537,6 +635,7 @@ limits, and decoding of saved files.
 | `SieveExtension/` | The filter: verdicts, app identity, storage |
 | `Shared/` | Models, verdict logic, list parser, XPC protocol |
 | `SieveTests/` | Swift Testing tests for `Shared/` |
+| `design/` | The browser prototype of every screen |
 | `docs/images/` | The pictures in this README |
 
 ### Contributing
@@ -551,6 +650,12 @@ merged, you sign the [Contributor License Agreement](CLA.md).
 - [Steven Black's unified hosts][hosts], MIT License, is the Tracker
   Shield list. Its licence ships next to it in the extension.
 - Aileron, by Sora Sagano, CC0 1.0, is the app's font.
+- The map uses [Natural Earth][natural-earth] country shapes, public
+  domain.
+- The CDN list comes from each provider's own published IP list. The
+  public DNS list comes from each resolver's own pages.
+- [IPinfo Lite][ipinfo-lite], CC BY-SA 4.0, supplies country and owner
+  data when you upload it. Sieve does not ship it.
 - [LuLu][lulu] and [Pi-hole][pihole] shaped the feature set.
 
 Sieve: a per-app firewall for macOS with Ask and Quiet modes and tracker
@@ -570,6 +675,10 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>.
 
 [hosts]: https://github.com/StevenBlack/hosts
+[prototype]: https://sieve-prototype.pilinux.me
+[ipinfo-lite]: https://ipinfo.io/lite
+[ipinfo-downloads]: https://ipinfo.io/dashboard/downloads
+[natural-earth]: https://www.naturalearthdata.com
 [yoyo]: https://pgl.yoyo.org/adservers/
 [lulu]: https://objective-see.org/products/lulu.html
 [pihole]: https://pi-hole.net
