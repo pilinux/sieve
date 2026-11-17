@@ -298,11 +298,15 @@ private nonisolated struct Line: Identifiable, Sendable {
     }
 }
 
+// One letter for each 4 bits of an address, for `Facts.sortAddress`.
+private nonisolated let letters = Array("abcdefghijklmnop")
+
 // An address's label and the text the table searches and sorts by. It depends only on the address, whether it served
 // DNS, and the IP data, so `AddressesContent` keeps it from one refresh to the next.
 private nonisolated struct Facts: Sendable {
     let label: AddressLabel?
-    // Sorts IPv4 before IPv6, each by number rather than by text.
+    // Sorts IPv4 before IPv6, each by number rather than by text. The table compares text as
+    // `localizedStandardCompare` does, which reads runs of digits as numbers, so the bytes are letters, not hex.
     let sortAddress: String
     // The words a search can match: the provider, or the country and owner.
     let name: String
@@ -312,7 +316,7 @@ private nonisolated struct Facts: Sendable {
     init(address: String, label: AddressLabel?) {
         self.label = label
         let bytes = AddressTable.bytes(address) ?? []
-        sortAddress = "\(bytes.count)" + bytes.map { String(format: "%02x", $0) }.joined()
+        sortAddress = (bytes.count == 4 ? "a" : "b") + String(bytes.flatMap { [letters[Int($0 >> 4)], letters[Int($0 & 15)]] })
         name =
             switch label {
             case .publicDNS(let provider), .cdn(let provider): provider
