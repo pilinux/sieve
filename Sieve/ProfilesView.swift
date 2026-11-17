@@ -19,7 +19,11 @@ struct ProfilesView: View {
                             Caption("This week")
                             Spacer()
                             Legend(parts: profiles.indices.map { (profiles[$0].name, Color.profile($0, profiles[$0].color)) })
-                            Chip(text: router(filter.stats.networks.sorted().first) ?? "No network", icon: "wifi")
+                            if let address = router(filter.stats.networks.sorted().first) {
+                                Chip(text: address, icon: "wifi").copies(address)
+                            } else {
+                                Chip(text: "No network", icon: "wifi")
+                            }
                         }
                         weekView(profiles)
                     }
@@ -110,7 +114,10 @@ struct ProfilesView: View {
             }
             HStack(spacing: 8) {
                 Image(systemName: "wifi").foregroundStyle(.ink2)
-                Text(router(profile.network) ?? "No network").foregroundStyle(.ink2).lineLimit(1)
+                Group {
+                    if let address = router(profile.network) { Copyable(text: address) } else { Text("No network") }
+                }
+                .foregroundStyle(.ink2).lineLimit(1)
                 Spacer()
                 let networks = filter.stats.networks.sorted()
                 if networks.count > 1 {

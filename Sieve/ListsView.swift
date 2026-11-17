@@ -26,7 +26,7 @@ struct ListsView: View {
                     allowlistCard
                     VStack(alignment: .leading, spacing: 14) {
                         Caption("Add a list")
-                        TextField("https URL", text: $url).textFieldStyle(.roundedBorder)
+                        SearchField(text: $url, prompt: "https URL", icon: "link")
                         HStack {
                             Segments(verdict: action) { action = $0 }
                             Spacer()
@@ -45,8 +45,7 @@ struct ListsView: View {
                     }
                     VStack(alignment: .leading, spacing: 12) {
                         Caption("Check a domain")
-                        TextField("Host name or URL", text: $domain).textFieldStyle(.roundedBorder)
-                            .onSubmit { Task { await check() } }
+                        SearchField(text: $domain, prompt: "Host name or URL").onSubmit { Task { await check() } }
                         if let checked { checkResult(checked) }
                     }
                     .card()
@@ -109,7 +108,7 @@ struct ListsView: View {
                                         "\(counted($0.count, "host")) · \(counted(stats.trackerCalls($0.key), "call"))"
                                 )
                             },
-                            color: .block, nameWidth: 190, valueWidth: 150,
+                            color: .block, nameWidth: 190, valueWidth: 150, copiesDetails: true,
                             details: { item in
                                 stats.apps[item.key, default: [:]].keys.filter(stats.trackers.contains)
                                     .map { (host: $0, calls: stats.trackerFlows?[item.key]?[$0] ?? 0) }
@@ -132,7 +131,7 @@ struct ListsView: View {
                                         "\(counted($0.count, "app")) · \(counted(stats.trackerCalls(host: $0.host), "call"))"
                                 )
                             },
-                            color: .block, nameWidth: 190, valueWidth: 150,
+                            color: .block, nameWidth: 190, valueWidth: 150, copiesNames: true,
                             details: { item in
                                 stats.apps.filter { $0.value[item.name] != nil }
                                     .map { (name: stats.name($0.key), calls: stats.trackerFlows?[$0.key]?[item.name] ?? 0) }
@@ -177,15 +176,22 @@ struct ListsView: View {
                 "No list has \(checked.host)."
             }
         return VStack(alignment: .leading, spacing: 8) {
-            Text(verdict).font(.aileron(13, .semibold))
+            HStack {
+                Text(verdict).font(.aileron(13, .semibold))
+                Spacer()
+                IconButton(icon: "xmark", help: "Clear the result") { self.checked = nil }
+            }
             ForEach(lists) { list in
                 HStack(spacing: 8) {
                     Text(list.name).lineLimit(1)
                     Chip(action: list.action)
                     if !list.enabled { Chip(text: "Off") }
                     Spacer()
-                    Text(checked.entries[list.id] ?? "").foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
-                        .help("The entry that matched. It covers its subdomains too.")
+                    Copyable(
+                        text: checked.entries[list.id] ?? "",
+                        help: "The entry that matched. It covers its subdomains too. Click to copy."
+                    )
+                    .foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
                 }
                 .font(.aileron(12))
             }

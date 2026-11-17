@@ -433,10 +433,12 @@ extension View {
 struct SearchField: View {
     @Binding var text: String
     let prompt: String
+    /// The symbol before the text. A field that holds a link shows `link`.
+    var icon = "magnifyingglass"
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(.ink3)
+            Image(systemName: icon).font(.system(size: 12)).foregroundStyle(.ink3)
             TextField(prompt, text: $text).textFieldStyle(.plain).onExitCommand { text = "" }
             if !text.isEmpty {
                 Button {
@@ -496,15 +498,31 @@ struct EmptyState: View {
     }
 }
 
-/// Text that copies itself on a click. A checkmark shows for a moment after.
+/// Text that copies itself on a click. It turns green for a moment after.
 struct Copyable: View {
     let text: String
-    @State private var copied = false
+    var help = "Click to copy"
 
     var body: some View {
-        HStack(spacing: 5) {
-            Text(text)
-            Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.system(size: 9, weight: .semibold))
+        Text(text).copies(text, help: help)
+    }
+}
+
+extension View {
+    /// Copies `text` on a click, such as a host or an IP address. The view turns green for a moment after.
+    func copies(_ text: String, help: String = "Click to copy") -> some View {
+        modifier(Copies(text: text, help: help))
+    }
+}
+
+private struct Copies: ViewModifier {
+    let text: String
+    let help: String
+    @State private var copied = false
+
+    func body(content: Content) -> some View {
+        Group {
+            if copied { content.foregroundStyle(.good) } else { content }
         }
         .contentShape(.rect)
         .onTapGesture {
@@ -512,7 +530,7 @@ struct Copyable: View {
             NSPasteboard.general.setString(text, forType: .string)
             copied = true
         }
-        .help("Click to copy")
+        .help(help)
         .task(id: copied) {
             guard copied else { return }
             try? await Task.sleep(for: .seconds(1.5))

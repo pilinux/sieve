@@ -261,7 +261,11 @@ private struct RulesTable: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(stats.name(row.app)).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
                 HStack(spacing: 6) {
-                    Text(row.host ?? "All hosts").font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
+                    Group {
+                        // A click on the host copies it. A click anywhere else in the cell shows the app's traffic.
+                        if let host = row.host { Copyable(text: host) } else { Text("All hosts") }
+                    }
+                    .font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
                     if let host = row.host {
                         AddressFact(
                             value: host, dns: stats.addresses?[row.app]?[host]?.dns == true, ipInfo: filter.ipInfo?.table, compact: true)

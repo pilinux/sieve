@@ -496,9 +496,13 @@ private struct XRay: View {
                             .font(.system(size: tracker ? 12 : 5, weight: .semibold))
                             .foregroundStyle(tracker ? .warn : .ink3)
                             .frame(width: 16)
-                        Text(host).lineLimit(1).truncationMode(.middle)
+                        Copyable(text: host).lineLimit(1).truncationMode(.middle)
                         if let parent = rule?.host, parent != host {
-                            Text("from \(parent)").font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1)
+                            HStack(spacing: 3) {
+                                Text("from")
+                                Copyable(text: parent)
+                            }
+                            .font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1)
                         }
                         Spacer()
                         if tracker { Chip.tracker }
@@ -532,9 +536,9 @@ private struct XRay: View {
                     HStack(spacing: 10) {
                         Image(systemName: "circle").font(.system(size: 5, weight: .semibold)).foregroundStyle(.ink3)
                             .frame(width: 16)
-                        Text(address).monospacedDigit().lineLimit(1)
+                        Copyable(text: address).monospacedDigit().lineLimit(1)
                         if let host {
-                            Text(host).font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
+                            Copyable(text: host).font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1).truncationMode(.middle)
                         } else {
                             Chip(text: "No host name")
                         }

@@ -228,6 +228,9 @@ struct RankedBars<Leading: View>: View {
     var stacked = false
     var nameWidth: CGFloat = 120
     var valueWidth: CGFloat = 68
+    /// Whether the names, or the names in the lines under a row, are hosts that copy themselves on a click.
+    var copiesNames = false
+    var copiesDetails = false
     /// Lines that a click on a row shows under it. Nil means the rows do not expand.
     var details: ((RankedItem) -> [(name: String, text: String)])?
     @ViewBuilder let leading: (RankedItem) -> Leading
@@ -249,7 +252,7 @@ struct RankedBars<Leading: View>: View {
                         // Two apps can have the same name, so the index is the identity.
                         ForEach(lines.indices, id: \.self) { index in
                             HStack {
-                                Text(lines[index].name).lineLimit(1).truncationMode(.middle)
+                                label(lines[index].name, copies: copiesDetails).lineLimit(1).truncationMode(.middle)
                                 Spacer()
                                 Text(lines[index].text).monospacedDigit()
                             }
@@ -260,6 +263,11 @@ struct RankedBars<Leading: View>: View {
                 }
             }
         }
+    }
+
+    // A click on a host copies it. A click anywhere else in the row still opens or closes it.
+    @ViewBuilder private func label(_ text: String, copies: Bool) -> some View {
+        if copies { Copyable(text: text) } else { Text(text) }
     }
 
     @ViewBuilder private func row(_ item: RankedItem, top: Double) -> some View {
@@ -273,7 +281,7 @@ struct RankedBars<Leading: View>: View {
             VStack(spacing: 6) {
                 HStack(spacing: 10) {
                     leading(item)
-                    Text(item.name).font(.aileron(13, .semibold)).lineLimit(1)
+                    label(item.name, copies: copiesNames).font(.aileron(13, .semibold)).lineLimit(1)
                     Spacer()
                     Text(item.text).foregroundStyle(.ink2).monospacedDigit()
                 }
@@ -282,7 +290,7 @@ struct RankedBars<Leading: View>: View {
         } else {
             HStack(spacing: 10) {
                 leading(item)
-                Text(item.name).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
+                label(item.name, copies: copiesNames).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
                     .frame(width: nameWidth, alignment: .leading)
                 bar
                 Text(item.text).foregroundStyle(.ink2).monospacedDigit().frame(width: valueWidth, alignment: .trailing)
