@@ -90,8 +90,21 @@ private struct AddressesContent: View, Equatable {
                         AppIcon(path: paths[app], size: 20)
                         Text(names.name(app))
                     }
+                    .padding(.leading, 18)
                 } else {
-                    Copyable(text: line.address).monospacedDigit()
+                    HStack(spacing: 6) {
+                        Button {
+                            toggle(line.id)
+                        } label: {
+                            Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.ink3)
+                                .rotationEffect(.degrees(open.contains(line.id) ? 90 : 0))
+                                .frame(width: 12, height: 18)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Show each app")
+                        Copyable(text: line.address).monospacedDigit()
+                    }
                 }
             }
             .width(min: 120, ideal: 160)
@@ -111,7 +124,7 @@ private struct AddressesContent: View, Equatable {
             TableColumn("Apps", value: \.appCount) { line in
                 if line.app == nil {
                     Button {
-                        if open.remove(line.id) == nil { open.insert(line.id) }
+                        toggle(line.id)
                     } label: {
                         HStack(spacing: -6) {
                             ForEach(line.row.apps.prefix(3), id: \.self) { AppIcon(path: paths[$0], size: 20) }
@@ -139,15 +152,14 @@ private struct AddressesContent: View, Equatable {
             }
             .width(min: 80, ideal: 110)
         } rows: {
-            ForEach(shown) { line in
-                DisclosureTableRow(line, isExpanded: expanded(line.id)) {
-                    // Each app's own flows, busiest first.
-                    ForEach(
-                        line.row.apps.map { line.child($0) }
-                            .sorted { ($0.flows, names.name($1.app ?? "")) > ($1.flows, names.name($0.app ?? "")) }
-                    ) { TableRow($0) }
+            ForEach(
+                shown.flatMap { line in
+                    [line]
+                        + (open.contains(line.id)
+                            ? line.row.apps.map { line.child($0) }
+                                .sorted { ($0.flows, names.name($1.app ?? "")) > ($1.flows, names.name($0.app ?? "")) } : [])
                 }
-            }
+            ) { TableRow($0) }
         }
         .tableStyle(.inset(alternatesRowBackgrounds: false))
         .scrollContentBackground(.hidden)
@@ -160,12 +172,8 @@ private struct AddressesContent: View, Equatable {
         }
     }
 
-    private func expanded(_ id: String) -> Binding<Bool> {
-        Binding {
-            open.contains(id)
-        } set: {
-            if $0 { open.insert(id) } else { open.remove(id) }
-        }
+    private func toggle(_ id: String) {
+        if open.remove(id) == nil { open.insert(id) }
     }
 
     private func map(_ places: FlowsByPlace) -> some View {
