@@ -263,13 +263,8 @@ final class Filter: NSObject {
     /// Reads a list file the user picked, hands it to the extension, and adds the list.
     func upload(_ list: DomainList, from file: URL) async {
         guard await mayChange() else { return }
-        // The sandbox lets the app read a picked file only inside this scope.
-        let scoped = file.startAccessingSecurityScopedResource()
-        defer { if scoped { file.stopAccessingSecurityScopedResource() } }
         do {
-            guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= DomainList.maxBytes
-            else { throw URLError(.dataLengthExceedsMaximum) }
-            guard try await hand(list, Data(contentsOf: file)) else {
+            guard try await hand(list, readPicked(file)) else {
                 message = ("\(list.name) has no hosts", true)
                 return
             }
@@ -279,6 +274,16 @@ final class Filter: NSObject {
             errorLog.warning("lists", "Cannot read a picked list file", error)
             message = ("Cannot load \(list.name): \(error.localizedDescription)", true)
         }
+    }
+
+    // Reads a file the user picked, up to `DomainList.maxBytes`.
+    private func readPicked(_ file: URL) throws -> Data {
+        // The sandbox lets the app read a picked file only inside this scope.
+        let scoped = file.startAccessingSecurityScopedResource()
+        defer { if scoped { file.stopAccessingSecurityScopedResource() } }
+        guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= DomainList.maxBytes
+        else { throw URLError(.dataLengthExceedsMaximum) }
+        return try Data(contentsOf: file)
     }
 
     // Hands a list to the extension. Returns false if the list holds no hosts.
@@ -294,12 +299,8 @@ final class Filter: NSObject {
     /// A file with no entry keeps the old list, since it would block every connection.
     func uploadAllowlist(from file: URL) async {
         guard await mayChange() else { return }
-        let scoped = file.startAccessingSecurityScopedResource()
-        defer { if scoped { file.stopAccessingSecurityScopedResource() } }
         do {
-            guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= DomainList.maxBytes
-            else { throw URLError(.dataLengthExceedsMaximum) }
-            let (list, tally) = Allowlist.parse(String(decoding: try Data(contentsOf: file), as: UTF8.self))
+            let (list, tally) = Allowlist.parse(String(decoding: try readPicked(file), as: UTF8.self))
             guard !list.entries.isEmpty else {
                 message = ("\(file.lastPathComponent) has no host or IP address. Kept the old allowlist.", true)
                 return

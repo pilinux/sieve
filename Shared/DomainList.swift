@@ -41,6 +41,16 @@ struct DomainList: Codable, Equatable, Identifiable {
         return hosts
     }
 
+    /// The first non-nil `match` of the host, then of each parent domain, nearest first.
+    nonisolated static func nearest<T>(_ host: String, _ match: (String) -> T?) -> T? {
+        var domain = Substring(host)
+        while true {
+            if let found = match(String(domain)) { return found }
+            guard let dot = domain.firstIndex(of: ".") else { return nil }
+            domain = domain[domain.index(after: dot)...]
+        }
+    }
+
     /// The word as a host name, after `normalize(_:)`. Nil for a name without a dot, text that cannot be a host name,
     /// and an IP address.
     static func host(_ word: String) -> String? {

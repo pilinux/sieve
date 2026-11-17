@@ -202,17 +202,23 @@ struct Stats: Codable, Equatable {
         addresses = addresses?.mapValues { $0.filter { $0.value.day > cutoff } }
         blocked = blocked.filter { $0.key > cutoff }
         blockedByList = blockedByList?.filter { $0.key > cutoff }
-        trackerFlows = trackerFlows?.reduce(into: [:]) { kept, entry in
-            let hosts = entry.value.filter { apps[entry.key]?[$0.key] != nil }
-            if !hosts.isEmpty { kept[entry.key] = hosts }
-        }
-        hostHits = hostHits?.reduce(into: [:]) { kept, entry in
-            let hosts = entry.value.filter { apps[entry.key]?[$0.key] != nil }
-            if !hosts.isEmpty { kept[entry.key] = hosts }
-        }
+        trackerFlows = trackerFlows.map { seenHostsOnly($0) }
+        hostHits = hostHits.map { seenHostsOnly($0) }
         daily = daily.filter { $0.key > cutoff }
         let rules = Set(config.rules.map(\.id))
         hits = hits.filter { rules.contains($0.key) }
+        dropUnreachedTrackers()
+    }
+
+    // Keeps the hosts each app still has, and drops apps with none left.
+    private func seenHostsOnly<Value>(_ map: [String: [String: Value]]) -> [String: [String: Value]] {
+        map.reduce(into: [:]) { kept, entry in
+            let hosts = entry.value.filter { apps[entry.key]?[$0.key] != nil }
+            if !hosts.isEmpty { kept[entry.key] = hosts }
+        }
+    }
+
+    private mutating func dropUnreachedTrackers() {
         trackers = trackers.filter { host in apps.values.contains { $0[host] != nil } }
     }
 
@@ -227,7 +233,7 @@ struct Stats: Codable, Equatable {
         for day in daily.keys { daily[day]?[app] = nil }
         for rule in rules { hits[rule] = nil }
         // Also remove trackers that no other app reached, since they were part of this app's history.
-        trackers = trackers.filter { host in apps.values.contains { $0[host] != nil } }
+        dropUnreachedTrackers()
     }
 
     /// The `day(_:)` 31 days before `date`. Stats keep only the days after it.
@@ -279,7 +285,8 @@ struct AddressRange {
 
     init?(_ text: String) {
         let parts = text.split(separator: "/")
-        guard parts.count == 2, let length = Int(parts[1]), let prefix = Self.bytes(String(parts[0])),
+        // Normalizing first makes an IPv4-mapped IPv6 address compare as IPv4.
+        guard parts.count == 2, let length = Int(parts[1]), let prefix = AddressTable.bytes(String(parts[0])),
             (0...prefix.count * 8).contains(length)
         else { return nil }
         self.prefix = prefix
@@ -287,14 +294,8 @@ struct AddressRange {
     }
 
     func contains(_ address: String) -> Bool {
-        guard let bytes = Self.bytes(address), bytes.count == prefix.count else { return false }
+        guard let bytes = AddressTable.bytes(address), bytes.count == prefix.count else { return false }
         return (0..<length).allSatisfy { bit in (bytes[bit / 8] ^ prefix[bit / 8]) & (0x80 >> (bit % 8)) == 0 }
-    }
-
-    // Normalizing first makes an IPv4-mapped IPv6 address compare as IPv4.
-    private static func bytes(_ text: String) -> [UInt8]? {
-        guard let address = Address.normalize(text) else { return nil }
-        return (IPv4Address(address)?.rawValue ?? IPv6Address(address)?.rawValue).map(Array.init)
     }
 }
 

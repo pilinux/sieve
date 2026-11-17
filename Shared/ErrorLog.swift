@@ -196,20 +196,14 @@ nonisolated final class ErrorLog: Sendable {
         _ area: String, _ message: String, _ error: (any Error)? = nil, file: String = #fileID, line: Int = #line,
         function: String = #function
     ) {
-        add(
-            LogEntry(
-                level: "error", source: source, area: area, message: message, error: error, build: build, file: file, line: line,
-                function: function))
+        add("error", area, message, error, file, line, function)
     }
 
     func warning(
         _ area: String, _ message: String, _ error: (any Error)? = nil, file: String = #fileID, line: Int = #line,
         function: String = #function
     ) {
-        add(
-            LogEntry(
-                level: "warning", source: source, area: area, message: message, error: error, build: build, file: file, line: line,
-                function: function))
+        add("warning", area, message, error, file, line, function)
     }
 
     /// The file as stored, once the queued writes are done.
@@ -225,7 +219,12 @@ nonisolated final class ErrorLog: Sendable {
         }
     }
 
-    private func add(_ entry: LogEntry) {
+    private func add(
+        _ level: String, _ area: String, _ message: String, _ error: (any Error)?, _ file: String, _ line: Int, _ function: String
+    ) {
+        let entry = LogEntry(
+            level: level, source: source, area: area, message: message, error: error, build: build, file: file, line: line,
+            function: function)
         // The text is already scrubbed, so it can be public.
         Logger(subsystem: subsystem, category: entry.area).log(
             level: entry.isError ? .error : .default, "\(entry.message, privacy: .public) \(entry.detail ?? "", privacy: .public)")

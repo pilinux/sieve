@@ -84,17 +84,13 @@ final class Store: Sendable {
         var domains: [String: Set<String>] = [:]
         for list in (config ?? Config()).lists {
             // The bundled copy lets Tracker Shield work before its first refresh.
-            let bundled =
-                list.id == DomainList.trackerShield.id
-                ? Bundle.main.url(forResource: "trackers", withExtension: "txt") : nil
-            if let text = listFile(list.id).flatMap({ try? String(contentsOf: $0, encoding: .utf8) })
-                ?? bundled.flatMap({ try? String(contentsOf: $0, encoding: .utf8) })
+            if let text = listText(list.id)
+                ?? (list.id == DomainList.trackerShield.id ? Bundle.main.text("trackers", "txt") : nil)
             {
                 domains[list.id] = DomainList.parse(text)
             }
         }
-        let allowlist = listFile(Allowlist.id).flatMap { try? String(contentsOf: $0, encoding: .utf8) }
-            .map { Allowlist.parse($0).list }
+        let allowlist = listText(Allowlist.id).map { Allowlist.parse($0).list }
         state.withLock {
             $0.config = config ?? Config()
             $0.stats = stats ?? Stats()
@@ -163,6 +159,10 @@ final class Store: Sendable {
     // The ID becomes a file name, so make sure it stays inside the lists folder.
     private func listFile(_ id: String) -> URL? {
         id.contains("/") ? nil : folder.appending(path: "lists/\(id).txt")
+    }
+
+    private func listText(_ id: String) -> String? {
+        listFile(id).flatMap { try? String(contentsOf: $0, encoding: .utf8) }
     }
 
     /// Replaces the config. Drops the domains and the cached file of each list it no longer has.

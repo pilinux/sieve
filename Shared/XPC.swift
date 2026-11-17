@@ -45,6 +45,11 @@ func peerRequirement(identifier: String, team: some StringProtocol) -> String {
 }
 
 extension Bundle {
+    /// The text of a bundled UTF-8 file, or nil if it is missing.
+    nonisolated func text(_ name: String, _ ext: String) -> String? {
+        url(forResource: name, withExtension: ext).flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+    }
+
     /// The extension's XPC service name, from its Info.plist.
     var machServiceName: String? {
         (object(forInfoDictionaryKey: "NetworkExtension") as? [String: Any])?["NEMachServiceName"] as? String

@@ -297,21 +297,18 @@ private struct WorldMap: View {
     static let shades = [0.22, 0.38, 0.55, 0.75, 1.0]
 
     // Each country's outline in Equal Earth units, with y down as on screen.
-    private static let outlines: [(code: String, path: Path)] = CountryShape.parse(
-        Bundle.main.url(forResource: "countries", withExtension: "txt").flatMap { try? String(contentsOf: $0, encoding: .utf8) }
-            ?? ""
-    )
-    .map { shape in
-        (
-            shape.code,
-            Path { path in
-                for ring in shape.rings {
-                    path.addLines(ring.map { CGPoint(x: $0.x, y: -$0.y) })
-                    path.closeSubpath()
+    private static let outlines: [(code: String, path: Path)] = CountryShape.parse(Bundle.main.text("countries", "txt") ?? "")
+        .map { shape in
+            (
+                shape.code,
+                Path { path in
+                    for ring in shape.rings {
+                        path.addLines(ring.map { CGPoint(x: $0.x, y: -$0.y) })
+                        path.closeSubpath()
+                    }
                 }
-            }
-        )
-    }
+            )
+        }
     private static let bounds = outlines.reduce(CGRect.null) { $0.union($1.path.boundingRect) }
 
     var body: some View {

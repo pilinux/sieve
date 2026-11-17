@@ -7,21 +7,9 @@ struct LaunchAtLogin: View {
     @State private var on = SMAppService.mainApp.status == .enabled
 
     var body: some View {
-        HStack {
-            Text("Launch at login").font(.aileron(12)).foregroundStyle(.ink2)
-            Spacer()
-            Toggle(
-                "Launch at login",
-                isOn: Binding(
-                    get: { on },
-                    set: { wanted in Task { if await filter.mayChange() { set(wanted) } } })
-            )
-            .toggleStyle(.switch)
-            .labelsHidden()
-            .controlSize(.small)
-            .tint(.allow)
-            .held()
-        }
+        SwitchRow(
+            title: "Launch at login",
+            isOn: Binding(get: { on }, set: { wanted in Task { if await filter.mayChange() { set(wanted) } } }))
     }
 
     private func set(_ wanted: Bool) {

@@ -189,15 +189,9 @@ struct Config: Codable, Equatable {
         }
     }
 
-    // Checks the host, then each parent domain, so the most specific rule wins.
     /// The app's rule for the host or its nearest parent domain.
     func hostRule(for app: String, host: String, profile: UUID? = nil, trusted: Bool = true) -> Rule? {
-        var domain = Substring(host)
-        while true {
-            if let rule = rule(for: app, host: String(domain), profile: profile, trusted: trusted) { return rule }
-            guard let dot = domain.firstIndex(of: ".") else { return nil }
-            domain = domain[domain.index(after: dot)...]
-        }
+        DomainList.nearest(host) { rule(for: app, host: $0, profile: profile, trusted: trusted) }
     }
 
     /// The hosts on the enabled block lists that no enabled allow list covers. A host on several lists counts once.
@@ -221,7 +215,6 @@ struct Config: Codable, Equatable {
         lists.contains { $0.enabled && $0.action == action && Self.entry(in: domains[$0.id] ?? [], for: host) != nil }
     }
 
-    // An entry covers its own host and every subdomain, so check the host and then each parent domain.
     /// The entry of each list that covers the host, by list ID, whether the list is on or not.
     func listEntries(for host: String, domains: [String: Set<String>]) -> [String: String] {
         lists.reduce(into: [:]) { found, list in
@@ -231,12 +224,7 @@ struct Config: Codable, Equatable {
 
     /// The host itself or its nearest parent domain in `entries`, since an entry covers its subdomains too.
     static func entry(in entries: Set<String>, for host: String) -> String? {
-        var domain = Substring(host)
-        while true {
-            if entries.contains(String(domain)) { return String(domain) }
-            guard let dot = domain.firstIndex(of: ".") else { return nil }
-            domain = domain[domain.index(after: dot)...]
-        }
+        DomainList.nearest(host) { entries.contains($0) ? $0 : nil }
     }
 }
 

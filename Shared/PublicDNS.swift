@@ -9,9 +9,7 @@ struct PublicDNS {
     }
 
     /// The list that ships in the bundle.
-    static let bundled = PublicDNS(
-        text: Bundle.main.url(forResource: "public-dns", withExtension: "csv").flatMap { try? String(contentsOf: $0, encoding: .utf8) }
-            ?? "")
+    static let bundled = PublicDNS(text: Bundle.main.text("public-dns", "csv") ?? "")
 
     private var entries: [String: Entry] = [:]
     private var ranges: [(range: AddressRange, entry: Entry)] = []
@@ -40,11 +38,6 @@ struct PublicDNS {
         if let address = Address.normalize(value) {
             return entries[address] ?? ranges.first { $0.range.contains(address) }?.entry
         }
-        var domain = Substring(value)
-        while true {
-            if let entry = entries[String(domain)] { return entry }
-            guard let dot = domain.firstIndex(of: ".") else { return nil }
-            domain = domain[domain.index(after: dot)...]
-        }
+        return DomainList.nearest(value) { entries[$0] }
     }
 }

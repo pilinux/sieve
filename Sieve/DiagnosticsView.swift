@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// Counts from both error logs, and their newest entries.
@@ -145,18 +144,11 @@ struct DiagnosticsTools: View {
 
     private func save() async {
         guard await filter.mayChange("save a copy of its error log") else { return }
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "sieve-log-\(Date.now.formatted(.iso8601.year().month().day())).jsonl"
-        NSApp.activate()
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        await filter.readErrorLogs()
-        let data = LogFile.export(
-            filter.logs, macOS: ProcessInfo.processInfo.operatingSystemVersionString, build: errorLog.build, now: .now)
-        do {
-            try data.write(to: url)
-        } catch {
-            errorLog.error("store", "Cannot save a copy of the error log", error)
-            NSApp.presentError(error)
+        let name = "sieve-log-\(Date.now.formatted(.iso8601.year().month().day())).jsonl"
+        await saveCopy(named: name, failure: "Cannot save a copy of the error log") {
+            await filter.readErrorLogs()
+            return LogFile.export(
+                filter.logs, macOS: ProcessInfo.processInfo.operatingSystemVersionString, build: errorLog.build, now: .now)
         }
     }
 }

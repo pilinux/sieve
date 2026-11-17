@@ -218,19 +218,10 @@ private struct Sidebar: View {
             .card(padding: 12)
             .padding(.top, 16)
             Spacer()
-            HStack {
-                Text("Lock settings").font(.aileron(12)).foregroundStyle(.ink2)
-                Spacer()
-                Toggle("Lock settings", isOn: Binding(get: { filter.config.locked == true }, set: setLock))
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .tint(.allow)
-                    .held()
-            }
-            .padding(.horizontal, 6)
-            .padding(.bottom, 10)
-            .help("Every change asks for Touch ID or your password")
+            SwitchRow(title: "Lock settings", isOn: Binding(get: { filter.config.locked == true }, set: setLock))
+                .padding(.horizontal, 6)
+                .padding(.bottom, 10)
+                .help("Every change asks for Touch ID or your password")
             LaunchAtLogin(filter: filter).padding(.horizontal, 6)
         }
         .padding(.horizontal, 12)

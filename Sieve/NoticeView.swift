@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// Shown while the extension has a config file it could not read. `compact` stacks the layout for the menu.
@@ -48,15 +47,6 @@ struct BrokenConfigNotice: View {
     private func save() async {
         guard await filter.mayChange("save a copy of its broken config") else { return }
         guard let data = await filter.brokenConfig(), !data.isEmpty else { return }
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "config.json.broken"
-        NSApp.activate()
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try data.write(to: url)
-        } catch {
-            errorLog.error("store", "Cannot save a copy of the broken config", error)
-            NSApp.presentError(error)
-        }
+        await saveCopy(named: "config.json.broken", failure: "Cannot save a copy of the broken config") { data }
     }
 }

@@ -201,11 +201,7 @@ nonisolated struct AddressTable: Sendable {
 
 nonisolated extension AddressTable {
     /// `cdn.csv`, which ships in the bundle. Each row holds the provider and the kind.
-    static let cdn = cdn(
-        text: Bundle.main.url(forResource: "cdn", withExtension: "csv").flatMap {
-            try? String(contentsOf: $0, encoding: .utf8)
-        } ?? ""
-    ).table
+    static let cdn = cdn(text: Bundle.main.text("cdn", "csv") ?? "").table
 
     /// Reads one `value,provider,kind` record per line. Lines that start with `#` are comments.
     static func cdn(text: String) -> (table: AddressTable, dropped: Int) {

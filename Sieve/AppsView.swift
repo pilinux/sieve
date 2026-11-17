@@ -83,13 +83,7 @@ struct AppsView: View {
             Spacer()
             Text(rate(filter.totalRate)).font(.aileron(12)).foregroundStyle(.ink2).monospacedDigit()
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(selected == nil ? .s2 : .clear, in: .rect(cornerRadius: 9))
-        .overlay(alignment: .leading) {
-            if selected == nil { Capsule().fill(.allow).frame(width: 3).padding(.vertical, 10) }
-        }
-        .contentShape(.rect)
+        .appRowStyle(selected: selected == nil)
         .onTapGesture { selected = nil }
     }
 
@@ -131,10 +125,7 @@ struct AppsView: View {
             }
             .held()
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(selected == app ? .s2 : .clear, in: .rect(cornerRadius: 9))
-        .contentShape(.rect)
+        .appRowStyle(selected: selected == app, bar: false)
         .onTapGesture { selected = app }
     }
 }

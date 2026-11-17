@@ -40,13 +40,8 @@ struct ListsView: View {
                     }
                     .card()
                     .fileImporter(isPresented: $picking, allowedContentTypes: [.data]) { result in
-                        switch result {
-                        case .success(let file):
-                            let list = DomainList(name: file.lastPathComponent, action: action)
-                            Task { await filter.upload(list, from: file) }
-                        case .failure(let error):
-                            filter.message = ("Cannot open the file: \(error.localizedDescription)", true)
-                        }
+                        let action = action
+                        usePicked(result) { await filter.upload(DomainList(name: $0.lastPathComponent, action: action), from: $0) }
                     }
                     VStack(alignment: .leading, spacing: 12) {
                         Caption("Check a domain")
@@ -238,20 +233,14 @@ struct ListsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
         .fileImporter(isPresented: $pickingIPInfo, allowedContentTypes: [.gzip, .commaSeparatedText]) { result in
-            switch result {
-            case .success(let file): Task { await filter.uploadIPInfo(from: file) }
-            case .failure(let error): filter.message = ("Cannot open the file: \(error.localizedDescription)", true)
-            }
+            usePicked(result) { await filter.uploadIPInfo(from: $0) }
         }
     }
 
     private func shieldCard(_ shield: DomainList) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 16) {
-                Image(systemName: "shield").font(.system(size: 26, weight: .medium))
-                    .foregroundStyle(shield.enabled ? .block : .ink3)
-                    .frame(width: 56, height: 56)
-                    .background(shield.enabled ? Color.block.opacity(0.16) : .s3, in: .rect(cornerRadius: 16))
+                tile("shield", on: shield.enabled, tint: .block)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(shield.name).font(.aileron(16, .bold))
                     if let size = filter.stats.listSizes[shield.id] {
@@ -278,10 +267,7 @@ struct ListsView: View {
         let upload = filter.allowlistUpload
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 16) {
-                Image(systemName: "pedestrian.gate.closed").font(.system(size: 26, weight: .medium))
-                    .foregroundStyle(on ? .allow : .ink3)
-                    .frame(width: 56, height: 56)
-                    .background(on ? Color.allow.opacity(0.16) : .s3, in: .rect(cornerRadius: 16))
+                tile("pedestrian.gate.closed", on: on, tint: .allow)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Allowlist only").font(.aileron(16, .bold))
                     Text(count > 0 ? counted(count, "entry") : "No list uploaded").foregroundStyle(.ink3).monospacedDigit()
@@ -354,10 +340,7 @@ struct ListsView: View {
         }
         .card()
         .fileImporter(isPresented: $pickingAllowlist, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
-            switch result {
-            case .success(let file): Task { await filter.uploadAllowlist(from: file) }
-            case .failure(let error): filter.message = ("Cannot open the file: \(error.localizedDescription)", true)
-            }
+            usePicked(result) { await filter.uploadAllowlist(from: $0) }
         }
         // It blocks every app, Apple apps included, so it asks first.
         .confirmationDialog("Turn on Allowlist only?", isPresented: $confirmingAllowOnly) {
@@ -409,16 +392,23 @@ struct ListsView: View {
             filter.message = ("The filter cannot be reached, so the allowlist cannot be saved.", true)
             return
         }
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "allowlist.txt"
-        NSApp.activate()
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try data.write(to: url)
-        } catch {
-            errorLog.error("store", "Cannot save a copy of the allowlist", error)
-            NSApp.presentError(error)
+        await saveCopy(named: "allowlist.txt", failure: "Cannot save a copy of the allowlist") { data }
+    }
+
+    // Hands a picked file to `use`, or says why it could not be opened.
+    private func usePicked(_ result: Result<URL, any Error>, _ use: @escaping (URL) async -> Void) {
+        switch result {
+        case .success(let file): Task { await use(file) }
+        case .failure(let error): filter.message = ("Cannot open the file: \(error.localizedDescription)", true)
         }
+    }
+
+    // The big icon of a card that turns a feature on.
+    private func tile(_ icon: String, on: Bool, tint: Color) -> some View {
+        Image(systemName: icon).font(.system(size: 26, weight: .medium))
+            .foregroundStyle(on ? tint : .ink3)
+            .frame(width: 56, height: 56)
+            .background(on ? tint.opacity(0.16) : .s3, in: .rect(cornerRadius: 16))
     }
 
     private func add() {

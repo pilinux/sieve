@@ -2,6 +2,20 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Asks where to save a file named `name`, then writes `data()` there. A failed write is logged as `failure` and shown.
+func saveCopy(named name: String, failure: String, data: () async -> Data) async {
+    let panel = NSSavePanel()
+    panel.nameFieldStringValue = name
+    NSApp.activate()
+    guard panel.runModal() == .OK, let url = panel.url else { return }
+    do {
+        try await data().write(to: url)
+    } catch {
+        errorLog.error("store", failure, error)
+        NSApp.presentError(error)
+    }
+}
+
 /// A small all-caps label, with wide letter spacing, above a value or a chart.
 struct Caption: View {
     let text: String
@@ -317,6 +331,20 @@ private struct Held: ViewModifier {
     }
 }
 
+/// A setting's name, and a small switch for it.
+struct SwitchRow: View {
+    let title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack {
+            Text(title).font(.aileron(12)).foregroundStyle(.ink2)
+            Spacer()
+            Toggle(title, isOn: $isOn).toggleStyle(.switch).labelsHidden().controlSize(.small).tint(.allow).held()
+        }
+    }
+}
+
 /// One app row: its allow switch, grade, total, and live rate.
 struct AppRow: View {
     let filter: Filter
@@ -366,13 +394,20 @@ struct AppRow: View {
                 .held()
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(selected ? .s2 : .clear, in: .rect(cornerRadius: 9))
-        .overlay(alignment: .leading) {
-            if selected { Capsule().fill(.allow).frame(width: 3).padding(.vertical, 10) }
-        }
-        .contentShape(.rect)
+        .appRowStyle(selected: selected)
+    }
+}
+
+extension View {
+    /// The padding and highlight of a row in an app list. A bar marks the selected row, unless `bar` is false.
+    func appRowStyle(selected: Bool, bar: Bool = true) -> some View {
+        padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(selected ? .s2 : .clear, in: .rect(cornerRadius: 9))
+            .overlay(alignment: .leading) {
+                if selected, bar { Capsule().fill(.allow).frame(width: 3).padding(.vertical, 10) }
+            }
+            .contentShape(.rect)
     }
 }
 
