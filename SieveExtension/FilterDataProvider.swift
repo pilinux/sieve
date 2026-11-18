@@ -63,7 +63,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         // Keep the app and host private, because this log ends up in sysdiagnose reports.
         logger.log("\(action?.rawValue ?? "ask", privacy: .public) \(app.key, privacy: .private) to \(host ?? "?", privacy: .private)")
         switch action {
-        case .allow: return counted(.allow())
+        case .allow: return allowed(flow, of: app)
         case .block: return .drop()
         case nil:
             if waitForAnswer(app: app, host: host, flow: flow) { return .pause() }
@@ -116,7 +116,7 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
                     if action == .block { store.countBlocked() }
                 }
                 switch action {
-                case .allow: resumeFlow(flow, with: counted(.allow()))
+                case .allow: resumeFlow(flow, with: allowed(flow, of: app))
                 case .block: resumeFlow(flow, with: NEFilterNewFlowVerdict.drop())
                 case nil:
                     if answer != nil, waitForAnswer(app: app, host: flowHost, flow: flow) { continue }
@@ -132,6 +132,31 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         let token = flow.sourceAppAuditToken ?? flow.sourceProcessAuditToken
         return token.flatMap(apps.app) ?? App(Config.unknownApp)
     }
+
+    // An app that sends its own DNS queries can reach a blocked host by its address, which carries no name.
+    // So the filter reads each query such an app sends. Apple's resolver serves every app, so its queries pass.
+    private func allowed(_ flow: NEFilterFlow, of app: App) -> NEFilterNewFlowVerdict {
+        guard flow.port == 53, !app.isApple else { return counted(.allow()) }
+        return counted(
+            .filterDataVerdict(withFilterInbound: false, peekInboundBytes: 0, filterOutbound: true, peekOutboundBytes: DNSQuery.peek))
+    }
+
+    // Drops the flow when a query asks for a name that rules or lists block, so the app gets no address for it.
+    override func handleOutboundData(from flow: NEFilterFlow, readBytesStartOffset offset: Int, readBytes: Data)
+        -> NEFilterDataVerdict
+    {
+        let tcp = (flow as? NEFilterSocketFlow)?.socketProtocol == IPPROTO_TCP
+        guard let (names, used) = DNSQuery.names(in: readBytes, tcp: tcp) else { return .allow() }
+        let app = app(of: flow)
+        for name in names.compactMap(DomainList.host)
+        where store.verdict(app: app, host: name, address: nil, dns: false) == .block {
+            logger.log("block \(app.key, privacy: .private) lookup of \(name, privacy: .private)")
+            return .drop()
+        }
+        return NEFilterDataVerdict(passBytes: used, peekBytes: DNSQuery.peek)
+    }
+
+    override func handleOutboundDataComplete(for flow: NEFilterFlow) -> NEFilterDataVerdict { .allow() }
 
     // Asks for the flow's byte counts about once a second, and when it closes.
     private func counted(_ verdict: NEFilterNewFlowVerdict) -> NEFilterNewFlowVerdict {
@@ -181,7 +206,7 @@ private extension NEFilterFlow {
     // Port 53 is plain DNS, and 853 is DNS over TLS.
     var isDNS: Bool { port == 53 || port == 853 }
 
-    private var port: UInt16? {
+    var port: UInt16? {
         guard case .some(.hostPort(_, let port)) = (self as? NEFilterSocketFlow)?.remoteFlowEndpoint else { return nil }
         return port.rawValue
     }
