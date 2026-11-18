@@ -141,7 +141,8 @@ private struct RulesTable: View {
             .font(.aileron(12))
             .foregroundStyle(.ink2)
             // Only the profile columns scroll sideways. Every part uses the same row heights, so rows line up. Each part
-            // is a lazy stack, so only the rows on screen are built.
+            // is a lazy stack, so only the rows on screen are built. A lazy stack takes all the width it is offered, so
+            // each part is fixed to its own width, or the stack splits the width evenly and the columns overlap.
             HStack(alignment: .top, spacing: 0) {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 0) {
@@ -166,6 +167,7 @@ private struct RulesTable: View {
                         }
                     }
                 }
+                .fixedSize(horizontal: true, vertical: false)
                 if fits {
                     columns(rows, profiles: profiles, active: stats.profile)
                 } else {
@@ -205,8 +207,11 @@ private struct RulesTable: View {
                         .modifier(RowFrame(height: row.height))
                     }
                 }
+                .fixedSize(horizontal: true, vertical: false)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // The zero minimum keeps the window from growing to fit columns that overflow, so the width is the room
+            // there is, and `fits` can turn false.
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             .onGeometryChange(for: CGFloat.self) {
                 $0.size.width
             } action: {
@@ -252,6 +257,7 @@ private struct RulesTable: View {
             }
         }
         .padding(.horizontal, profiles.isEmpty ? 0 : 8)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private func appCell(_ row: Row) -> some View {
