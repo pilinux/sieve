@@ -45,6 +45,8 @@ final class Filter: NSObject {
         url: Bundle.main.bundleURL.appending(path: "Contents/Library/SystemExtensions/\(extensionID).systemextension"))
     @ObservationIgnored private var connection: NSXPCConnection?
     @ObservationIgnored private var sample = (bytes: [String: Int](), time: Date.now)
+    // True while one `poll()` call reads.
+    @ObservationIgnored private var polling = false
     // Counts local edits. A config read that started before the latest edit would undo that edit, so the read is ignored.
     @ObservationIgnored private var edits = 0
     // True once the filter is turned on. From then on, the link to the extension must stay up.
@@ -129,7 +131,7 @@ final class Filter: NSObject {
     }
 
     private func measure(_ bytes: [String: Int]) {
-        // The window and the menu may both poll. Skip a sample that comes too soon.
+        // A refresh after a change can come right after a poll. Skip a sample that comes too soon.
         let elapsed = Date.now.timeIntervalSince(sample.time)
         guard elapsed >= 0.5 else { return }
         let rates = Dictionary(
@@ -154,11 +156,17 @@ final class Filter: NSObject {
     }
 
     /// Reads all the stats now and every 10 seconds, and the bytes every second in between, until cancelled.
+    /// The window and the menu bar panel both call it. Only one call reads, and another takes over when that one ends.
     func poll() async {
+        var leads = false
+        defer { if leads { polling = false } }
         var tick = 0
         while !Task.isCancelled {
-            if tick.isMultiple(of: 10) { await refresh() } else { await readUsage() }
-            tick += 1
+            if !polling { (polling, leads) = (true, true) }
+            if leads {
+                if tick.isMultiple(of: 10) { await refresh() } else { await readUsage() }
+                tick += 1
+            }
             try? await Task.sleep(for: .seconds(1))
         }
     }
