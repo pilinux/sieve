@@ -109,8 +109,10 @@ final class Filter: NSObject {
         if let data = await send({ $0.stats(reply: $1) }),
             let stats = decode(Stats.self, data)
         {
-            self.stats = stats
-            usage = Stats(bytes: stats.bytes, blocked: stats.blocked, blockedByList: stats.blockedByList, vpns: stats.vpns)
+            // `@Observable` redraws every reader on each set, even with an equal value, so set only a changed one.
+            if self.stats != stats { self.stats = stats }
+            let usage = Stats(bytes: stats.bytes, blocked: stats.blocked, blockedByList: stats.blockedByList, vpns: stats.vpns)
+            if self.usage != usage { self.usage = usage }
             measure(stats.bytes)
         }
     }
@@ -120,8 +122,8 @@ final class Filter: NSObject {
         if let data = await send({ $0.usage(reply: $1) }),
             let usage = decode(Stats.self, data)
         {
-            self.usage = Stats(
-                bytes: usage.bytes, blocked: usage.blocked, blockedByList: usage.blockedByList, vpns: stats.vpns)
+            let usage = Stats(bytes: usage.bytes, blocked: usage.blocked, blockedByList: usage.blockedByList, vpns: stats.vpns)
+            if self.usage != usage { self.usage = usage }
             measure(usage.bytes)
         }
     }
@@ -130,15 +132,19 @@ final class Filter: NSObject {
         // The window and the menu may both poll. Skip a sample that comes too soon.
         let elapsed = Date.now.timeIntervalSince(sample.time)
         guard elapsed >= 0.5 else { return }
-        rates = Dictionary(
+        let rates = Dictionary(
             uniqueKeysWithValues: bytes.map { app, bytes in
                 // Never go below zero. Clearing history resets an app's bytes.
                 (app, max(Double(bytes - (sample.bytes[app] ?? bytes)) / elapsed, 0))
             })
         sample = (bytes, .now)
-        totalRate = rates.filter { stats.vpns?.contains($0.key) != true }.values.reduce(0, +)
-        history = Array((history + [rates]).suffix(60))
-        totalHistory = Array((totalHistory + [totalRate]).suffix(60))
+        let totalRate = rates.filter { stats.vpns?.contains($0.key) != true }.values.reduce(0, +)
+        let history = Array((history + [rates]).suffix(60))
+        let totalHistory = Array((totalHistory + [totalRate]).suffix(60))
+        if self.rates != rates { self.rates = rates }
+        if self.totalRate != totalRate { self.totalRate = totalRate }
+        if self.history != history { self.history = history }
+        if self.totalHistory != totalHistory { self.totalHistory = totalHistory }
     }
 
     /// The rate history of one app, or `totalRate`'s history when nil.
