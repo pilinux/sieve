@@ -10,7 +10,7 @@ app that goes online and every host it contacts. You allow or block
 each app, or single domains of an app. One switch blocks about 78,000
 ad, tracker, and malware domains. Everything stays on your Mac.
 
-![The Apps screen of Sieve](docs/images/apps.jpg)
+![The Apps screen of Sieve][img-apps]
 
 Try every screen in your browser at
 [sieve-prototype.pilinux.me][prototype], the design prototype with
@@ -70,7 +70,7 @@ put it there.
 
 ### Set up
 
-![The setup steps](docs/images/setup.jpg)
+![The setup steps][img-setup]
 
 1. Open Sieve. The window shows **Off** and a **Turn on** button.
 2. Click **Turn on**. macOS asks to allow the system extension.
@@ -126,7 +126,7 @@ Rules and lists apply in Ask and Quiet mode alike. Only Off skips them.
 
 ### Apps
 
-![The Apps screen](docs/images/apps.jpg)
+![The Apps screen][img-apps]
 
 - Every app that connected, with its rate, its data, and a privacy
   grade from A to F.
@@ -147,7 +147,7 @@ An app that gave no host names shows `–`: its trackers are unknown.
 
 ### The Ask prompt
 
-![Four Ask prompts](docs/images/prompt.jpg)
+![Four Ask prompts][img-prompt]
 
 In Ask mode, the first connection of an app with no rule waits for you.
 
@@ -168,7 +168,7 @@ off cuts the app off.
 
 ### App X-Ray
 
-![App X-Ray](docs/images/xray.jpg)
+![App X-Ray][img-xray]
 
 Select an app to see every host and IP address it contacted.
 
@@ -188,7 +188,7 @@ Select an app to see every host and IP address it contacted.
 
 ### Addresses
 
-![The Addresses table](docs/images/addresses.jpg)
+![The Addresses table][img-addresses]
 
 **Addresses** lists every IP address any app reached, one row each: its
 tag, the last host name seen with it, the apps, the flows, and the last
@@ -199,7 +199,7 @@ flow.
 - Click the app icons, or the arrow before the address, to see each
   app's own flows under the row.
 
-![The Addresses map](docs/images/map.jpg)
+![The Addresses map][img-map]
 
 **Map** shades each country by the flows to its addresses. Hover a
 country for its addresses, flows, and busiest apps. Click it to see its
@@ -219,7 +219,7 @@ such as a German flag, DE, and Hetzner Online GmbH. For that it needs
 IPinfo Lite, a free database that you download yourself. Sieve does not
 ship it.
 
-![The IP data card on the Lists screen](docs/images/ipdata.jpg)
+![The IP data card on the Lists screen][img-ipdata]
 
 1. Create a free account at [ipinfo.io][ipinfo-lite].
 2. Open [your downloads page][ipinfo-downloads] and download IPinfo
@@ -266,7 +266,7 @@ What the tags mean:
 
 ### Lists
 
-![The Lists screen](docs/images/lists.jpg)
+![The Lists screen][img-lists]
 
 **Tracker Shield** is one switch. It holds [Steven Black's unified
 hosts][hosts]. Its first copy ships inside Sieve, so it works offline
@@ -361,7 +361,7 @@ in System Settings.
 
 ### Rules
 
-![The Rules screen](docs/images/rules.jpg)
+![The Rules screen][img-rules]
 
 Rules is a grid. Each row is an app, or an app and one host. The columns
 are **Always**, then one per profile. Each cell has ✓ Allow and ✕ Block.
@@ -383,7 +383,7 @@ Sieve flags rules that can never fire:
 
 ### Profiles
 
-![The Profiles screen](docs/images/profiles.jpg)
+![The Profiles screen][img-profiles]
 
 A profile is a set of rules for a place or a time. It is active on its
 network, or during any of its time blocks.
@@ -398,7 +398,7 @@ network, or during any of its time blocks.
 
 ### Menu bar
 
-![The menu bar window](docs/images/menu.jpg)
+![The menu bar window][img-menu]
 
 Click the Sieve icon in the menu bar for the live rate, the five busiest
 apps with a switch each, and blocked connections for the last seven
@@ -406,7 +406,7 @@ days.
 
 ### Diagnostics
 
-![The Diagnostics screen](docs/images/diagnostics.jpg)
+![The Diagnostics screen][img-diagnostics]
 
 Sieve logs its own errors and warnings, such as a file it cannot write
 or a list it cannot download. The page shows how many there are since
@@ -751,7 +751,6 @@ limits, and decoding of saved files.
 | `Shared/` | Models, verdict logic, list parser, XPC protocol |
 | `SieveTests/` | Swift Testing tests for `Shared/` |
 | `design/` | The browser prototype of every screen |
-| `docs/images/` | The pictures in this README |
 
 ### Contributing
 
@@ -807,3 +806,15 @@ with this program. If not, see <https://www.gnu.org/licenses/>.
 [badge-arch]: https://img.shields.io/badge/Apple%20silicon-tested-brightgreen
 [badge-swift]: https://img.shields.io/badge/Swift-6-orange
 [badge-licence]: https://img.shields.io/badge/licence-GPL--3.0--only-blue
+[img-apps]: https://sieve-prototype.pilinux.me/images/apps.jpg
+[img-setup]: https://sieve-prototype.pilinux.me/images/setup.jpg
+[img-prompt]: https://sieve-prototype.pilinux.me/images/prompt.jpg
+[img-xray]: https://sieve-prototype.pilinux.me/images/xray.jpg
+[img-addresses]: https://sieve-prototype.pilinux.me/images/addresses.jpg
+[img-map]: https://sieve-prototype.pilinux.me/images/map.jpg
+[img-ipdata]: https://sieve-prototype.pilinux.me/images/ipdata.jpg
+[img-lists]: https://sieve-prototype.pilinux.me/images/lists.jpg
+[img-rules]: https://sieve-prototype.pilinux.me/images/rules.jpg
+[img-profiles]: https://sieve-prototype.pilinux.me/images/profiles.jpg
+[img-menu]: https://sieve-prototype.pilinux.me/images/menu.jpg
+[img-diagnostics]: https://sieve-prototype.pilinux.me/images/diagnostics.jpg
