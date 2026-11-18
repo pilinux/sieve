@@ -439,6 +439,60 @@ allow it in the Work column.
 Apps, go through **Undecided**, and block or allow each app. Switch to
 Ask mode once the list is empty.
 
+### Family and malware DNS
+
+Sieve reads the names in plain DNS lookups. It cannot read encrypted
+ones: DNS over HTTPS, DNS over TLS, or secure DNS in a browser. For an
+app that sends encrypted lookups, Sieve sees only IP addresses. Tracker
+Shield, your lists, and host rules cannot match it. App rules still
+apply.
+
+So let the DNS service block too. An encrypted DNS service with filters
+blocks ads, trackers, and malware for every app. It also hides your
+lookups from your ISP and from the network you are on.
+
+[DeCloudUs][decloudus] does both: it blocks ads, trackers, and malware,
+and offers only encrypted DNS. Its public resolver needs no account:
+
+```text
+DNS over HTTPS   https://dns.decloudus.com/dns-query
+DNS over TLS     dns.decloudus.com
+```
+
+Other services that filter:
+
+| Service | Blocks |
+| --- | --- |
+| [DNS4EU][dns4eu] Child, no ads | Ads, trackers, malware, adult |
+| [LibreDNS][libredns] No ads | Ads, trackers |
+| [Cloudflare][cf-families] Security | Malware |
+| [Cloudflare][cf-families] Family | Malware, adult |
+| [AdGuard DNS][adguard-dns] Family | Trackers, malware, adult |
+
+Their DNS addresses and encrypted URLs:
+
+```text
+DNS4EU Child, no ads   86.54.11.11  86.54.11.211
+  https://child-noads.joindns4.eu/dns-query
+LibreDNS No ads        encrypted only
+  https://doh.libredns.gr/noads
+Cloudflare Security    1.1.1.2  1.0.0.2
+  https://security.cloudflare-dns.com/dns-query
+Cloudflare Family      1.1.1.3  1.0.0.3
+  https://family.cloudflare-dns.com/dns-query
+AdGuard DNS Family     94.140.14.15  94.140.15.16
+  https://family.adguard-dns.com/dns-query
+```
+
+For more, see AdGuard's [list of known DNS providers][dns-providers].
+
+> [!IMPORTANT]
+> Secure DNS in the browser hides names from Sieve, so only the DNS
+> service blocks for that browser. Pick one that blocks ads, trackers,
+> and malware, such as DeCloudUs. You can also set encrypted DNS on the
+> Mac and turn secure DNS off in the browser. Then the browser asks macOS
+> for names, Sieve can see them, and the DNS service can filter them.
+
 ## 3. Under the hood
 
 ### How it fits together
@@ -574,8 +628,10 @@ copy** keeps the file for you. **Discard** deletes it.
 ### Limits
 
 - **No host name, no domain match.** Apps that look up names
-  themselves, such as Chrome with secure DNS, give only an IP address.
-  Domain rules and lists cannot match. App rules still apply.
+  themselves give only an IP address. Sieve reads their plain DNS
+  lookups on port 53 and drops a lookup of a blocked name. Encrypted
+  DNS, such as Chrome with secure DNS, hides the name, so domain rules
+  and lists cannot match. App rules still apply.
 - **Web pages show as WebKit.** Safari and every app with a web view
   load pages through `com.apple.WebKit.Networking`. No public API names
   the app behind it, so one rule for it covers all of them. A rule for
@@ -607,9 +663,9 @@ copy** keeps the file for you. **Discard** deletes it.
 #### Why a content filter, not a VPN or packet tunnel?
 
 `NEFilterDataProvider` decides per flow and hands the filter the app's
-audit token. It routes no traffic and reads no contents, so it runs
-next to a VPN. A packet tunnel would see packets without the app behind
-them.
+audit token. It routes no traffic and reads no contents except plain
+DNS lookups, so it runs next to a VPN. A packet tunnel would see
+packets without the app behind them.
 
 #### Why does Ask mode drop connections when the app is closed?
 
@@ -741,6 +797,12 @@ with this program. If not, see <https://www.gnu.org/licenses/>.
 [yoyo]: https://pgl.yoyo.org/adservers/
 [lulu]: https://objective-see.org/products/lulu.html
 [pihole]: https://pi-hole.net
+[decloudus]: https://decloudus.com/public-dns
+[dns-providers]: https://adguard-dns.io/kb/general/dns-providers/
+[cf-families]: https://developers.cloudflare.com/1.1.1.1/setup/
+[dns4eu]: https://www.joindns4.eu/for-public
+[libredns]: https://libredns.gr
+[adguard-dns]: https://adguard-dns.io/en/public-dns.html
 [badge-macos]: https://img.shields.io/badge/macOS-26.6%2B-black
 [badge-arch]: https://img.shields.io/badge/Apple%20silicon-tested-brightgreen
 [badge-swift]: https://img.shields.io/badge/Swift-6-orange
