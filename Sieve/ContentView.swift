@@ -31,6 +31,7 @@ struct ContentView: View {
                         ZStack {
                             ForEach(Screen.allCases.filter(opened.contains), id: \.self) { item in
                                 page(item)
+                                    .environment(\.screenHidden, item != screen)
                                     .opacity(item == screen ? 1 : 0)
                                     .allowsHitTesting(item == screen)
                                     .accessibilityHidden(item != screen)

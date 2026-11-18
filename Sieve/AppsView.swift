@@ -116,6 +116,7 @@ struct AppsView: View {
 private struct AllApps: View {
     let filter: Filter
     let selected: Bool
+    @Environment(\.screenHidden) private var hidden
 
     var body: some View {
         HStack(spacing: 10) {
@@ -124,11 +125,11 @@ private struct AllApps: View {
                 .background(.s3, in: .rect(cornerRadius: 7))
             VStack(alignment: .leading, spacing: 1) {
                 Text("All apps").font(.aileron(13, .semibold))
-                Text("\(bytes(filter.usage.totalBytes)) · \(counted(filter.stats.apps.count, "app"))")
+                Text("\(bytes((hidden ? filter.stats : filter.usage).totalBytes)) · \(counted(filter.stats.apps.count, "app"))")
                     .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit()
             }
             Spacer()
-            Text(rate(filter.totalRate)).font(.aileron(12)).foregroundStyle(.ink2).monospacedDigit()
+            Text(rate(hidden ? 0 : filter.totalRate)).font(.aileron(12)).foregroundStyle(.ink2).monospacedDigit()
         }
         .appRowStyle(selected: selected)
     }
@@ -137,11 +138,12 @@ private struct AllApps: View {
 // The rate now, with its last minute.
 private struct NowKpi: View {
     let filter: Filter
+    @Environment(\.screenHidden) private var hidden
 
     var body: some View {
-        let now = split(rate(filter.totalRate))
+        let now = split(rate(hidden ? 0 : filter.totalRate))
         Kpi(title: "Now", value: now.value, unit: now.unit) {
-            RateLine(values: filter.trend(nil), hover: true).frame(height: 28)
+            RateLine(values: hidden ? [] : filter.trend(nil), hover: true).frame(height: 28)
         }
     }
 }
@@ -149,13 +151,14 @@ private struct NowKpi: View {
 // The five apps with the most bytes.
 private struct TopApps: View {
     let filter: Filter
+    @Environment(\.screenHidden) private var hidden
 
     var body: some View {
         let stats = filter.stats
         VStack(alignment: .leading, spacing: 14) {
             Caption("Top apps")
             RankedBars(
-                items: filter.usage.bytes.sorted { $0.value > $1.value }.prefix(5).map {
+                items: (hidden ? filter.stats : filter.usage).bytes.sorted { $0.value > $1.value }.prefix(5).map {
                     .init(key: $0.key, name: stats.name($0.key), value: Double($0.value), text: bytes($0.value))
                 },
                 stacked: true
@@ -168,9 +171,10 @@ private struct TopApps: View {
 // Blocked flows of the last 31 days, split by block lists and by rules and limits.
 private struct BlockedChart: View {
     let filter: Filter
+    @Environment(\.screenHidden) private var hidden
 
     var body: some View {
-        let stats = filter.usage
+        let stats = hidden ? filter.stats : filter.usage
         let days = lastDays(31)
         let blocked = days.enumerated().map { index, day in
             let parts = blockedParts(stats, day: Stats.day(day))
@@ -199,14 +203,15 @@ private struct BlockedChart: View {
 private struct AppNow: View {
     let filter: Filter
     let app: String
+    @Environment(\.screenHidden) private var hidden
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Caption("Now")
-            Text(rate(filter.rates[app] ?? 0)).font(.aileron(26, .light)).monospacedDigit()
-            RateLine(values: filter.trend(app), hover: true).frame(height: 70)
+            Text(rate(hidden ? 0 : filter.rates[app] ?? 0)).font(.aileron(26, .light)).monospacedDigit()
+            RateLine(values: hidden ? [] : filter.trend(app), hover: true).frame(height: 70)
             HStack {
-                Text("Total \(Text(bytes(filter.usage.bytes[app] ?? 0)).foregroundStyle(.ink))")
+                Text("Total \(Text(bytes((hidden ? filter.stats : filter.usage).bytes[app] ?? 0)).foregroundStyle(.ink))")
                 Spacer()
                 Text("Today \(Text(bytes(filter.stats.daily[Stats.day(.now)]?[app] ?? 0)).foregroundStyle(.ink))")
             }

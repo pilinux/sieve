@@ -63,9 +63,10 @@ func blockedParts(_ stats: Stats, day: String) -> [SegmentBar.Part] {
 /// Today's blocked flows, with a bar that splits them. If today was counted before the split, there is no bar.
 struct BlockedToday: View {
     let filter: Filter
+    @Environment(\.screenHidden) private var hidden
 
     var body: some View {
-        let stats = filter.usage
+        let stats = hidden ? filter.stats : filter.usage
         let today = Stats.day(.now)
         Kpi(title: "Blocked today", value: "\(stats.blocked[today] ?? 0)") {
             if stats.blockedSplit(today) != nil { SegmentBar(parts: blockedParts(stats, day: today)) }
@@ -331,6 +332,9 @@ struct LockButton: View {
 extension EnvironmentValues {
     /// True while Sieve is locked, so the controls that change something are dimmed.
     @Entry var locked = false
+    /// True while the view's screen is hidden. A view that reads the per-second counts then reads `stats`, which changes
+    /// at most every 10 seconds, and shows no rate, so it does not redraw each second for nothing.
+    @Entry var screenHidden = false
 }
 
 extension View {
@@ -368,12 +372,14 @@ struct AppRow: View {
     let filter: Filter
     let app: String
     var selected = false
+    @Environment(\.screenHidden) private var hidden
 
     var body: some View {
         let stats = filter.stats
         let on = filter.config.action(for: app) != .block
-        let current = filter.rates[app] ?? 0
-        let fastest = max(filter.rates.values.max() ?? 0, 1)
+        let rates = hidden ? [:] : filter.rates
+        let current = rates[app] ?? 0
+        let fastest = max(rates.values.max() ?? 0, 1)
         HStack(spacing: 10) {
             Group {
                 AppIcon(path: stats.paths[app])
@@ -383,7 +389,7 @@ struct AppRow: View {
                         GradeBadge(grade: stats.grade(app))
                     }
                     Text(
-                        "\(bytes(filter.usage.bytes[app] ?? 0)) · \(counted(stats.apps[app]?.count ?? 0, "host")) · \(counted(stats.addresses?[app]?.count ?? 0, "IP"))"
+                        "\(bytes((hidden ? filter.stats : filter.usage).bytes[app] ?? 0)) · \(counted(stats.apps[app]?.count ?? 0, "host")) · \(counted(stats.addresses?[app]?.count ?? 0, "IP"))"
                     )
                     .font(.aileron(11)).foregroundStyle(.ink3).monospacedDigit().lineLimit(1)
                 }
