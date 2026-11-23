@@ -48,6 +48,7 @@ final class Store: Sendable {
         for rule in config.rules {
             result.flags[rule.id] = config.flag(rule, gone: gone, domains: domains)
         }
+        result.gone = gone
         result.networks = networks
         result.codes = codes
         result.profile = Self.activeProfile(config, networks)
@@ -102,9 +103,13 @@ final class Store: Sendable {
     }
 
     /// Clears the app's history and saves right away. The app's config stays.
+    /// An app whose path is gone leaves the list too, since only a new flow from that path could bring it back.
     func forget(_ app: String) {
+        let path = state.withLock { $0.stats.paths[app] }
+        let gone = path.map { !FileManager.default.fileExists(atPath: $0) } ?? false
         state.withLock {
-            $0.stats.forget(app, rules: $0.config.rules.filter { $0.app == app }.map(\.id))
+            $0.stats.forget(app, rules: $0.config.rules.filter { $0.app == app }.map(\.id), entirely: gone)
+            if gone { $0.codes[app] = nil }
             $0.statsChanged = true
         }
         saveStats()

@@ -26,4 +26,12 @@ struct HistoryTests {
         #expect(stats.paths == ["app": "/Applications/App.app"])
         #expect(stats.trackers == ["shared.example"])
     }
+
+    @Test func forgetEntirelyRemovesTheApp() {
+        var stats = stats
+        stats.forget("app", rules: [rule.id], entirely: true)
+        #expect(stats.apps == ["other": ["shared.example": "2026-11-12"]])
+        #expect(stats.paths.isEmpty)
+        #expect(stats.bytes == ["other": 50])
+    }
 }

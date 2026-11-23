@@ -50,6 +50,8 @@ struct Stats: Codable, Equatable {
     /// Flows to each host, allowed or blocked, and the last one, by app key, then host.
     /// It is optional, so an older file without it still loads.
     var hostHits: [String: [String: Hit]]?
+    /// Keys of apps whose path is no longer on disk. Filled in for the app only.
+    var gone: Set<String>?
 
     /// The most hosts, and the most IP addresses, that Sieve keeps for one app.
     static let maxHosts = 1_000
@@ -222,10 +224,17 @@ struct Stats: Codable, Equatable {
         trackers = trackers.filter { host in apps.values.contains { $0[host] != nil } }
     }
 
-    /// Clears the app's history: its hosts, addresses, tracker flows, host hits, bytes, and rule hits. The app stays in the list, with its path.
+    /// Clears the app's history: its hosts, addresses, tracker flows, host hits, bytes, and rule hits. Unless `entirely` is set, the app stays in the list, with its path.
     /// - Parameter rules: the IDs of the app's rules.
-    mutating func forget(_ app: String, rules: [UUID]) {
-        apps[app] = [:]
+    /// - Parameter entirely: whether the app leaves the list too, with its path and every other fact about it.
+    mutating func forget(_ app: String, rules: [UUID], entirely: Bool = false) {
+        apps[app] = entirely ? nil : [:]
+        if entirely {
+            seen[app] = nil
+            paths[app] = nil
+            apple.remove(app)
+            vpns?.remove(app)
+        }
         addresses?[app] = nil
         trackerFlows?[app] = nil
         hostHits?[app] = nil

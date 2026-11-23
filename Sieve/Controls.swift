@@ -105,6 +105,9 @@ extension Chip {
 
     static let tracker = Chip(text: "Tracker", icon: "exclamationmark.triangle.fill", iconColor: .warn, fill: .warn.opacity(0.14))
 
+    static let appGone = Chip(
+        text: Flag.appGone.rawValue, icon: "exclamationmark.triangle.fill", iconColor: .warn, fill: .warn.opacity(0.14))
+
 }
 
 /// The label of a host or IP address, as `AddressLabel` decides it.
@@ -387,6 +390,7 @@ struct AppRow: View {
                     HStack(spacing: 7) {
                         Text(stats.name(app)).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
                         GradeBadge(grade: stats.grade(app))
+                        if stats.gone?.contains(app) == true { Chip.appGone }
                     }
                     Text(
                         "\(bytes((hidden ? filter.stats : filter.usage).bytes[app] ?? 0)) · \(counted(stats.apps[app]?.count ?? 0, "host")) · \(counted(stats.addresses?[app]?.count ?? 0, "IP"))"

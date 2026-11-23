@@ -93,6 +93,7 @@ struct AppsView: View {
                 HStack(spacing: 7) {
                     Text(stats.name(app)).font(.aileron(13, .semibold)).lineLimit(1).truncationMode(.middle)
                     GradeBadge(grade: stats.grade(app))
+                    if stats.gone?.contains(app) == true { Chip.appGone }
                 }
                 Text(
                     "\(counted(hosts.count, "host")) · \(counted(stats.addresses?[app]?.count ?? 0, "IP")) · \(counted(hosts.intersection(stats.trackers).count, "tracker"))"
@@ -312,6 +313,7 @@ private struct XRay: View {
     @FocusState private var editing: Bool
     @State private var clearing = false
     @State private var undeciding = false
+    @State private var deleting = false
 
     var body: some View {
         let stats = filter.stats
@@ -339,12 +341,22 @@ private struct XRay: View {
                     Chip(text: "Code changed", icon: "exclamationmark.triangle.fill", iconColor: .warn)
                         .help("Its Allow rules do not count until you allow it again")
                 }
-                IconButton(icon: "clock.arrow.circlepath", help: "Clear history", ring: true, held: true) { clearing = true }
-                    .confirmationDialog("Clear the history of \(stats.name(app))?", isPresented: $clearing) {
-                        Button("Clear History", role: .destructive) { Task { await filter.forget(app) } }
-                    } message: {
-                        Text("Its traffic, hosts, IP addresses, and rule hits go. Its rules and data limit stay.")
-                    }
+                if stats.gone?.contains(app) == true {
+                    Chip.appGone
+                    IconButton(icon: "trash", help: "Delete this app", ring: true, held: true) { deleting = true }
+                        .confirmationDialog("Delete \(stats.name(app))?", isPresented: $deleting) {
+                            Button("Delete", role: .destructive) { Task { await delete() } }
+                        } message: {
+                            Text("Its traffic, hosts, IP addresses, rules, and data limit go, and it leaves the list.")
+                        }
+                } else {
+                    IconButton(icon: "clock.arrow.circlepath", help: "Clear history", ring: true, held: true) { clearing = true }
+                        .confirmationDialog("Clear the history of \(stats.name(app))?", isPresented: $clearing) {
+                            Button("Clear History", role: .destructive) { Task { await filter.forget(app) } }
+                        } message: {
+                            Text("Its traffic, hosts, IP addresses, and rule hits go. Its rules and data limit stay.")
+                        }
+                }
                 // Without an app rule, an Apple app still counts as decided, so the button would not move it.
                 if config.hasAppRule(app), !stats.apple.contains(app) {
                     // An Always rule comes back with one click, but profile rules take more, so ask only for those.
@@ -381,6 +393,17 @@ private struct XRay: View {
     // Removes the app rules in every column, so the app goes back to Undecided. Host rules stay.
     private func undecide() {
         filter.update { $0.rules.removeAll { $0.app == app && $0.host == nil } }
+    }
+
+    // The rules and limit go first, so the extension's `forget` removes a gone app with nothing left that names it.
+    // One unlock covers both changes.
+    private func delete() async {
+        guard await filter.mayChange() else { return }
+        await filter.update {
+            $0.rules.removeAll { $0.app == app }
+            $0.limits.removeAll { $0.app == app }
+        }?.value
+        await filter.forget(app)
     }
 
     private func grade(_ grade: String, trackers: Int, blocked: Int, hosts: Int) -> some View {
