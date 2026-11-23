@@ -38,9 +38,12 @@ struct SetupView: View {
                     Text("Installing the system extension").foregroundStyle(.ink3)
                 case .needsApproval:
                     settingsHint
-                    // Opens Login Items & Extensions, which lists Network Extensions.
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension") {
-                        Link("Open System Settings", destination: url)
+                    // Opens the Network Extensions sheet of Login Items & Extensions, where Sieve's switch is.
+                    if let url = URL(
+                        string:
+                            "x-apple.systempreferences:com.apple.ExtensionsPreferences?extensionPointIdentifier=com.apple.system_extension.network_extension.extension-point"
+                    ) {
+                        Link("Open Network Extensions", destination: url)
                     }
                 default:
                     HStack(spacing: 10) {

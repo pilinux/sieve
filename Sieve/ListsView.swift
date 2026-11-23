@@ -12,12 +12,33 @@ struct ListsView: View {
     @State private var deletingAllowlist = false
     @State private var domain = ""
     @State private var checked: (host: String, entries: [String: String])?
+    @State private var downloading: String?
+    @State private var deleting: DomainList?
+
+    // Steven Black's extensions, each without the base list. None ships with Sieve, so each one downloads when the
+    // user first turns it on.
+    private static let extensions = [
+        ("fakenews", "Fake news", "Sites that spread false news"),
+        ("gambling", "Gambling", "Betting and casino sites"),
+        ("porn", "Adult content", "Pornography and other explicit sites"),
+        ("social", "Social", "Facebook, TikTok, X, and others"),
+    ].map { key, label, about in
+        (
+            list: DomainList(
+                id: "tracker-shield-\(key)", name: "Tracker Shield · \(label)",
+                url: "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/\(key)-only/hosts", action: .block
+            ),
+            label: label, about: about
+        )
+    }
 
     var body: some View {
         let config = filter.config
         let stats = filter.stats
         let shield = config.lists.first { $0.id == DomainList.trackerShield.id }
-        let others = config.lists.filter { $0.id != DomainList.trackerShield.id }
+        let others = config.lists.filter { list in
+            list.id != DomainList.trackerShield.id && !Self.extensions.contains { $0.list.id == list.id }
+        }
         let blocking = config.lists.filter { $0.enabled && $0.action == .block }
         ScrollView {
             HStack(alignment: .top, spacing: 12) {
@@ -261,8 +282,78 @@ struct ListsView: View {
                 Spacer()
                 IconButton(icon: "arrow.clockwise", help: "Refresh", held: true) { Task { await filter.load(shield) } }
             }
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Caption("Extensions")
+                    Spacer()
+                    Text("Each downloads when you turn it on").font(.aileron(11)).foregroundStyle(.ink3)
+                }
+                .padding(.bottom, 4)
+                ForEach(Self.extensions, id: \.list.id) { item in
+                    Rectangle().fill(.line).frame(height: 1).padding(.top, 8)
+                    extensionRow(item.list, label: item.label, about: item.about).padding(.top, 8)
+                }
+            }
         }
         .card()
+        .confirmationDialog(
+            "Delete \(deleting?.name ?? "")?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+            presenting: deleting
+        ) { list in
+            Button("Delete", role: .destructive) { filter.update { $0.lists.removeAll { $0.id == list.id } } }
+        } message: { _ in
+            Text("Sieve stops blocking its domains and deletes its copy. Turn it on to download it again.")
+        }
+    }
+
+    // A downloaded extension is a list in the config. Off keeps its copy, and Delete drops it.
+    private func extensionRow(_ list: DomainList, label: String, about: String) -> some View {
+        let saved = filter.config.lists.first { $0.id == list.id }
+        let busy = downloading == list.id
+        return HStack(spacing: 12) {
+            Toggle(
+                label,
+                isOn: Binding(
+                    get: { busy || saved?.enabled == true },
+                    set: { on in if saved == nil { download(list) } else { enabled(list.id).wrappedValue = on } }
+                )
+            )
+            .toggleStyle(.switch).labelsHidden().tint(.allow)
+            .disabled(downloading != nil)
+            .held()
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label).font(.aileron(13, .semibold))
+                Text(about).font(.aileron(11)).foregroundStyle(.ink3).lineLimit(1)
+            }
+            // The subtitle can be cut off, so the pointer shows it whole.
+            .help(about)
+            Spacer()
+            if busy {
+                Text("Downloading").foregroundStyle(.ink3)
+                ProgressView().controlSize(.small)
+            } else if saved == nil {
+                Text("Not downloaded").foregroundStyle(.ink3)
+            } else {
+                if let size = filter.stats.listSizes[list.id] {
+                    Text(counted(size, "domain")).foregroundStyle(.ink3).monospacedDigit()
+                }
+                IconButton(icon: "arrow.clockwise", help: "Download a fresh copy", held: true) { Task { await filter.load(list) } }
+                IconButton(icon: "trash", help: "Turn off and delete the downloaded copy", held: true) { deleting = list }
+            }
+        }
+    }
+
+    // The list joins the config only after its first download succeeds, so a failed one leaves nothing behind.
+    private func download(_ list: DomainList) {
+        downloading = list.id
+        Task {
+            if await filter.load(list) {
+                await filter.update { config in
+                    if !config.lists.contains(where: { $0.id == list.id }) { config.lists.append(list) }
+                }?.value
+            }
+            downloading = nil
+        }
     }
 
     // Allowlist only: one uploaded file of hosts, IP addresses, and ranges. A new upload replaces it.

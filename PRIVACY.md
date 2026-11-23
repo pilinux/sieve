@@ -56,10 +56,11 @@ someone. Reset empties both logs.
 
 Sieve connects to the internet only to download lists:
 
-- Tracker Shield, from `raw.githubusercontent.com`.
+- Tracker Shield and its extensions, from `raw.githubusercontent.com`.
 - Each list URL you add.
 
-It does so only when you add a list or press Refresh. The server of
+It does so only when you add a list, turn on a Tracker Shield
+extension for the first time, or press Refresh. The server of
 each list sees your IP address, as with any download. GitHub's privacy
 policy covers `raw.githubusercontent.com`.
 

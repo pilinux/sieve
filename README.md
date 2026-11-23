@@ -272,6 +272,11 @@ What the tags mean:
 hosts][hosts]. Its first copy ships inside Sieve, so it works offline
 from the start. Refresh downloads the latest copy.
 
+Under it, four **extensions** add Steven Black's Fake news, Gambling,
+Adult content, and Social lists. None ships with Sieve. Each downloads
+when you first turn it on. Off keeps the copy, Refresh downloads a new
+one, and Delete removes it.
+
 To add your own list, paste an `https` URL and click **Add**, or click
 **Upload** and pick a file. Choose Block or Allow first. Allow lists win
 over block lists.
@@ -694,7 +699,9 @@ the whole string, so two homes that both use `192.168.1.1` stay apart.
 
 The first copy ships in the extension bundle as `trackers.txt`. After
 the first Refresh, the extension loads `lists/tracker-shield.txt` from
-its data folder instead.
+its data folder instead. Each extension downloads its
+`alternates/<name>-only/hosts` file and keeps it as
+`lists/tracker-shield-<name>.txt`.
 
 #### How do I build Sieve myself?
 

@@ -246,9 +246,10 @@ final class Filter: NSObject {
         await refresh()
     }
 
-    /// Downloads the list and hands it to the extension.
-    func load(_ list: DomainList) async {
-        guard await mayChange() else { return }
+    /// Downloads the list and hands it to the extension. Returns whether the extension has the new copy.
+    @discardableResult
+    func load(_ list: DomainList) async -> Bool {
+        guard await mayChange() else { return false }
         do {
             guard let url = list.url.flatMap(URL.init(string:)) else { throw URLError(.badURL) }
             let (bytes, response) = try await URLSession.shared.bytes(from: url)
@@ -268,12 +269,14 @@ final class Filter: NSObject {
             guard try await hand(list, data) else {
                 errorLog.warning("lists", "List \(list.id) has no hosts. Kept the old copy")
                 message = ("\(list.name) has no hosts. Kept the old copy.", true)
-                return
+                return false
             }
             message = ("Loaded \(list.name)", false)
+            return true
         } catch {
             errorLog.warning("lists", "Cannot load list \(list.id)", error)
             message = ("Cannot load \(list.name): \(error.localizedDescription)", true)
+            return false
         }
     }
 
