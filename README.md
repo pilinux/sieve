@@ -1,6 +1,6 @@
 # Sieve
 
-[![macOS 26.6 or later][badge-macos]](#what-you-need)
+[![macOS 26.0 or later][badge-macos]](#what-you-need)
 [![Apple silicon][badge-arch]](#what-you-need)
 [![Swift 6][badge-swift]](#project-layout)
 [![Licence: GPL-3.0-only][badge-licence]](LICENSE)
@@ -50,7 +50,7 @@ It collects no data. See the [privacy policy](PRIVACY.md).
 
 ### What you need
 
-- macOS 26.6 or later.
+- macOS 26.0 or later.
 - A Mac with Apple silicon. Builds include Intel, but only Apple
   silicon is tested.
 - An administrator password, once, to allow the filter.
@@ -802,7 +802,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>.
 [dns4eu]: https://www.joindns4.eu/for-public
 [libredns]: https://libredns.gr
 [adguard-dns]: https://adguard-dns.io/en/public-dns.html
-[badge-macos]: https://img.shields.io/badge/macOS-26.6%2B-black
+[badge-macos]: https://img.shields.io/badge/macOS-26.0%2B-black
 [badge-arch]: https://img.shields.io/badge/Apple%20silicon-tested-brightgreen
 [badge-swift]: https://img.shields.io/badge/Swift-6-orange
 [badge-licence]: https://img.shields.io/badge/licence-GPL--3.0--only-blue

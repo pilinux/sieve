@@ -35,7 +35,7 @@ get it merged.
 - Open an issue before a large change, and agree on the approach
   before you write much code.
 - Keep one change per pull request.
-- Target macOS 26.6 or later. Do not add code for older macOS.
+- Target macOS 26.0 or later. Do not add code for older macOS.
 - Use public APIs only. The Mac App Store rejects private ones.
 - Never write a host, IP address, URL, app path, or a name the user
   typed into the error log. The log must stay safe to share.
