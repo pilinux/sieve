@@ -76,4 +76,20 @@ struct ProfileTests {
         config.setAction(.allow, for: app)
         #expect(config.rules.count == 2)
     }
+
+    // The first match wins, so moving the hotspot up makes it active on its network during work hours.
+    @Test func moveProfileChangesTheOrderAndKeepsColours() {
+        let home = Profile(name: "Home", color: "#4fb3c9")
+        let night = Profile(name: "Night")
+        let travel = Profile(name: "Travel")
+        var config = Config(profiles: [work, hotspot, home, night, travel])
+        config.moveProfile(travel.id, to: work.id)
+        #expect(config.profiles.map(\.name) == ["Travel", "Work", "Hotspot", "Home", "Night"])
+        #expect(config.profiles.map(\.color) == ["#8a8983", "#199e70", "#c98500", "#4fb3c9", "#9085e9"])
+        config.moveProfile(travel.id, to: night.id)
+        #expect(config.profiles.map(\.name) == ["Work", "Hotspot", "Home", "Night", "Travel"])
+        #expect(config.activeProfile(networks: ["IPv4.Router=172.20.10.1"], weekday: 2, minute: 600) == work.id)
+        config.moveProfile(hotspot.id, to: work.id)
+        #expect(config.activeProfile(networks: ["IPv4.Router=172.20.10.1"], weekday: 2, minute: 600) == hotspot.id)
+    }
 }

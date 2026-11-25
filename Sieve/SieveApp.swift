@@ -5,6 +5,7 @@
 //  Created by Mahir on 11.11.26.
 //
 
+import AppKit
 import SwiftUI
 
 @main
@@ -13,6 +14,16 @@ struct SieveApp: App {
 
     init() {
         Font.registerAileron()
+        // A SwiftUI text field keeps editing until another view takes focus. A click anywhere else ends it, so the
+        // field saves, as on Return. The click itself goes on as usual.
+        _ = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+            MainActor.assumeIsolated {
+                guard let window = event.window, window.firstResponder is NSText else { return }
+                let hit = window.contentView?.hitTest(event.locationInWindow)
+                if !(hit is NSText || hit is NSTextField) { window.makeFirstResponder(nil) }
+            }
+            return event
+        }
     }
 
     var body: some Scene {

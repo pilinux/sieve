@@ -1,11 +1,14 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ProfilesView: View {
     let filter: Filter
 
     // `Calendar` weekdays, Monday first. 1 is Sunday.
     private let week = [2, 3, 4, 5, 6, 7, 1]
+    // The card a dragged profile is over.
+    @State private var dropTarget: UUID?
 
     var body: some View {
         let profiles = filter.config.profiles
@@ -90,6 +93,12 @@ struct ProfilesView: View {
         let rules = Text(counted(count, "rule")).foregroundStyle(.ink3).monospacedDigit()
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
+                Image(systemName: "line.3.horizontal").foregroundStyle(.ink3)
+                    .frame(width: 14, height: 20)
+                    .contentShape(.rect)
+                    .help("Drag to change the order. The first profile that matches is active.")
+                    .draggable(ProfileDrag(id: id)) { Chip(text: profile.name, icon: "line.3.horizontal") }
+                    .held()
                 // Cards are laid out by position. The ID makes a fresh field, so a deleted profile's edit does not pass to the next card.
                 ColourWell(filter: filter, id: id, index: index).id(id).held()
                 NameField(filter: filter, id: id, name: profile.name).id(id).held()
@@ -155,6 +164,16 @@ struct ProfilesView: View {
             ProfileData(stats: filter.stats, id: id)
         }
         .card()
+        .overlay {
+            if dropTarget == id { RoundedRectangle(cornerRadius: 10).strokeBorder(color, lineWidth: 2) }
+        }
+        .dropDestination(for: ProfileDrag.self) { drops, _ in
+            guard let drop = drops.first, drop.id != id else { return false }
+            filter.update { $0.moveProfile(drop.id, to: id) }
+            return true
+        } isTargeted: { over in
+            if over { dropTarget = id } else if dropTarget == id { dropTarget = nil }
+        }
     }
 
     // One time block: its weekdays, a bar of its hours, and its times.
@@ -336,6 +355,15 @@ private struct TimeField: View {
         .controlSize(.small)
         .monospacedDigit()
         .fixedSize()
+    }
+}
+
+// A dragged profile card. It travels as JSON, so a text field does not take it as text.
+private struct ProfileDrag: Codable, Transferable {
+    let id: UUID
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .json)
     }
 }
 

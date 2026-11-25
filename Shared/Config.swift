@@ -150,6 +150,16 @@ struct Config: Codable, Equatable {
         }?.id
     }
 
+    /// Moves the profile to the place of `target`. Each profile with no colour first gets the one it shows,
+    /// since a default colour comes from the position.
+    mutating func moveProfile(_ id: UUID, to target: UUID) {
+        guard let from = profiles.firstIndex(where: { $0.id == id }), let to = profiles.firstIndex(where: { $0.id == target }),
+            from != to
+        else { return }
+        for index in profiles.indices where profiles[index].color == nil { profiles[index].color = Profile.defaultColor(index) }
+        profiles.insert(profiles.remove(at: from), at: to)
+    }
+
     /// Whether the app has used up its data limit.
     /// - Parameters:
     ///   - daily: bytes by day, then by app key.
@@ -273,8 +283,13 @@ struct Profile: Codable, Equatable, Identifiable {
     var network: String?
     /// Time blocks, each with its own weekdays and times.
     var schedules: [Schedule] = []
-    /// The colour the user picked, such as `#4fb3c9`. Nil means a default colour based on position.
+    /// The colour the user picked, such as `#4fb3c9`. Nil means `defaultColor(_:)` of its position.
     var color: String?
+
+    /// The colour of a profile with none picked, by its position: four colours, then grey.
+    static func defaultColor(_ index: Int) -> String {
+        ["#199e70", "#c98500", "#d55181", "#9085e9"].dropFirst(index).first ?? "#8a8983"
+    }
 }
 
 struct Schedule: Codable, Equatable {

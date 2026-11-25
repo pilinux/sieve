@@ -47,11 +47,11 @@ extension Color {
         }
     }
 
-    /// The colour the user picked. Otherwise one of four defaults by position, then gray.
+    /// The colour the user picked. Otherwise `Profile.defaultColor(_:)` of the position.
     static func profile(_ index: Int, _ hex: String?) -> Color {
-        if let hex, hex.hasPrefix("#"), let value = UInt32(hex.dropFirst(), radix: 16) { return Color(hex: value) }
-        return [Color(hex: 0x199E70), Color(hex: 0xC98500), Color(hex: 0xD55181), Color(hex: 0x9085E9)]
-            .dropFirst(index).first ?? .ink3
+        let hex = hex ?? Profile.defaultColor(index)
+        guard hex.hasPrefix("#"), let value = UInt32(hex.dropFirst(), radix: 16) else { return .ink3 }
+        return Color(hex: value)
     }
 }
 
