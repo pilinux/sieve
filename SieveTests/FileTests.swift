@@ -110,4 +110,20 @@ struct FileTests {
         let stats = try JSONDecoder().decode(Stats.self, from: data)
         #expect(stats.addresses?["com.apple.mDNSResponder"]?["192.168.1.1"]?.dns == true)
     }
+
+    // Files as saved by the build that split bytes into down and up.
+    @Test func statsWithTrafficLoad() throws {
+        let data = Data(
+            #"""
+            {"apple":[],"apps":{"com.example.app":{}},"blocked":{},"blockedTrackers":{},"brokenConfig":false,
+            "bytes":{"com.example.app":300},"daily":{"2026-11-24":{"com.example.app":300}},
+            "dailyTraffic":{"2026-11-24":{"com.example.app":{"down":200,"up":50}}},"flags":[],"hits":[],
+            "listSizes":{},"networks":[],"paths":{},"seen":{"com.example.app":"2026-11-24"},
+            "since":{"com.example.app":"2026-11-24"},"traffic":{"com.example.app":{"down":200,"up":50}},"trackers":[]}
+            """#.utf8)
+        let stats = try JSONDecoder().decode(Stats.self, from: data)
+        #expect(stats.totalTraffic(day: "2026-11-24") == Transfer(down: 200, up: 50))
+        #expect(stats.totalTraffic == Transfer(down: 200, up: 50))
+        #expect(stats.totalSince == "2026-11-24")
+    }
 }

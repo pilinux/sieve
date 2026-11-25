@@ -52,6 +52,23 @@ struct Stats: Codable, Equatable {
     var hostHits: [String: [String: Hit]]?
     /// Keys of apps whose path is no longer on disk. Filled in for the app only.
     var gone: Set<String>?
+    /// Bytes down and up by `day(_:)`, then by app key. Keeps 31 days. Bytes counted by an older build are in `daily` only.
+    /// It is optional, so an older file without it still loads.
+    var dailyTraffic: [String: [String: Transfer]]?
+    /// Bytes down and up by app key. Bytes counted by an older build are in `bytes` only.
+    /// It is optional, so an older file without it still loads.
+    var traffic: [String: Transfer]?
+    /// The `day(_:)` each app's `bytes` began, by app key. `startSince(day:)` gives one to an app from an older build.
+    /// It is optional, so an older file without it still loads.
+    var since: [String: String]?
+    /// Bytes down and up while each profile was active, by `day(_:)`, then by profile ID. Keeps 31 days.
+    /// It is optional, so an older file without it still loads.
+    var profileDaily: [String: [UUID: Transfer]]?
+    /// Bytes down and up while each profile was active, since its `profileSince` day, by profile ID.
+    /// It is optional, so an older file without it still loads.
+    var profileTraffic: [UUID: Transfer]?
+    /// The `day(_:)` of each profile's first byte, by profile ID. It is optional, so an older file without it still loads.
+    var profileSince: [UUID: String]?
 
     /// The most hosts, and the most IP addresses, that Sieve keeps for one app.
     static let maxHosts = 1_000
@@ -145,6 +162,65 @@ struct Stats: Codable, Equatable {
         (daily[day] ?? [:]).filter { vpns?.contains($0.key) != true }.values.reduce(0, +)
     }
 
+    /// `totalBytes` down and up. VPN apps are left out, as there.
+    var totalTraffic: Transfer { withoutVPNs(traffic) }
+
+    /// `totalTraffic` for one day.
+    func totalTraffic(day: String) -> Transfer { withoutVPNs(dailyTraffic?[day]) }
+
+    private func withoutVPNs(_ traffic: [String: Transfer]?) -> Transfer {
+        (traffic ?? [:]).filter { vpns?.contains($0.key) != true }.values.reduce(Transfer(), +)
+    }
+
+    /// The day `totalBytes` began: the earliest `since` of the apps it counts.
+    /// Nil when one of them has no `since`, because its bytes may be older.
+    var totalSince: String? {
+        let days = bytes.keys.filter { vpns?.contains($0) != true }.map { since?[$0] }
+        return days.contains(nil) ? nil : days.compactMap(\.self).min()
+    }
+
+    /// Starts the count of each app from an older build, which has no `since`, on `day`.
+    /// Its `bytes` keep only those of `day`, so they match the day the count names.
+    mutating func startSince(day: String) {
+        var all = since ?? [:]
+        for app in bytes.keys where all[app] == nil {
+            bytes[app] = daily[day]?[app] ?? 0
+            all[app] = day
+        }
+        since = all
+    }
+
+    /// Adds a flow's new bytes down and up to its app, and to the active `profile`. The first byte of each sets its since day.
+    /// A VPN app's bytes skip the profile, since its flows carry other apps' traffic again.
+    mutating func countBytes(_ app: String, down: Int, up: Int, day: String, profile: UUID? = nil) {
+        if bytes[app] == nil {
+            var all = since ?? [:]
+            all[app] = day
+            since = all
+        }
+        bytes[app, default: 0] += down + up
+        daily[day, default: [:]][app, default: 0] += down + up
+        // Take each map out first. With one owner, Swift changes it in place instead of copying it.
+        var days = dailyTraffic.take() ?? [:]
+        days[day, default: [:]][app, default: Transfer()] += Transfer(down: down, up: up)
+        dailyTraffic = days
+        var apps = traffic.take() ?? [:]
+        apps[app, default: Transfer()] += Transfer(down: down, up: up)
+        traffic = apps
+        guard let profile, vpns?.contains(app) != true else { return }
+        if profileTraffic?[profile] == nil {
+            var all = profileSince ?? [:]
+            all[profile] = day
+            profileSince = all
+        }
+        var profileDays = profileDaily.take() ?? [:]
+        profileDays[day, default: [:]][profile, default: Transfer()] += Transfer(down: down, up: up)
+        profileDaily = profileDays
+        var profiles = profileTraffic.take() ?? [:]
+        profiles[profile, default: Transfer()] += Transfer(down: down, up: up)
+        profileTraffic = profiles
+    }
+
     /// Counts one flow from the app to `host` and `address`. Call it after `see(_:host:address:day:)`, which adds them.
     mutating func countFlow(_ app: String, host: String?, address: String?, time: Date) {
         if let host {
@@ -188,13 +264,15 @@ struct Stats: Codable, Equatable {
     }
 
     /// Removes what was last seen on or before `cutoff`: hosts, addresses, days, and apps with no rule and no data limit.
-    /// Also removes the hits of rules not in `config`, trackers no app still has, and tracker flows and host hits of hosts an app dropped.
+    /// Also removes the bytes of profiles not in `config`, the hits of rules not in `config`, trackers no app still has, and tracker flows and host hits of hosts an app dropped.
     mutating func prune(_ config: Config, cutoff: String) {
         let kept = Set(config.rules.map(\.app) + config.limits.map(\.app))
         for (app, day) in seen where day <= cutoff && !kept.contains(app) {
             apps[app] = nil
             seen[app] = nil
             bytes[app] = nil
+            traffic?[app] = nil
+            since?[app] = nil
             paths[app] = nil
             apple.remove(app)
             vpns?.remove(app)
@@ -207,6 +285,12 @@ struct Stats: Codable, Equatable {
         trackerFlows = trackerFlows.map { seenHostsOnly($0) }
         hostHits = hostHits.map { seenHostsOnly($0) }
         daily = daily.filter { $0.key > cutoff }
+        dailyTraffic = dailyTraffic?.filter { $0.key > cutoff }
+        // A deleted profile can never count again, so its bytes go with it.
+        let profiles = Set(config.profiles.map(\.id))
+        profileDaily = profileDaily?.filter { $0.key > cutoff }.mapValues { $0.filter { profiles.contains($0.key) } }
+        profileTraffic = profileTraffic?.filter { profiles.contains($0.key) }
+        profileSince = profileSince?.filter { profiles.contains($0.key) }
         let rules = Set(config.rules.map(\.id))
         hits = hits.filter { rules.contains($0.key) }
         dropUnreachedTrackers()
@@ -239,7 +323,10 @@ struct Stats: Codable, Equatable {
         trackerFlows?[app] = nil
         hostHits?[app] = nil
         bytes[app] = nil
+        traffic?[app] = nil
+        since?[app] = nil
         for day in daily.keys { daily[day]?[app] = nil }
+        dailyTraffic = dailyTraffic?.mapValues { $0.filter { $0.key != app } }
         for rule in rules { hits[rule] = nil }
         // Also remove trackers that no other app reached, since they were part of this app's history.
         dropUnreachedTrackers()
@@ -312,6 +399,18 @@ struct AddressRange {
         guard bytes.count == prefix.count else { return false }
         return (0..<length).allSatisfy { bit in (bytes[bit / 8] ^ prefix[bit / 8]) & (0x80 >> (bit % 8)) == 0 }
     }
+}
+
+/// Bytes down and up.
+struct Transfer: Codable, Equatable {
+    var down = 0
+    var up = 0
+
+    static func + (lhs: Transfer, rhs: Transfer) -> Transfer {
+        Transfer(down: lhs.down + rhs.down, up: lhs.up + rhs.up)
+    }
+
+    static func += (lhs: inout Transfer, rhs: Transfer) { lhs = lhs + rhs }
 }
 
 nonisolated struct Hit: Codable, Equatable, Sendable {

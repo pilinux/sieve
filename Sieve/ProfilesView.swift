@@ -152,6 +152,7 @@ struct ProfilesView: View {
             ForEach(profile.schedules.indices, id: \.self) { block in
                 timeBlock(profile.schedules[block], profile: id, block: block, color: color)
             }
+            ProfileData(stats: filter.stats, id: id)
         }
         .card()
     }
@@ -344,6 +345,49 @@ private extension Array where Element == Profile {
         set {
             guard let index = firstIndex(where: { $0.id == id }) else { return }
             if let newValue { self[index] = newValue } else { remove(at: index) }
+        }
+    }
+}
+
+// The bytes while the profile was active: today, the last 31 days, and since its first byte, then a chart of the 31 days.
+// Profiles count from the build that split bytes, so no part is unsplit.
+private struct ProfileData: View {
+    let stats: Stats
+    let id: UUID
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Rectangle().fill(.line).frame(height: 1)
+            Caption("Data")
+            if let since = stats.profileSince?[id], let total = stats.profileTraffic?[id] {
+                let days = lastDays(31)
+                let daily = days.map { stats.profileDaily?[Stats.day($0)]?[id] }
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+                    row("Today", daily.last ?? nil)
+                    row("31 days", daily.compactMap(\.self).reduce(Transfer(), +))
+                    row("Since \(sinceText(since) ?? since)", total)
+                }
+                let bars = days.indices.map { index in
+                    let parts = trafficParts((daily[index]?.down ?? 0) + (daily[index]?.up ?? 0), daily[index])
+                    return DayBars.Bar(
+                        day: days[index], value: Double(parts.reduce(0) { $0 + $1.value }),
+                        tick: DayBars.Bar.weekly(index, of: days.count, days[index], step: 14), parts: parts,
+                        lines: trafficLines(parts))
+                }
+                DayBars(bars: bars, format: { bytes(Int($0)) }).equatable().frame(height: 96)
+            } else {
+                Text("No data yet. Bytes count while this profile is active.").foregroundStyle(.ink3)
+            }
+        }
+        .font(.aileron(12))
+    }
+
+    private func row(_ name: String, _ traffic: Transfer?) -> some View {
+        let total = (traffic?.down ?? 0) + (traffic?.up ?? 0)
+        return GridRow {
+            Text(name).foregroundStyle(.ink3).fixedSize()
+            Text(bytes(total)).font(.aileron(13, .semibold)).foregroundStyle(.ink).monospacedDigit().fixedSize()
+            Directions(parts: trafficParts(total, traffic))
         }
     }
 }

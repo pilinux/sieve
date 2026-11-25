@@ -170,7 +170,8 @@ final class FilterDataProvider: NEFilterDataProvider, @unchecked Sendable {
         store.count(
             flow: flow.identifier,
             app: app(of: flow).key,
-            total: report.bytesInboundCount + report.bytesOutboundCount,
+            down: report.bytesInboundCount,
+            up: report.bytesOutboundCount,
             closed: report.event == .flowClosed
         )
     }

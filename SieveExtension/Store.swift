@@ -17,8 +17,8 @@ final class Store: Sendable {
         // The hosts of each list, by list ID.
         var domains: [String: Set<String>] = [:]
         var allowlist = Allowlist.empty
-        // Bytes counted so far for each open flow.
-        var flowBytes: [UUID: Int] = [:]
+        // Bytes down and up counted so far for each open flow.
+        var flowBytes: [UUID: Transfer] = [:]
         // The `NetworkSignature` of each network the Mac is on.
         var networks: Set<String> = []
         // The code pin of each path key's last flow.
@@ -95,6 +95,7 @@ final class Store: Sendable {
         state.withLock {
             $0.config = config ?? Config()
             $0.stats = stats ?? Stats()
+            $0.stats.startSince(day: Stats.day(.now))
             $0.domains = domains
             $0.allowlist = allowlist ?? .empty
             Self.prune(&$0)
@@ -252,16 +253,17 @@ final class Store: Sendable {
         }
     }
 
-    /// Adds a flow's new bytes to its app. `total` is the flow's count so far.
-    func count(flow: UUID, app: String, total: Int, closed: Bool) {
+    /// Adds a flow's new bytes to its app and the active profile. `down` and `up` are the flow's counts so far.
+    func count(flow: UUID, app: String, down: Int, up: Int, closed: Bool) {
         let today = Stats.day(.now)
         state.withLock {
-            let new = max(total - ($0.flowBytes[flow] ?? 0), 0)
-            $0.flowBytes[flow] = closed ? nil : total
+            let old = $0.flowBytes[flow] ?? Transfer()
+            $0.flowBytes[flow] = closed ? nil : Transfer(down: down, up: up)
             // A flow can stay open into a day on which its app opened no new flow.
             _ = $0.stats.see(app, host: nil, day: today)
-            $0.stats.bytes[app, default: 0] += new
-            $0.stats.daily[today, default: [:]][app, default: 0] += new
+            $0.stats.countBytes(
+                app, down: max(down - old.down, 0), up: max(up - old.up, 0), day: today,
+                profile: Self.activeProfile($0.config, $0.networks))
             $0.statsChanged = true
         }
     }

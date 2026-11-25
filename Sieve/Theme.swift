@@ -16,8 +16,10 @@ extension ShapeStyle where Self == Color {
     static var block: Color { Color(hex: 0xD95926) }
     /// For flows blocked by the user's rules, limits, or Ask mode. These are choices, not bad requests.
     static var ruleBlock: Color { Color(hex: 0xA46FC2) }
-    /// For blocked flows on a day counted before the split.
+    /// For blocked flows or bytes counted before the split.
     static var unsplit: Color { Color(hex: 0x5F636A) }
+    /// For bytes up. Bytes down keep the traffic blue of `allow`.
+    static var upload: Color { Color(hex: 0x2AA898) }
     static var good: Color { Color(hex: 0x0CA30C) }
     static var warn: Color { Color(hex: 0xFAB219) }
     static var serious: Color { Color(hex: 0xEC835A) }

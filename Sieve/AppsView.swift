@@ -200,7 +200,7 @@ private struct BlockedChart: View {
     }
 }
 
-// One app's rate now, its last minute, and its bytes.
+// One app's rate now, its last minute, and its bytes today.
 private struct AppNow: View {
     let filter: Filter
     let app: String
@@ -212,9 +212,11 @@ private struct AppNow: View {
             Text(rate(hidden ? 0 : filter.rates[app] ?? 0)).font(.aileron(26, .light)).monospacedDigit()
             RateLine(values: hidden ? [] : filter.trend(app), hover: true).frame(height: 70)
             HStack {
-                Text("Total \(Text(bytes((hidden ? filter.stats : filter.usage).bytes[app] ?? 0)).foregroundStyle(.ink))")
+                let today = Stats.day(.now)
+                let bytesToday = filter.stats.daily[today]?[app] ?? 0
+                Text("Today \(Text(bytes(bytesToday)).foregroundStyle(.ink))")
                 Spacer()
-                Text("Today \(Text(bytes(filter.stats.daily[Stats.day(.now)]?[app] ?? 0)).foregroundStyle(.ink))")
+                Directions(parts: trafficParts(bytesToday, filter.stats.dailyTraffic?[today]?[app]))
             }
             .font(.aileron(12))
             .foregroundStyle(.ink3)
@@ -222,6 +224,108 @@ private struct AppNow: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .card()
     }
+}
+
+/// Bytes in three parts: those counted before the split, down, and up. A column stacks them from the bottom up,
+/// so the grey part, which came first, is at the bottom.
+func trafficParts(_ total: Int, _ traffic: Transfer?) -> [SegmentBar.Part] {
+    let down = traffic?.down ?? 0
+    let up = traffic?.up ?? 0
+    return [
+        .init(name: "Not split", value: total - down - up, color: .unsplit),
+        .init(name: "Download", value: down, color: .allow),
+        .init(name: "Upload", value: up, color: .upload),
+    ]
+}
+
+/// The tooltip lines of a column, download first. A column with one part names only that part.
+func trafficLines(_ parts: [SegmentBar.Part]) -> [String] {
+    let shown = [parts[1], parts[2], parts[0]].filter { $0.value > 0 }
+    return shown.count > 1 ? shown.map { "\($0.name): \(bytes($0.value))" } : shown.map(\.name)
+}
+
+// A legend of the parts the columns draw, download first.
+private func trafficLegend(_ bars: [DayBars.Bar]) -> Legend {
+    let drawn = Set(bars.flatMap { $0.parts ?? [] }.filter { $0.value > 0 }.map(\.name))
+    let kinds: [(name: String, color: Color)] = [("Download", .allow), ("Upload", .upload), ("Not split", .unsplit)]
+    return Legend(parts: kinds.filter { drawn.contains($0.name) })
+}
+
+/// Down and up after their arrows, then the bytes counted before the split, if any. Nothing when no byte is split.
+/// `total` puts the sum of all parts first. A narrow card stacks the figures. With `stacks` false, down and up stay
+/// on one line and the bytes counted before the split go on the next.
+struct Directions: View {
+    let parts: [SegmentBar.Part]
+    var total = false
+    var stacks = true
+
+    var body: some View {
+        let split = parts[1].value + parts[2].value > 0
+        HStack(spacing: 10) {
+            if total {
+                Text(bytes(parts.reduce(0) { $0 + $1.value })).font(.aileron(13, .semibold)).foregroundStyle(.ink)
+            }
+            if split && stacks {
+                ViewThatFits {
+                    HStack(spacing: 10) { figures }
+                    VStack(alignment: .leading, spacing: 2) { figures }
+                }
+            } else if split {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 10) { directions }
+                    unsplit
+                }
+            }
+        }
+        .font(.aileron(12))
+        .foregroundStyle(.ink2)
+        .monospacedDigit()
+    }
+
+    @ViewBuilder private var figures: some View {
+        directions
+        unsplit
+    }
+
+    @ViewBuilder private var directions: some View {
+        figure(parts[1], Text("↓").bold().foregroundStyle(.allow))
+        figure(parts[2], Text("↑").bold().foregroundStyle(.upload))
+    }
+
+    @ViewBuilder private var unsplit: some View {
+        if parts[0].value > 0 { figure(parts[0], RoundedRectangle(cornerRadius: 2).fill(.unsplit).frame(width: 8, height: 8)) }
+    }
+
+    private func figure(_ part: SegmentBar.Part, _ mark: some View) -> some View {
+        HStack(spacing: 3) {
+            mark
+            Text(bytes(part.value))
+        }
+        .fixedSize()
+        .help(part.name)
+    }
+}
+
+// The bytes since the day counting began, for one app or all. With no day, some of them come from an older build.
+private struct SinceCard: View {
+    let since: String?
+    let parts: [SegmentBar.Part]
+
+    var body: some View {
+        HStack {
+            Caption(since.flatMap(sinceText).map { "Data · since \($0)" } ?? "Data · all time")
+            Spacer()
+            Directions(parts: parts, total: true)
+        }
+        .card()
+    }
+}
+
+/// A `Stats.day(_:)` such as "3 Oct", with the year only when it is not this year.
+func sinceText(_ day: String) -> String? {
+    guard let date = try? Date.ISO8601FormatStyle(timeZone: .current).year().month().day().parse(day) else { return nil }
+    let style = Date.FormatStyle.dateTime.day().month(.abbreviated)
+    return date.formatted(Calendar.current.isDate(date, equalTo: .now, toGranularity: .year) ? style : style.year())
 }
 
 private func split(_ text: String) -> (value: String, unit: String?) {
@@ -236,8 +340,8 @@ private func trackerCounts(_ range: ClosedRange<Int>) -> String {
     return "\(range.lowerBound)–\(range.upperBound)"
 }
 
-private extension DayBars.Bar {
-    // `lines` come before the date in the tooltip.
+extension DayBars.Bar {
+    /// `lines` come before the date in the tooltip.
     init(day: Date, value: Double, tick: String? = nil, color: Color? = nil, parts: [SegmentBar.Part]? = nil, lines: [String] = []) {
         let date = day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
         self.init(
@@ -246,7 +350,7 @@ private extension DayBars.Bar {
         )
     }
 
-    // A date label every `step` days, kept away from the right edge. A narrow chart uses a longer step.
+    /// A date label every `step` days, kept away from the right edge. A narrow chart uses a longer step.
     static func weekly(_ index: Int, of count: Int, _ day: Date, step: Int = 7) -> String? {
         (count - 1 - index) % step == 2 ? day.formatted(.dateTime.day().month(.abbreviated)) : nil
     }
@@ -261,8 +365,14 @@ private struct Overview: View {
         let today = Stats.day(.now)
         let total = stats.totalBytes(day:)
         let data = days.enumerated().map { index, day in
-            DayBars.Bar(day: day, value: Double(total(Stats.day(day))), tick: DayBars.Bar.weekly(index, of: days.count, day))
+            let parts = trafficParts(total(Stats.day(day)), stats.totalTraffic(day: Stats.day(day)))
+            return DayBars.Bar(
+                day: day, value: Double(total(Stats.day(day))), tick: DayBars.Bar.weekly(index, of: days.count, day),
+                parts: parts, lines: trafficLines(parts)
+            )
         }
+        let month = trafficParts(
+            Int(data.reduce(0) { $0 + $1.value }), days.map { stats.totalTraffic(day: Stats.day($0)) }.reduce(Transfer(), +))
         let todayBytes = split(bytes(total(today)))
         let withTrackers = stats.apps.values.filter { $0.keys.contains(where: stats.trackers.contains) }.count
         let grades = Stats.grades.map { grade, range in
@@ -275,7 +385,7 @@ private struct Overview: View {
             HStack(spacing: 12) {
                 NowKpi(filter: filter)
                 Kpi(title: "Today", value: todayBytes.value, unit: todayBytes.unit) {
-                    Text("\(bytes(Int(data.reduce(0) { $0 + $1.value }))) in 31 days")
+                    Directions(parts: trafficParts(total(today), stats.totalTraffic(day: today)), stacks: false)
                 }
                 BlockedToday(filter: filter)
                 Kpi(title: "Trackers seen", value: "\(stats.trackers.count)") {
@@ -283,9 +393,15 @@ private struct Overview: View {
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
+            SinceCard(since: stats.totalSince, parts: trafficParts(stats.totalBytes, stats.totalTraffic))
             VStack(alignment: .leading, spacing: 14) {
-                Caption("Data · 31 days")
+                HStack {
+                    Caption("Data · 31 days")
+                    Spacer()
+                    Directions(parts: month, total: true)
+                }
                 DayBars(bars: data, format: { bytes(Int($0)) }).equatable().frame(height: 170)
+                trafficLegend(data)
             }
             .card()
             HStack(alignment: .top, spacing: 12) {
@@ -381,6 +497,7 @@ private struct XRay: View {
                 AppNow(filter: filter, app: app)
             }
             .fixedSize(horizontal: false, vertical: true)
+            SinceCard(since: stats.since?[app], parts: trafficParts(stats.bytes[app] ?? 0, stats.traffic?[app]))
             data(limit: limit, used: used)
             hostList(hosts.sorted { (trackers.contains($0) ? 0 : 1, $0) < (trackers.contains($1) ? 0 : 1, $1) }, trackers: trackers)
             addressList(stats.addresses?[app] ?? [:])
@@ -455,12 +572,17 @@ private struct XRay: View {
             let value = stats.daily[Stats.day(day)]?[app] ?? 0
             running += value
             let reached = limit.map { (month ? running : value) >= $0.bytes } ?? false
+            let parts = trafficParts(value, stats.dailyTraffic?[Stats.day(day)]?[app])
+            // A month limit stacks each day on the last, and a day over its limit is red, so neither splits its column.
             return DayBars.Bar(
                 day: day, value: Double(value),
                 tick: month ? (index % 5 == 0 ? "\(index + 1)" : nil) : DayBars.Bar.weekly(index, of: days.count, day),
-                color: reached ? .crit : nil
+                color: reached ? .crit : nil, parts: month || reached ? nil : parts, lines: trafficLines(parts)
             )
         }
+        let shown = trafficParts(
+            Int(bars.reduce(0) { $0 + $1.value }), days.map { stats.dailyTraffic?[Stats.day($0)]?[app] ?? Transfer() }.reduce(Transfer(), +)
+        )
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Caption(month ? "Data · this month" : "Data · 31 days")
@@ -489,6 +611,7 @@ private struct XRay: View {
                     }
                 }
             }
+            Directions(parts: shown, total: true)
             if let limit {
                 HStack(spacing: 14) {
                     Meter(used: used, limit: limit.bytes)
@@ -505,6 +628,7 @@ private struct XRay: View {
             )
             .equatable()
             .frame(height: 170)
+            if !month { trafficLegend(bars) }
         }
         .card()
     }
