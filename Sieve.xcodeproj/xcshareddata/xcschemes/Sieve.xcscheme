@@ -17,6 +17,7 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "1BC598DB30A493FC0014FD20"
                BuildableName = "Sieve.app"
+               BlueprintName = "Sieve"
                ReferencedContainer = "container:Sieve.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -57,6 +58,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1BC598DB30A493FC0014FD20"
             BuildableName = "Sieve.app"
+            BlueprintName = "Sieve"
             ReferencedContainer = "container:Sieve.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -73,6 +75,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1BC598DB30A493FC0014FD20"
             BuildableName = "Sieve.app"
+            BlueprintName = "Sieve"
             ReferencedContainer = "container:Sieve.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
